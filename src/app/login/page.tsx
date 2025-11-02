@@ -45,52 +45,62 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-      <div className="w-full max-w-md rounded-xl bg-white/10 p-6">
-        <h1 className="mb-4 text-2xl font-semibold">Sign in</h1>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm">Username or Email</label>
-            <input
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full rounded-full bg-white/10 px-4 py-2 text-white placeholder:text-white/60"
-              placeholder="you@example.com or username"
-              autoComplete="username"
-              required
-            />
+    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
+      <div className="w-full max-w-[960px] overflow-hidden rounded-lg border border-white/10 bg-neutral-950 shadow-xl md:grid md:grid-cols-2">
+        {/* Left brand panel */}
+        <div className="hidden h-full flex-col justify-between border-r border-white/10 bg-[radial-gradient(35rem_20rem_at_-10%_-20%,#093,#000),linear-gradient(#0a0a0a,#090909)] p-8 md:flex">
+          <div className="text-2xl font-semibold tracking-tight">Eaglevents Calendar</div>
+          <div className="text-sm text-white/70">Sign in to access your calendars and events.</div>
+        </div>
+        {/* Right sign-in form */}
+        <div className="p-8">
+          <div className="mb-6">
+            <div className="text-2xl font-semibold">Sign in</div>
+            <div className="text-sm text-white/60">Use your account to continue</div>
           </div>
-          <div>
-            <label className="mb-1 block text-sm">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-full bg-white/10 px-4 py-2 text-white placeholder:text-white/60"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs uppercase text-white/60">Username or Email</label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                placeholder="you@example.com or username"
+                autoComplete="username"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase text-white/60">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            {error ? <p className="text-sm text-red-300">{error}</p> : null}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-black transition hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+          <div className="mt-6 flex items-center justify-between text-sm">
+            <div className="text-white/60">New to Eaglevents?</div>
+            <Link href="/signup" className="text-emerald-400 hover:text-emerald-300">
+              Create an account
+            </Link>
           </div>
-          {error ? (
-            <p className="text-sm text-red-300">{error}</p>
-          ) : null}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-full bg-white/10 px-10 py-3 font-semibold transition hover:bg-white/20 disabled:opacity-60"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-        <p className="mt-4 text-center text-sm text-white/80">
-          No account?{" "}
-          <Link href="/signup" className="underline hover:text-white">
-            Create one
-          </Link>
-        </p>
+        </div>
       </div>
     </main>
   );
 }
+

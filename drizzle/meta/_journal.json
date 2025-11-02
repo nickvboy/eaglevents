@@ -15,6 +15,20 @@
       "when": 1762019413150,
       "tag": "0001_tiny_war_machine",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1762137600000,
+      "tag": "0002_calendar_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1762137601000,
+      "tag": "0003_add_display_name",
+      "breakpoints": true
     }
   ]
 }

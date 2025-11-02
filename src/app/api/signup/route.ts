@@ -44,9 +44,9 @@ export async function POST(req: Request) {
   await db.insert(users).values({
     username,
     email: emailLower,
+    displayName: username,
     passwordHash: hash,
   });
 
   return NextResponse.json({ ok: true });
 }
-
