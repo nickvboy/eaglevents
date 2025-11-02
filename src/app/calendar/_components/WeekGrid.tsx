@@ -7,9 +7,10 @@ import { startOfDay } from "../utils/date";
 type Props = {
   days: Date[]; // days to show as columns
   events: CalendarEvent[]; // all events in range
+  variant?: "default" | "compact";
 };
 
-export function WeekGrid({ days, events }: Props) {
+export function WeekGrid({ days, events, variant = "default" }: Props) {
   const eventsByDay = new Map<string, CalendarEvent[]>();
   for (const d of days) eventsByDay.set(startOfDay(d).toISOString(), []);
   for (const e of events) {
@@ -18,7 +19,7 @@ export function WeekGrid({ days, events }: Props) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-auto">
+    <div className={"flex min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-black/40" : "")}>
       {/* Time gutter */}
       <div className="w-14 shrink-0 border-r border-white/10 bg-black/30 text-[10px] text-white/50">
         {Array.from({ length: 24 }).map((_, i) => (
@@ -30,12 +31,25 @@ export function WeekGrid({ days, events }: Props) {
       {/* Day columns */}
       {days.map((d) => (
         <div key={d.toISOString()} className="min-w-0 flex-1">
-          <div className="sticky top-0 z-10 border-b border-l border-white/10 bg-black/60 px-2 py-1 text-xs text-white">
-            <div className="font-medium">
-              {d.toLocaleDateString(undefined, { weekday: "long" })}
+          {variant === "default" ? (
+            <div className="sticky top-0 z-10 border-b border-l border-white/10 bg-black/60 px-2 py-1 text-xs text-white">
+              <div className="font-medium">
+                {d.toLocaleDateString(undefined, { weekday: "long" })}
+              </div>
+              <div className="text-white/60">
+                {d.getMonth() + 1}/{d.getDate()}
+              </div>
             </div>
-            <div className="text-white/60">{d.getMonth() + 1}/{d.getDate()}</div>
-          </div>
+          ) : (
+            <div className="border-b border-l border-white/10 bg-black/70 px-3 py-2 text-sm text-white">
+              <div className="font-semibold">
+                {d.toLocaleDateString(undefined, { weekday: "long" })}
+              </div>
+              <div className="text-xs text-white/60">
+                {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </div>
+            </div>
+          )}
           <DayColumn date={d} events={eventsByDay.get(startOfDay(d).toISOString()) ?? []} />
         </div>
       ))}

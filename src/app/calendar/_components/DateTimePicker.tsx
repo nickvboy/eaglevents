@@ -66,7 +66,7 @@ export function DateTimePicker({ value, onChange, label }: Props) {
               className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10"
               onClick={() => setDraftDate(new Date(draftDate.getFullYear(), draftDate.getMonth() - 1, draftDate.getDate()))}
             >
-              ◀
+              {"<"}
             </button>
             <div className="text-sm">
               {draftDate.toLocaleString(undefined, { month: "long", year: "numeric" })}
@@ -75,7 +75,7 @@ export function DateTimePicker({ value, onChange, label }: Props) {
               className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10"
               onClick={() => setDraftDate(new Date(draftDate.getFullYear(), draftDate.getMonth() + 1, draftDate.getDate()))}
             >
-              ▶
+              {">"}
             </button>
           </div>
           <div className="grid grid-cols-7 gap-1">

@@ -16,6 +16,12 @@ export function addDays(d: Date, days: number) {
   return x;
 }
 
+export function addMonths(d: Date, months: number) {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
+
 export function startOfWeek(d: Date, workWeek = false) {
   const x = startOfDay(d);
   const day = x.getDay(); // 0 sun ... 6 sat
@@ -49,11 +55,11 @@ export function formatRangeLabel(start: Date, end: Date) {
   const e = formatter.format(end);
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
   if (sameMonth) {
-    // Example: October 27–31, 2025
+    // Example: October 27-31, 2025
     const month = new Intl.DateTimeFormat(undefined, { month: "long" }).format(start);
-    return `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
+    return `${month} ${start.getDate()}-${end.getDate()}, ${start.getFullYear()}`;
   }
-  return `${s} – ${e}`;
+  return `${s} - ${e}`;
 }
 
 export function minutesSinceStartOfDay(d: Date) {
@@ -63,4 +69,3 @@ export function minutesSinceStartOfDay(d: Date) {
 export function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
-

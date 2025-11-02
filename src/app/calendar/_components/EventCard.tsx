@@ -9,10 +9,10 @@ type Props = {
 };
 
 export function EventCard(p: Props) {
-  const timeLabel = `${formatTime(p.start)} – ${formatTime(p.end)}`;
+  const timeLabel = `${formatTime(p.start)} - ${formatTime(p.end)}`;
   return (
     <div
-      className="h-full w-full overflow-hidden rounded-md border border-emerald-500/60 bg-emerald-600/35 p-1 text-xs text-white shadow"
+      className="h-full w-full overflow-hidden rounded-md border border-emerald-500 bg-emerald-600 p-1 text-xs text-white shadow"
       title={p.title}
     >
       <div className="truncate font-medium">{p.title}</div>

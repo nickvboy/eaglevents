@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 
+import { AccountMenu } from "./AccountMenu";
 import { formatRangeLabel } from "../utils/date";
 
 type Props = {
@@ -18,13 +19,14 @@ type Props = {
 
 const views: Props["view"][] = ["day", "workweek", "week", "month"];
 
-import { AccountMenu } from "./AccountMenu";
-
 export function CalendarToolbar(props: Props) {
   return (
     <div className="flex items-center justify-between border-b border-white/10 bg-black/40 px-4 py-2 text-white">
       <div className="flex items-center gap-2">
-        <button className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-black" onClick={props.onNewEvent}>
+        <button
+          className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-black hover:bg-emerald-400"
+          onClick={props.onNewEvent}
+        >
           New event
         </button>
         <button className="rounded-md border border-white/20 px-2 py-1 text-sm hover:bg-white/10" onClick={props.onToday}>
@@ -32,10 +34,10 @@ export function CalendarToolbar(props: Props) {
         </button>
         <div className="ml-1 flex items-center">
           <button className="rounded-l-md border border-white/20 px-2 py-1 hover:bg-white/10" onClick={props.onPrev}>
-            ◀
+            {"<"}
           </button>
           <button className="-ml-px rounded-r-md border border-white/20 px-2 py-1 hover:bg-white/10" onClick={props.onNext}>
-            ▶
+            {">"}
           </button>
         </div>
         <div className="ml-3 text-sm text-white/80">{formatRangeLabel(props.rangeStart, props.rangeEnd)}</div>
