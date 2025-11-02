@@ -9,11 +9,12 @@ import type { CalendarEvent, PositionedEvent } from "../utils/event-layout";
 type Props = {
   date: Date;
   events: CalendarEvent[];
+  onSelectEvent?: (event: CalendarEvent) => void;
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
 
-export function DayColumn({ date, events }: Props) {
+export function DayColumn({ date, events, onSelectEvent }: Props) {
   const positioned = useMemo(() => positionEventsForDay(events), [events]);
   const [nowMinutes, setNowMinutes] = useState(minutesSinceStartOfDay(new Date()));
 
@@ -66,6 +67,7 @@ export function DayColumn({ date, events }: Props) {
             location={p.event.location}
             start={new Date(p.event.startDatetime)}
             end={new Date(p.event.endDatetime)}
+            onDoubleClick={() => onSelectEvent?.(p.event)}
           />
         </div>
       ))}

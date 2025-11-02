@@ -6,13 +6,15 @@ type Props = {
   start: Date;
   end: Date;
   color?: string;
+  onDoubleClick?: () => void;
 };
 
 export function EventCard(p: Props) {
   const timeLabel = `${formatTime(p.start)} - ${formatTime(p.end)}`;
   return (
     <div
-      className="h-full w-full overflow-hidden rounded-md border border-emerald-500 bg-emerald-600 p-1 text-xs text-white shadow"
+      onDoubleClick={p.onDoubleClick}
+      className="h-full w-full cursor-pointer overflow-hidden rounded-md border border-emerald-500 bg-emerald-600 p-1 text-xs text-white shadow transition hover:border-emerald-300 hover:bg-emerald-500"
       title={p.title}
     >
       <div className="truncate font-medium">{p.title}</div>
@@ -29,4 +31,3 @@ function formatTime(d: Date) {
   const ampm = h < 12 ? "AM" : "PM";
   return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
-

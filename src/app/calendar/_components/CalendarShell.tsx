@@ -7,6 +7,7 @@ import { CalendarToolbar } from "./CalendarToolbar";
 import { WeekGrid } from "./WeekGrid";
 import { NewEventDialog } from "./NewEventDialog";
 import { AccountMenu } from "./AccountMenu";
+import { EventDetailDrawer } from "./EventDetailDrawer";
 import { api } from "~/trpc/react";
 import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils/date";
 import type { CalendarEvent } from "../utils/event-layout";
@@ -24,6 +25,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const [view, setView] = useState<View>("workweek");
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [openNew, setOpenNew] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
@@ -65,6 +67,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
+  const calendarLookup = useMemo(() => {
+    const map = new Map<number, { name: string; color: string }>();
+    (calendars ?? []).forEach((c) => map.set(c.id, { name: c.name, color: c.color }));
+    return map;
+  }, [calendars]);
 
   // visible range
   const range = useMemo(() => {
@@ -114,6 +121,13 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     calendarIds: effectiveVisible,
   });
   const events = (eventsQuery.data ?? []) as RouterOutputs["event"]["list"];
+  const selectedEvent = useMemo(
+    () => events.find((e) => e.id === selectedEventId) ?? null,
+    [events, selectedEventId],
+  );
+  useEffect(() => {
+    if (selectedEventId && !selectedEvent) setSelectedEventId(null);
+  }, [selectedEventId, selectedEvent]);
 
   const goToToday = () => setSelectedDate(startOfDay(new Date()));
   const goPrevDay = () => setSelectedDate(addDays(selectedDate, -1));
@@ -170,7 +184,12 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
               <div className="relative flex min-h-0 flex-1">
-                <WeekGrid days={[selectedDate]} events={events as CalendarEvent[]} variant="compact" />
+                <WeekGrid
+                  days={[selectedDate]}
+                  events={events as CalendarEvent[]}
+                  variant="compact"
+                  onSelectEvent={(event) => setSelectedEventId(event.id)}
+                />
                 <NewEventFab onClick={() => setOpenNew(true)} />
               </div>
             </>
@@ -200,13 +219,24 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                     }}
                   />
                 ) : (
-                  <WeekGrid days={days} events={events as CalendarEvent[]} />
+                  <WeekGrid
+                    days={days}
+                    events={events as CalendarEvent[]}
+                    onSelectEvent={(event) => setSelectedEventId(event.id)}
+                  />
                 )}
               </div>
             </>
           )}
         </div>
       </div>
+
+      <EventDetailDrawer
+        open={!!selectedEvent}
+        event={selectedEvent}
+        calendar={selectedEvent ? calendarLookup.get(selectedEvent.calendarId) ?? null : null}
+        onClose={() => setSelectedEventId(null)}
+      />
 
       <NewEventDialog
         open={openNew}

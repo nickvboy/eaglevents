@@ -47,16 +47,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/50">
-      <div className="h-full w-[520px] overflow-auto border-l border-white/10 bg-neutral-950 p-4 text-white">
-        <div className="mb-3 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-white/10 bg-neutral-950 p-6 text-white shadow-2xl shadow-black/60">
+        <div className="mb-4 flex items-center justify-between">
           <div className="text-lg font-semibold">Create event</div>
           <button className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10" onClick={onClose}>
             Close
           </button>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <input
             placeholder="Add a title"
             value={title}
@@ -137,4 +137,3 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
     </div>
   );
 }
-

@@ -8,9 +8,10 @@ type Props = {
   days: Date[]; // days to show as columns
   events: CalendarEvent[]; // all events in range
   variant?: "default" | "compact";
+  onSelectEvent?: (event: CalendarEvent) => void;
 };
 
-export function WeekGrid({ days, events, variant = "default" }: Props) {
+export function WeekGrid({ days, events, variant = "default", onSelectEvent }: Props) {
   const eventsByDay = new Map<string, CalendarEvent[]>();
   for (const d of days) eventsByDay.set(startOfDay(d).toISOString(), []);
   for (const e of events) {
@@ -50,7 +51,11 @@ export function WeekGrid({ days, events, variant = "default" }: Props) {
               </div>
             </div>
           )}
-          <DayColumn date={d} events={eventsByDay.get(startOfDay(d).toISOString()) ?? []} />
+          <DayColumn
+            date={d}
+            events={eventsByDay.get(startOfDay(d).toISOString()) ?? []}
+            onSelectEvent={onSelectEvent}
+          />
         </div>
       ))}
     </div>
