@@ -8,7 +8,7 @@ import { formatRangeLabel } from "../utils/date";
 type Props = {
   rangeStart: Date;
   rangeEnd: Date;
-  view: "day" | "workweek" | "week" | "month";
+  view: "day" | "threeday" | "workweek" | "week" | "month";
   onViewChange: (v: Props["view"]) => void;
   onToday: () => void;
   onPrev: () => void;
@@ -17,7 +17,7 @@ type Props = {
   currentUser: Session["user"] | null;
 };
 
-const views: Props["view"][] = ["day", "workweek", "week", "month"];
+const views: Props["view"][] = ["day", "threeday", "workweek", "week", "month"];
 
 export function CalendarToolbar(props: Props) {
   return (
@@ -52,7 +52,7 @@ export function CalendarToolbar(props: Props) {
               (props.view === v ? "bg-white/20" : "hover:bg-white/10 border border-white/10")
             }
           >
-            {v === "workweek" ? "Work week" : v}
+            {v === "workweek" ? "Work week" : v === "threeday" ? "3 day" : v}
           </button>
         ))}
         <div className="ml-2 h-5 w-px bg-white/10" />

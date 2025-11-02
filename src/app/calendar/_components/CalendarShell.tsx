@@ -13,7 +13,7 @@ import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils
 import type { CalendarEvent } from "../utils/event-layout";
 import type { RouterOutputs } from "~/trpc/react";
 
-type View = "day" | "workweek" | "week" | "month";
+type View = "day" | "threeday" | "workweek" | "week" | "month";
 
 type CalendarShellProps = {
   currentUser: Session["user"] | null;
@@ -22,7 +22,8 @@ type CalendarShellProps = {
 const MOBILE_QUERY = "(max-width: 768px)";
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
-  const [view, setView] = useState<View>("workweek");
+  const [desktopView, setDesktopView] = useState<View>("workweek");
+  const [mobileView, setMobileView] = useState<View>("day");
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [openNew, setOpenNew] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
@@ -30,6 +31,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
   const [mobileMonthDate, setMobileMonthDate] = useState(() => startOfDay(new Date()));
+  const activeView = isMobile ? mobileView : desktopView;
+  const setActiveView = (next: View) => {
+    if (isMobile) setMobileView(next);
+    else setDesktopView(next);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -44,10 +50,6 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     mq.addListener(legacyHandle);
     return () => mq.removeListener(legacyHandle);
   }, []);
-
-  useEffect(() => {
-    if (isMobile && view !== "day") setView("day");
-  }, [isMobile, view]);
 
   useEffect(() => {
     if (!mobileCalendarOpen) {
@@ -75,41 +77,52 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   // visible range
   const range = useMemo(() => {
-    if (view === "day") {
+    if (activeView === "day") {
       return { start: startOfDay(selectedDate), end: startOfDay(addDays(selectedDate, 0)) };
     }
-    if (view === "workweek") {
-      const s = startOfWeek(selectedDate);
+    if (activeView === "threeday") {
+      const s = startOfDay(selectedDate);
+      return { start: s, end: startOfDay(addDays(s, 2)) };
+    }
+    if (activeView === "workweek") {
+      const s = startOfWeek(selectedDate, true);
       return { start: s, end: addDays(s, 4) };
     }
-    if (view === "week") {
+    if (activeView === "week") {
       const s = startOfWeek(selectedDate);
       return { start: s, end: endOfWeek(selectedDate) };
     }
     const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     const end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
     return { start, end };
-  }, [selectedDate, view]);
+  }, [selectedDate, activeView]);
 
   // days to render in grid
   const days: Date[] = useMemo(() => {
-    if (view === "day") return [selectedDate];
-    if (view === "workweek") {
-      const s = startOfWeek(selectedDate);
+    if (activeView === "day") return [selectedDate];
+    if (activeView === "threeday") {
+      const start = startOfDay(selectedDate);
+      return [0, 1, 2].map((i) => addDays(start, i));
+    }
+    if (activeView === "workweek") {
+      const s = startOfWeek(selectedDate, true);
       return [0, 1, 2, 3, 4].map((i) => addDays(s, i));
     }
-    if (view === "week") {
+    if (activeView === "week") {
       const s = startOfWeek(selectedDate);
       return Array.from({ length: 7 }, (_, i) => addDays(s, i));
     }
-    const s = startOfWeek(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-    return Array.from({ length: 7 }, (_, i) => addDays(s, i));
-  }, [view, selectedDate]);
-
-  const mobileWeekDays = useMemo(() => {
     const start = startOfWeek(selectedDate);
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  }, [selectedDate]);
+  }, [activeView, selectedDate]);
+
+  const mobileHeaderDays = useMemo(() => {
+    if (activeView === "month") {
+      const start = startOfWeek(selectedDate);
+      return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    }
+    return days;
+  }, [activeView, selectedDate, days]);
 
   const monthViewDays = useMemo(() => buildMonthGrid(selectedDate), [selectedDate]);
   const mobileMonthDays = useMemo(() => buildMonthGrid(mobileMonthDate), [mobileMonthDate]);
@@ -134,13 +147,15 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const goNextDay = () => setSelectedDate(addDays(selectedDate, 1));
 
   const onPrev = () => {
-    if (view === "day") setSelectedDate(addDays(selectedDate, -1));
-    else if (view === "workweek" || view === "week") setSelectedDate(addDays(selectedDate, -7));
+    if (activeView === "day") setSelectedDate(addDays(selectedDate, -1));
+    else if (activeView === "threeday") setSelectedDate(addDays(selectedDate, -3));
+    else if (activeView === "workweek" || activeView === "week") setSelectedDate(addDays(selectedDate, -7));
     else setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, selectedDate.getDate()));
   };
   const onNext = () => {
-    if (view === "day") setSelectedDate(addDays(selectedDate, 1));
-    else if (view === "workweek" || view === "week") setSelectedDate(addDays(selectedDate, 7));
+    if (activeView === "day") setSelectedDate(addDays(selectedDate, 1));
+    else if (activeView === "threeday") setSelectedDate(addDays(selectedDate, 3));
+    else if (activeView === "workweek" || activeView === "week") setSelectedDate(addDays(selectedDate, 7));
     else setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, selectedDate.getDate()));
   };
 
@@ -157,7 +172,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
             activeDate={selectedDate}
             selectedDate={selectedDate}
             onSelect={(d) => setSelectedDate(d)}
-            focusedWeekStart={startOfWeek(selectedDate)}
+            focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
             calendars={(calendars ?? []).map((c) => ({ id: c.id, name: c.name, color: c.color }))}
             visibleCalendarIds={effectiveVisible}
             onToggleCalendar={(id) =>
@@ -168,11 +183,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
         <div className="flex min-h-0 flex-1 flex-col">
           {isMobile ? (
             <>
-              <MobileToolbar onToday={goToToday} currentUser={currentUser} />
+              <MobileToolbar onToday={goToToday} currentUser={currentUser} view={activeView} onViewChange={setActiveView} />
               <MobileDateHeader
                 selectedDate={selectedDate}
                 today={today}
-                weekDays={mobileWeekDays}
+                weekDays={mobileHeaderDays}
                 monthDays={mobileMonthDays}
                 calendarOpen={mobileCalendarOpen}
                 monthDisplayDate={mobileMonthDate}
@@ -184,22 +199,34 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
               <div className="relative flex min-h-0 flex-1">
-                <WeekGrid
-                  days={[selectedDate]}
-                  events={events as CalendarEvent[]}
-                  variant="compact"
-                  onSelectEvent={(event) => setSelectedEventId(event.id)}
-                />
+                {activeView === "month" ? (
+                  <MonthGrid
+                    days={monthViewDays}
+                    events={events}
+                    selectedMonth={selectedDate.getMonth()}
+                    onSelectDay={(d) => {
+                      setSelectedDate(startOfDay(d));
+                      setActiveView("week");
+                    }}
+                  />
+                ) : (
+                  <WeekGrid
+                    days={days}
+                    events={events as CalendarEvent[]}
+                    variant="compact"
+                    onSelectEvent={(event) => setSelectedEventId(event.id)}
+                  />
+                )}
                 <NewEventFab onClick={() => setOpenNew(true)} />
               </div>
             </>
           ) : (
             <>
               <CalendarToolbar
-                view={view}
+                view={activeView}
                 rangeStart={range.start}
                 rangeEnd={range.end}
-                onViewChange={setView}
+                onViewChange={setActiveView}
                 onToday={goToToday}
                 onPrev={onPrev}
                 onNext={onNext}
@@ -208,14 +235,14 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
               />
 
               <div className="relative flex min-h-0 flex-1">
-                {view === "month" ? (
+                {activeView === "month" ? (
                   <MonthGrid
                     days={monthViewDays}
                     events={events}
                     selectedMonth={selectedDate.getMonth()}
                     onSelectDay={(d) => {
                       setSelectedDate(startOfDay(d));
-                      setView("week");
+                      setActiveView("week");
                     }}
                   />
                 ) : (
@@ -360,14 +387,36 @@ function formatMonthEventTime(start: Date, end: Date) {
 type MobileToolbarProps = {
   onToday: () => void;
   currentUser: Session["user"] | null;
+  view: View;
+  onViewChange: (v: View) => void;
 };
 
-function MobileToolbar({ onToday, currentUser }: MobileToolbarProps) {
+function MobileToolbar({ onToday, currentUser, view, onViewChange }: MobileToolbarProps) {
+  const views: View[] = ["day", "threeday", "workweek", "week", "month"];
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-black/80 px-4 py-3 text-white">
-      <button className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium hover:bg-white/10" onClick={onToday}>
+    <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-black/80 px-4 py-3 text-white">
+      <button
+        className="shrink-0 rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+        onClick={onToday}
+      >
         Today
       </button>
+      <div className="flex flex-1 justify-center">
+        <div className="inline-flex items-center gap-px rounded-lg border border-white/15 bg-black/50 p-1">
+          {views.map((v) => (
+            <button
+              key={v}
+              onClick={() => onViewChange(v)}
+              className={
+                "rounded-md px-2 py-1 text-xs font-medium capitalize transition " +
+                (view === v ? "bg-emerald-500 text-black shadow" : "text-white/70 hover:bg-white/10")
+              }
+            >
+              {v === "workweek" ? "Work week" : v === "threeday" ? "3 day" : v}
+            </button>
+          ))}
+        </div>
+      </div>
       <AccountMenu user={currentUser} />
     </div>
   );
@@ -415,7 +464,7 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
       </div>
 
       <div className="px-4 pb-3">
-        <div className="grid grid-cols-7 gap-2">
+        <div className="flex gap-2">
           {props.weekDays.map((d) => {
             const isSelected = isSameDay(d, props.selectedDate);
             const isToday = isSameDay(d, props.today);
@@ -426,7 +475,7 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
                 key={d.toISOString()}
                 onClick={() => props.onSelectDate(d)}
                 className={
-                  "flex flex-col items-center gap-1 rounded-xl py-2 text-xs transition-colors " +
+                  "flex flex-1 min-w-0 flex-col items-center gap-1 rounded-xl py-2 text-xs transition-colors " +
                   base +
                   (inMonth ? "" : " opacity-60")
                 }

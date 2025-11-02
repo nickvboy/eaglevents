@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { DayColumn } from "./DayColumn";
 import type { CalendarEvent } from "../utils/event-layout";
-import { minutesSinceStartOfDay, startOfDay } from "../utils/date";
+import { startOfDay } from "../utils/date";
 
 type Props = {
   days: Date[]; // days to show as columns
@@ -64,23 +63,13 @@ function formatHour(h: number) {
 }
 
 function TimeGutter() {
-  const [nowMinutes, setNowMinutes] = useState(minutesSinceStartOfDay(new Date()));
-
-  useEffect(() => {
-    const id = setInterval(() => setNowMinutes(minutesSinceStartOfDay(new Date())), 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
-
   return (
     <div className="relative w-14 shrink-0 border-r border-white/10 bg-black/30 text-[10px] text-white/50">
       {Array.from({ length: 24 }).map((_, i) => (
-        <div key={i} className="h-[60px] border-b border-transparent px-1 pt-1">
+        <div key={i} className="flex h-[60px] items-center justify-center border-b border-transparent px-1 text-center">
           {i > 0 ? formatHour(i) : ""}
         </div>
       ))}
-      <div className="pointer-events-none absolute left-0 right-0 px-1" style={{ top: nowMinutes }}>
-        <span className="block h-[1px] bg-emerald-400" />
-      </div>
     </div>
   );
 }

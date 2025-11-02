@@ -25,8 +25,11 @@ export function addMonths(d: Date, months: number) {
 export function startOfWeek(d: Date, workWeek = false) {
   const x = startOfDay(d);
   const day = x.getDay(); // 0 sun ... 6 sat
-  const delta = day; // week starts on Sunday
-  return addDays(x, -delta);
+  if (workWeek) {
+    const delta = (day + 6) % 7; // shift so Monday becomes index 0
+    return addDays(x, -delta);
+  }
+  return addDays(x, -day);
 }
 
 export function endOfWeek(d: Date, workWeek = false) {
