@@ -259,38 +259,102 @@ function MonthGrid({
   selectedMonth: number;
   onSelectDay: (d: Date) => void;
 }) {
-  const byDay = new Map<string, number>();
-  for (const e of events) {
-    const d = new Date(e.startDatetime);
-    const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
-    byDay.set(key, (byDay.get(key) ?? 0) + 1);
+  const eventsByDay = new Map<string, CalendarEvent[]>();
+  for (const d of days) {
+    const key = startOfDay(d).toISOString();
+    eventsByDay.set(key, []);
   }
+  for (const e of events) {
+    const start = startOfDay(new Date(e.startDatetime));
+    const key = start.toISOString();
+    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+    eventsByDay.get(key)!.push(e);
+  }
+  for (const [, list] of eventsByDay) {
+    list.sort(
+      (a, b) =>
+        new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime(),
+    );
+  }
+
+  const MAX_VISIBLE = 2;
+  const todayKey = startOfDay(new Date()).toISOString();
+
   return (
-    <div className="grid flex-1 grid-cols-7 gap-px bg-white/10 p-px">
+    <div className="grid flex-1 grid-cols-7 gap-px bg-black p-1 md:p-px">
       {days.map((d) => {
         const inMonth = d.getMonth() === selectedMonth;
-        const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
-        const count = byDay.get(key) ?? 0;
+        const key = startOfDay(d).toISOString();
+        const isToday = key === todayKey;
+        const dayEvents = eventsByDay.get(key) ?? [];
+        const visibleEvents = dayEvents.slice(0, MAX_VISIBLE);
+        const remaining = dayEvents.length - visibleEvents.length;
+
         return (
           <button
             key={d.toISOString()}
             onClick={() => onSelectDay(d)}
             className={
-              "flex min-h-[120px] flex-col items-start gap-1 rounded-sm border border-white/10 bg-black/30 p-2 text-left text-white " +
-              (inMonth ? "" : "opacity-50")
+              "flex min-h-[140px] flex-col rounded-lg border bg-black p-3 text-left text-white transition hover:border-emerald-400/60 hover:bg-black/80 " +
+              (inMonth ? "border-white/15" : "border-white/10 opacity-60") +
+              (isToday ? " ring-2 ring-emerald-500/70" : "")
             }
           >
-            <div className="text-xs text-white/70">{d.getDate()}</div>
-            {count > 0 && (
-              <div className="mt-auto text-xs text-emerald-400">
-                {count} event{count > 1 ? "s" : ""}
-              </div>
-            )}
+            <div className="flex items-center justify-between text-xs text-white/60">
+              <span className="font-semibold text-white">
+                {d.getDate()}
+                {!inMonth && (
+                  <span className="ml-1 text-[10px] uppercase text-white/40">
+                    {d.toLocaleDateString(undefined, { month: "short" })}
+                  </span>
+                )}
+              </span>
+              {dayEvents.length > 0 && (
+                <span className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-emerald-300">
+                  {dayEvents.length} event{dayEvents.length > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2 flex flex-1 flex-col gap-1">
+              {visibleEvents.map((ev) => {
+                const evStart = new Date(ev.startDatetime);
+                const evEnd = new Date(ev.endDatetime);
+                return (
+                  <div
+                    key={ev.id}
+                    className="w-full rounded-md border border-emerald-500/50 bg-emerald-600/20 px-2 py-1 text-left text-[11px] text-white/90"
+                    title={ev.title}
+                  >
+                    <div className="truncate font-medium text-white">
+                      {ev.title}
+                    </div>
+                    <div className="truncate text-[10px] text-white/70">
+                      {ev.isAllDay ? "All day" : formatMonthEventTime(evStart, evEnd)}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {remaining > 0 && (
+                <div className="mt-auto rounded-md border border-white/10 bg-black/60 px-2 py-1 text-[10px] text-white/60">
+                  +{remaining} more
+                </div>
+              )}
+            </div>
           </button>
         );
       })}
     </div>
   );
+}
+
+function formatMonthEventTime(start: Date, end: Date) {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${formatter.format(start)} – ${formatter.format(end)}`;
 }
 
 type MobileToolbarProps = {

@@ -43,10 +43,13 @@ export function DayColumn({ date, events, onSelectEvent }: Props) {
       {/* current time line */}
       {isToday && (
         <div
-          className="pointer-events-none absolute left-0 right-0 z-10 flex items-center gap-1"
+          className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
           style={{ top: nowMinutes * MINUTE_PX }}
         >
-          <span className="h-[1px] w-full bg-emerald-400" />
+          <span className="h-[1px] flex-1 bg-emerald-400" />
+          <span className="ml-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-black shadow">
+            {formatClockLabel(nowMinutes)}
+          </span>
         </div>
       )}
 
@@ -79,4 +82,12 @@ function formatHour(h: number) {
   const hour12 = ((h + 11) % 12) + 1;
   const ampm = h < 12 ? "AM" : "PM";
   return `${hour12} ${ampm}`;
+}
+
+function formatClockLabel(minutes: number) {
+  const h24 = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hour12 = ((h24 + 11) % 12) + 1;
+  const ampm = h24 < 12 ? "AM" : "PM";
+  return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
 }

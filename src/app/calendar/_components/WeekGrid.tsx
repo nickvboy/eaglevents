@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { DayColumn } from "./DayColumn";
 import type { CalendarEvent } from "../utils/event-layout";
-import { startOfDay } from "../utils/date";
+import { minutesSinceStartOfDay, startOfDay } from "../utils/date";
 
 type Props = {
   days: Date[]; // days to show as columns
@@ -22,13 +23,7 @@ export function WeekGrid({ days, events, variant = "default", onSelectEvent }: P
   return (
     <div className={"flex min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-black/40" : "")}>
       {/* Time gutter */}
-      <div className="w-14 shrink-0 border-r border-white/10 bg-black/30 text-[10px] text-white/50">
-        {Array.from({ length: 24 }).map((_, i) => (
-          <div key={i} className="h-[60px] border-b border-transparent px-1 pt-1">
-            {i > 0 ? formatHour(i) : ""}
-          </div>
-        ))}
-      </div>
+      <TimeGutter />
       {/* Day columns */}
       {days.map((d) => (
         <div key={d.toISOString()} className="min-w-0 flex-1">
@@ -66,4 +61,26 @@ function formatHour(h: number) {
   const hour12 = ((h + 11) % 12) + 1;
   const ampm = h < 12 ? "AM" : "PM";
   return `${hour12} ${ampm}`;
+}
+
+function TimeGutter() {
+  const [nowMinutes, setNowMinutes] = useState(minutesSinceStartOfDay(new Date()));
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMinutes(minutesSinceStartOfDay(new Date())), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="relative w-14 shrink-0 border-r border-white/10 bg-black/30 text-[10px] text-white/50">
+      {Array.from({ length: 24 }).map((_, i) => (
+        <div key={i} className="h-[60px] border-b border-transparent px-1 pt-1">
+          {i > 0 ? formatHour(i) : ""}
+        </div>
+      ))}
+      <div className="pointer-events-none absolute left-0 right-0 px-1" style={{ top: nowMinutes }}>
+        <span className="block h-[1px] bg-emerald-400" />
+      </div>
+    </div>
+  );
 }

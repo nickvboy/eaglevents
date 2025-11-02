@@ -12,6 +12,14 @@ const credentialsSchema = z.object({
   password: z.string().min(1, "Required"),
 });
 
+function resolveBaseUrl(baseUrl: string) {
+  const explicit =
+    env.NODE_ENV === "production"
+      ? env.DEV_SERVER_PROD ?? process.env.NEXTAUTH_URL ?? env.DEV_SERVER
+      : env.DEV_SERVER ?? process.env.NEXTAUTH_URL;
+  return explicit ?? baseUrl;
+}
+
 export const authOptions: NextAuthOptions = {
   secret: env.NEXTAUTH_SECRET,
   session: {
@@ -110,13 +118,16 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
+      const targetBase = resolveBaseUrl(baseUrl);
       try {
-        const u = new URL(url, baseUrl);
+        const u = new URL(url, targetBase);
         // Only allow same-origin redirects; otherwise go home
-        if (u.origin === baseUrl) return u.toString();
-        return baseUrl;
+        if (u.origin === targetBase) return u.toString();
+        if (u.origin === "null" && url.startsWith("/")) return `${targetBase}${url}`;
+        return targetBase;
       } catch {
-        return baseUrl;
+        if (url.startsWith("/")) return `${targetBase}${url}`;
+        return targetBase;
       }
     },
   },

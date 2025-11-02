@@ -14,6 +14,7 @@ export const env = createEnv({
       .default("development"),
     // Optional: full base URL (including protocol and port) for dev server, e.g. "http://localhost:3000"
     DEV_SERVER: z.string().url().optional(),
+    NEXTAUTH_URL: z.string().url().optional(),
     // Prod variants (kept in same .env; used by `pnpm prod <script>`)
     DATABASE_URL_PROD: z.string().url().optional(),
     DEV_SERVER_PROD: z.string().url().optional(),
@@ -37,6 +38,7 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     DEV_SERVER: process.env.DEV_SERVER,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     DATABASE_URL_PROD: process.env.DATABASE_URL_PROD,
     DEV_SERVER_PROD: process.env.DEV_SERVER_PROD,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
