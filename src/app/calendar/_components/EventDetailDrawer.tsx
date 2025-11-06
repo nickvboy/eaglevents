@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+import { ChevronLeftIcon } from "~/app/_components/icons";
 
 type CalendarInfo = { name: string; color: string } | null;
 
@@ -43,10 +44,11 @@ export function EventDetailDrawer({ event, calendar, open, onClose }: EventDetai
       <header className="flex items-center gap-3 border-b border-white/10 bg-black/80 px-4 py-3">
         <button
           type="button"
-          className="rounded-full border border-white/20 px-3 py-1 text-sm hover:bg-white/10"
+          aria-label="Close details"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
           onClick={onClose}
         >
-          {"<"}
+          <ChevronLeftIcon className="h-3.5 w-3.5" />
         </button>
         <div className="text-sm uppercase tracking-wide text-white/60">Meeting details</div>
       </header>

@@ -30,5 +30,21 @@
       "tag": "0003_add_display_name",
       "breakpoints": true
     }
+    ,
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1762387050612,
+      "tag": "0004_create_profiles",
+      "breakpoints": true
+    }
+    ,
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1762387730000,
+      "tag": "0005_add_profile_names",
+      "breakpoints": true
+    }
   ]
 }

@@ -6,12 +6,7 @@ import { index, pgTableCreator, text } from "drizzle-orm/pg-core";
 import { sql as psql } from "drizzle-orm";
 
 // Drizzle column builders
-import {
-  varchar,
-  integer,
-  timestamp,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
+import { varchar, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -55,6 +50,30 @@ export const posts = createTable(
 );
 
 // Calendars and events schema for Outlook-style calendar
+
+export const profiles = createTable(
+  "profile",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    firstName: d.varchar({ length: 100 }).notNull(),
+    lastName: d.varchar({ length: 100 }).notNull(),
+    email: d.varchar({ length: 255 }).notNull(),
+    phoneNumber: d.varchar({ length: 32 }).notNull(),
+    dateOfBirth: d.date(),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    uniqueIndex("profile_email_unique").on(t.email),
+    uniqueIndex("profile_user_unique")
+      .on(t.userId)
+      .where(sql`${t.userId} IS NOT NULL`),
+  ],
+);
 
 export const calendars = createTable(
   "calendar",

@@ -46,7 +46,8 @@ export default function SignupPage() {
         callbackUrl,
       });
       if (login?.ok) {
-        router.push(callbackUrl);
+        const profileSetupUrl = `/profile/new?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+        router.push(profileSetupUrl);
       } else {
         router.push("/login?registered=1");
       }
@@ -128,4 +129,3 @@ export default function SignupPage() {
     </main>
   );
 }
-

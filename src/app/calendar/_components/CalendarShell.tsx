@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "next-auth";
 import { CalendarSidebar } from "./CalendarSidebar";
 import { CalendarToolbar } from "./CalendarToolbar";
@@ -12,6 +12,7 @@ import { api } from "~/trpc/react";
 import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils/date";
 import type { CalendarEvent } from "../utils/event-layout";
 import type { RouterOutputs } from "~/trpc/react";
+import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 
 type View = "day" | "threeday" | "workweek" | "week" | "month";
 
@@ -22,11 +23,21 @@ type CalendarShellProps = {
 const MOBILE_QUERY = "(max-width: 768px)";
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
+  const initialDate = startOfDay(new Date());
   const [desktopView, setDesktopView] = useState<View>("workweek");
   const [mobileView, setMobileView] = useState<View>("day");
-  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
+    const today = new Date();
+    return startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
+  });
+  const [monthOverlayText, setMonthOverlayText] = useState(() =>
+    initialDate.toLocaleString(undefined, { month: "long", year: "numeric" }),
+  );
+  const [monthOverlayVisible, setMonthOverlayVisible] = useState(true);
+  const monthOverlayTimeoutRef = useRef<number | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
@@ -142,7 +153,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (selectedEventId && !selectedEvent) setSelectedEventId(null);
   }, [selectedEventId, selectedEvent]);
 
-  const goToToday = () => setSelectedDate(startOfDay(new Date()));
+  const goToToday = () => {
+    const today = startOfDay(new Date());
+    setSelectedDate(today);
+    setSidebarMonthDate(startOfDay(new Date(today.getFullYear(), today.getMonth(), 1)));
+  };
   const goPrevDay = () => setSelectedDate(addDays(selectedDate, -1));
   const goNextDay = () => setSelectedDate(addDays(selectedDate, 1));
 
@@ -164,14 +179,67 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (open) setMobileMonthDate(selectedDate);
   };
 
+  const monthKey = selectedDate.getFullYear() * 12 + selectedDate.getMonth();
+
+  useEffect(() => {
+    const year = Math.floor(monthKey / 12);
+    const month = monthKey % 12;
+    const label = new Date(year, month, 1).toLocaleString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+    setMonthOverlayText(label);
+    setMonthOverlayVisible(true);
+
+    if (monthOverlayTimeoutRef.current !== null) {
+      window.clearTimeout(monthOverlayTimeoutRef.current);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setMonthOverlayVisible(false);
+      monthOverlayTimeoutRef.current = null;
+    }, 2000);
+    monthOverlayTimeoutRef.current = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (monthOverlayTimeoutRef.current === timeoutId) {
+        monthOverlayTimeoutRef.current = null;
+      }
+    };
+  }, [monthKey]);
+
+  const monthOverlay = (
+    <div
+      className={
+        "pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 transform transition-all duration-300 " +
+        (monthOverlayVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0")
+      }
+    >
+      <div className="rounded-full bg-black/75 px-4 py-1 text-sm font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
+        {monthOverlayText}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="flex min-h-screen flex-col bg-neutral-950 lg:flex-row">
         <div className="hidden lg:block">
           <CalendarSidebar
-            activeDate={selectedDate}
+            monthDate={sidebarMonthDate}
             selectedDate={selectedDate}
-            onSelect={(d) => setSelectedDate(d)}
+            onSelect={(d) => {
+              const normalized = startOfDay(d);
+              setSelectedDate(normalized);
+              setSidebarMonthDate(startOfDay(new Date(normalized.getFullYear(), normalized.getMonth(), 1)));
+            }}
+            onMonthChange={(direction) =>
+              setSidebarMonthDate((prev) => {
+                const next = addMonths(prev, direction);
+                return startOfDay(new Date(next.getFullYear(), next.getMonth(), 1));
+              })
+            }
             focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
             calendars={(calendars ?? []).map((c) => ({ id: c.id, name: c.name, color: c.color }))}
             visibleCalendarIds={effectiveVisible}
@@ -199,6 +267,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
               <div className="relative flex min-h-0 flex-1">
+                {monthOverlay}
                 {activeView === "month" ? (
                   <MonthGrid
                     days={monthViewDays}
@@ -234,10 +303,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 currentUser={currentUser}
               />
 
-              <div className="relative flex min-h-0 flex-1">
-                {activeView === "month" ? (
-                  <MonthGrid
-                    days={monthViewDays}
+                <div className="relative flex min-h-0 flex-1">
+                  {monthOverlay}
+                  {activeView === "month" ? (
+                    <MonthGrid
+                      days={monthViewDays}
                     events={events}
                     selectedMonth={selectedDate.getMonth()}
                     onSelectDay={(d) => {
@@ -446,20 +516,24 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
     <div className="border-b border-white/10 bg-black/80 text-white">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <button
-          className="rounded-full border border-white/20 p-2 text-lg leading-none hover:bg-white/10"
+          type="button"
+          aria-label="Previous date"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
           onClick={handlePrev}
         >
-          {"<"}
+          <ChevronLeftIcon className="h-4 w-4" />
         </button>
         <div className="text-center">
           <div className="text-lg font-semibold">{focusDate.toLocaleString(undefined, { month: "long" })}</div>
           <div className="text-xs text-white/60">{focusDate.getFullYear()}</div>
         </div>
         <button
-          className="rounded-full border border-white/20 p-2 text-lg leading-none hover:bg-white/10"
+          type="button"
+          aria-label="Next date"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
           onClick={handleNext}
         >
-          {">"}
+          <ChevronRightIcon className="h-4 w-4" />
         </button>
       </div>
 

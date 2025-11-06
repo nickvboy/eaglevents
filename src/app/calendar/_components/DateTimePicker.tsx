@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, startOfDay } from "../utils/date";
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } from "~/app/_components/icons";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 
 type Props = {
   value: Date;
@@ -108,7 +108,7 @@ export function DateTimePicker({ value, onChange, label }: Props) {
               <button
                 type="button"
                 aria-label="Select month"
-                className="flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition hover:bg-white/10"
+                className="flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-2 cursor-pointer select-none"
                 onClick={() => setMode("month")}
               >
                 {draftDate.toLocaleString(undefined, { month: "long", year: "numeric" })}
@@ -124,37 +124,36 @@ export function DateTimePicker({ value, onChange, label }: Props) {
               </button>
             </div>
           ) : (
-            <div className="mb-3 flex items-center justify-between text-white">
+            <div className="mb-3 flex items-center text-white">
               <button
                 type="button"
                 aria-label="Back to day view"
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition cursor-pointer"
                 onClick={() => setMode("day")}
               >
-                <ChevronDownIcon className="h-4 w-4 rotate-180 transition-transform" />
+                <ChevronDownIcon className="h-4 w-4 transition-transform" />
               </button>
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-2">
                 <div className="text-base font-semibold">{draftDate.getFullYear()}</div>
-                <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     aria-label="Increase year"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                    className="flex items-center justify-center rounded-md p-1 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-1 cursor-pointer select-none"
                     onClick={() => adjustYear(1)}
                   >
-                    <ChevronUpIcon className="h-3 w-3" />
+                    <ArrowUpIcon className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     aria-label="Decrease year"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                    className="flex items-center justify-center rounded-md p-1 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-1 cursor-pointer select-none"
                     onClick={() => adjustYear(-1)}
                   >
-                    <ChevronDownIcon className="h-3 w-3" />
+                    <ArrowDownIcon className="h-4 w-4" />
                   </button>
                 </div>
               </div>
-              <div className="w-8" />
             </div>
           )}
 
@@ -214,11 +213,12 @@ export function DateTimePicker({ value, onChange, label }: Props) {
                     type="button"
                     onClick={() => selectMonth(idx)}
                     className={
-                      "rounded-md px-3 py-2 text-center transition-all duration-150 " +
+                      "rounded-md px-3 py-2 text-center transition-all duration-150 cursor-pointer select-none " +
                       (isSelected
                         ? "bg-emerald-500 text-black shadow shadow-emerald-500/30"
                         : "bg-white/5 text-white/80 hover:bg-white/10")
                     }
+                    aria-pressed={isSelected}
                   >
                     {label}
                   </button>
