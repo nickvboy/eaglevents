@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, startOfDay } from "../utils/date";
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } from "~/app/_components/icons";
 
 type Props = {
   value: Date;
@@ -12,6 +13,7 @@ type Props = {
 export function DateTimePicker({ value, onChange, label }: Props) {
   const [open, setOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(new Date(value));
+  const [mode, setMode] = useState<"day" | "month">("day");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,6 +49,38 @@ export function DateTimePicker({ value, onChange, label }: Props) {
   const today = startOfDay(new Date());
   const selected = startOfDay(draftDate);
 
+  useEffect(() => {
+    if (!open) setMode("day");
+  }, [open]);
+
+  const monthNames = useMemo(
+    () => ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    [],
+  );
+
+  const adjustMonth = (delta: number) => {
+    const next = new Date(draftDate);
+    next.setMonth(draftDate.getMonth() + delta);
+    setDraftDate(next);
+  };
+
+  const adjustYear = (delta: number) => {
+    const next = new Date(draftDate);
+    next.setFullYear(next.getFullYear() + delta);
+    setDraftDate(next);
+  };
+
+  const selectMonth = (monthIndex: number) => {
+    const year = draftDate.getFullYear();
+    const currentDay = draftDate.getDate();
+    const daysInTargetMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const clampedDay = Math.min(currentDay, daysInTargetMonth);
+    const next = new Date(draftDate);
+    next.setFullYear(year, monthIndex, clampedDay);
+    setDraftDate(next);
+    setMode("day");
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -61,54 +95,137 @@ export function DateTimePicker({ value, onChange, label }: Props) {
       </button>
       {open && (
         <div className="absolute z-20 mt-2 w-72 rounded-md border border-white/10 bg-black/90 p-3 shadow-lg">
-          <div className="mb-2 flex items-center justify-between text-white">
-            <button
-              className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10"
-              onClick={() => setDraftDate(new Date(draftDate.getFullYear(), draftDate.getMonth() - 1, draftDate.getDate()))}
-            >
-              {"<"}
-            </button>
-            <div className="text-sm">
-              {draftDate.toLocaleString(undefined, { month: "long", year: "numeric" })}
+          {mode === "day" ? (
+            <div className="mb-2 flex items-center justify-between text-white">
+              <button
+                type="button"
+                aria-label="Previous month"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-white/20 hover:bg-white/10"
+                onClick={() => adjustMonth(-1)}
+              >
+                <ChevronLeftIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Select month"
+                className="flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition hover:bg-white/10"
+                onClick={() => setMode("month")}
+              >
+                {draftDate.toLocaleString(undefined, { month: "long", year: "numeric" })}
+                <ChevronDownIcon className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next month"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-white/20 hover:bg-white/10"
+                onClick={() => adjustMonth(1)}
+              >
+                <ChevronRightIcon />
+              </button>
             </div>
-            <button
-              className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10"
-              onClick={() => setDraftDate(new Date(draftDate.getFullYear(), draftDate.getMonth() + 1, draftDate.getDate()))}
-            >
-              {">"}
-            </button>
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
-              <div key={`${d}-${idx}`} className="px-1 text-center text-xs text-white/60">
-                {d}
+          ) : (
+            <div className="mb-3 flex items-center justify-between text-white">
+              <button
+                type="button"
+                aria-label="Back to day view"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                onClick={() => setMode("day")}
+              >
+                <ChevronDownIcon className="h-4 w-4 rotate-180 transition-transform" />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-semibold">{draftDate.getFullYear()}</div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    aria-label="Increase year"
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                    onClick={() => adjustYear(1)}
+                  >
+                    <ChevronUpIcon className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Decrease year"
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-white/20 hover:bg-white/10 transition"
+                    onClick={() => adjustYear(-1)}
+                  >
+                    <ChevronDownIcon className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
-            ))}
-            {days.map((d, idx) => {
-              const inMonth = d.getMonth() === draftDate.getMonth();
-              const isToday = startOfDay(d).getTime() === today.getTime();
-              const isSelected = startOfDay(d).getTime() === selected.getTime();
-              return (
-                <button
-                  key={`${d.toISOString()}-${idx}`}
-                  onClick={() => setDraftDate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), draftDate.getHours(), draftDate.getMinutes()))}
-                  className={
-                    "relative h-8 rounded-md text-center transition-colors " +
-                    (inMonth ? "text-white" : "text-white/40")
-                  }
-                >
-                  <span
+              <div className="w-8" />
+            </div>
+          )}
+
+          {mode === "day" ? (
+            <div className="grid grid-cols-7 gap-1">
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
+                <div key={`${d}-${idx}`} className="px-1 text-center text-xs text-white/60">
+                  {d}
+                </div>
+              ))}
+              {days.map((d, idx) => {
+                const inMonth = d.getMonth() === draftDate.getMonth();
+                const isToday = startOfDay(d).getTime() === today.getTime();
+                const isSelected = startOfDay(d).getTime() === selected.getTime();
+                return (
+                  <button
+                    key={`${d.toISOString()}-${idx}`}
+                    onClick={() =>
+                      setDraftDate(
+                        new Date(
+                          d.getFullYear(),
+                          d.getMonth(),
+                          d.getDate(),
+                          draftDate.getHours(),
+                          draftDate.getMinutes(),
+                        ),
+                      )
+                    }
                     className={
-                      "relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full " +
-                      (isSelected ? "bg-emerald-500 text-black font-medium" : isToday ? "border border-emerald-500" : "")
+                      "relative h-8 rounded-md text-center transition-colors duration-150 ease-out " +
+                      (inMonth ? "text-white" : "text-white/40 hover:text-white/70")
                     }
                   >
-                    {d.getDate()}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <span
+                      className={
+                        "relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 " +
+                        (isSelected
+                          ? "bg-emerald-500 text-black font-medium"
+                          : isToday
+                            ? "border border-emerald-500"
+                            : "hover:bg-white/10")
+                      }
+                    >
+                      {d.getDate()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 px-2 pb-2 pt-1 text-sm">
+              {monthNames.map((label, idx) => {
+                const isSelected = idx === draftDate.getMonth();
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => selectMonth(idx)}
+                    className={
+                      "rounded-md px-3 py-2 text-center transition-all duration-150 " +
+                      (isSelected
+                        ? "bg-emerald-500 text-black shadow shadow-emerald-500/30"
+                        : "bg-white/5 text-white/80 hover:bg-white/10")
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="mt-2 grid grid-cols-2 gap-2">
             <select
               className="w-full rounded-md border border-white/20 bg-black/40 p-1 text-sm text-white"
