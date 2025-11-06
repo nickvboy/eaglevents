@@ -29,6 +29,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [previewEventId, setPreviewEventId] = useState<number | null>(null);
   const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
     const today = new Date();
     return startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -144,7 +145,14 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     end: addDays(range.end, 1),
     calendarIds: effectiveVisible,
   });
-  const events = (eventsQuery.data ?? []) as RouterOutputs["event"]["list"];
+  const events = useMemo<RouterOutputs["event"]["list"]>(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const previewEvent = useMemo(
+    () => events.find((e) => e.id === previewEventId) ?? null,
+    [events, previewEventId],
+  );
+  useEffect(() => {
+    if (previewEventId && !previewEvent) setPreviewEventId(null);
+  }, [previewEventId, previewEvent]);
   const selectedEvent = useMemo(
     () => events.find((e) => e.id === selectedEventId) ?? null,
     [events, selectedEventId],
@@ -152,6 +160,19 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   useEffect(() => {
     if (selectedEventId && !selectedEvent) setSelectedEventId(null);
   }, [selectedEventId, selectedEvent]);
+
+  const handlePreviewEvent = (event: CalendarEvent | null) => {
+    if (!event) {
+      setPreviewEventId(null);
+      return;
+    }
+    setPreviewEventId((prev) => (prev === event.id ? null : event.id));
+  };
+
+  const handleOpenEvent = (event: CalendarEvent | RouterOutputs["event"]["list"][number]) => {
+    setPreviewEventId(null);
+    setSelectedEventId(event.id);
+  };
 
   const goToToday = () => {
     const today = startOfDay(new Date());
@@ -283,7 +304,10 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                     days={days}
                     events={events as CalendarEvent[]}
                     variant="compact"
-                    onSelectEvent={(event) => setSelectedEventId(event.id)}
+                    previewedEventId={previewEventId}
+                    onPreviewEvent={handlePreviewEvent}
+                    onOpenEvent={handleOpenEvent}
+                    calendarLookup={calendarLookup}
                   />
                 )}
                 <NewEventFab onClick={() => setOpenNew(true)} />
@@ -319,7 +343,10 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                   <WeekGrid
                     days={days}
                     events={events as CalendarEvent[]}
-                    onSelectEvent={(event) => setSelectedEventId(event.id)}
+                    previewedEventId={previewEventId}
+                    onPreviewEvent={handlePreviewEvent}
+                    onOpenEvent={handleOpenEvent}
+                    calendarLookup={calendarLookup}
                   />
                 )}
               </div>

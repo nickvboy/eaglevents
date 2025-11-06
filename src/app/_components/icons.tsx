@@ -66,3 +66,23 @@ export function ArrowDownIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function MaximizeIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-4 w-4", className)}>
+      <path d="M9 3H5a2 2 0 0 0-2 2v4" />
+      <path d="M15 21h4a2 2 0 0 0 2-2v-4" />
+      <path d="M21 9V5a2 2 0 0 0-2-2h-4" />
+      <path d="M3 15v4a2 2 0 0 0 2 2h4" />
+    </svg>
+  );
+}
+
+export function XIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-4 w-4", className)}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}

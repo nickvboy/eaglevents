@@ -8,10 +8,21 @@ type Props = {
   days: Date[]; // days to show as columns
   events: CalendarEvent[]; // all events in range
   variant?: "default" | "compact";
-  onSelectEvent?: (event: CalendarEvent) => void;
+  previewedEventId?: number | null;
+  onPreviewEvent?: (event: CalendarEvent | null) => void;
+  onOpenEvent?: (event: CalendarEvent) => void;
+  calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
-export function WeekGrid({ days, events, variant = "default", onSelectEvent }: Props) {
+export function WeekGrid({
+  days,
+  events,
+  variant = "default",
+  previewedEventId,
+  onPreviewEvent,
+  onOpenEvent,
+  calendarLookup,
+}: Props) {
   const eventsByDay = new Map<string, CalendarEvent[]>();
   for (const d of days) eventsByDay.set(startOfDay(d).toISOString(), []);
   for (const e of events) {
@@ -48,7 +59,10 @@ export function WeekGrid({ days, events, variant = "default", onSelectEvent }: P
           <DayColumn
             date={d}
             events={eventsByDay.get(startOfDay(d).toISOString()) ?? []}
-            onSelectEvent={onSelectEvent}
+            previewEventId={previewedEventId}
+            onPreviewEvent={onPreviewEvent}
+            onOpenEvent={onOpenEvent}
+            calendarLookup={calendarLookup}
           />
         </div>
       ))}

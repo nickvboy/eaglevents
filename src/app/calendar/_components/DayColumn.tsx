@@ -3,18 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { minutesSinceStartOfDay } from "../utils/date";
 import { EventCard } from "./EventCard";
+import { EventPreviewFlyout } from "./EventPreviewFlyout";
 import { positionEventsForDay } from "../utils/event-layout";
-import type { CalendarEvent, PositionedEvent } from "../utils/event-layout";
+import type { CalendarEvent } from "../utils/event-layout";
 
 type Props = {
   date: Date;
   events: CalendarEvent[];
-  onSelectEvent?: (event: CalendarEvent) => void;
+  previewEventId?: number | null;
+  onPreviewEvent?: (event: CalendarEvent | null) => void;
+  onOpenEvent?: (event: CalendarEvent) => void;
+  calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
 
-export function DayColumn({ date, events, onSelectEvent }: Props) {
+export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpenEvent, calendarLookup }: Props) {
   const positioned = useMemo(() => positionEventsForDay(events), [events]);
   const [nowMinutes, setNowMinutes] = useState(minutesSinceStartOfDay(new Date()));
 
@@ -65,13 +69,25 @@ export function DayColumn({ date, events, onSelectEvent }: Props) {
             width: `${100 / p.laneCount}%`,
           }}
         >
-          <EventCard
-            title={p.event.title}
-            location={p.event.location}
-            start={new Date(p.event.startDatetime)}
-            end={new Date(p.event.endDatetime)}
-            onDoubleClick={() => onSelectEvent?.(p.event)}
-          />
+          <div className="relative h-full w-full overflow-visible">
+            <EventCard
+              title={p.event.title}
+              location={p.event.location}
+              start={new Date(p.event.startDatetime)}
+              end={new Date(p.event.endDatetime)}
+              isSelected={p.event.id === previewEventId}
+              onClick={() => onPreviewEvent?.(p.event)}
+              onExpand={() => onOpenEvent?.(p.event)}
+              onDoubleClick={() => onOpenEvent?.(p.event)}
+            />
+            <EventPreviewFlyout
+              event={p.event}
+              calendar={calendarLookup?.get(p.event.calendarId) ?? null}
+              open={p.event.id === previewEventId}
+              onClose={() => onPreviewEvent?.(null)}
+              onExpand={() => onOpenEvent?.(p.event)}
+            />
+          </div>
         </div>
       ))}
     </div>
