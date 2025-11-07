@@ -46,5 +46,13 @@
       "tag": "0005_add_profile_names",
       "breakpoints": true
     }
+    ,
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1762482077219,
+      "tag": "0006_setup_onboarding",
+      "breakpoints": true
+    }
   ]
 }

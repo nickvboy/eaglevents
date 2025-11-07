@@ -2,12 +2,12 @@ import { z } from "zod";
 import { and, eq, lt, gt, inArray } from "drizzle-orm";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { events, calendars, users } from "~/server/db/schema";
+import { events, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
+import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 type DbClient = typeof import("~/server/db").db;
 type UserRow = typeof users.$inferSelect;
-type CalendarRow = typeof calendars.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
@@ -61,21 +61,10 @@ export const eventRouter = createTRPCRouter({
       let calendarId = input.calendarId;
       if (!calendarId) {
         const user = await getOrCreateDemoUser(ctx.db);
-        const primary = await ctx.db
-          .select()
-          .from(calendars)
-          .where(and(eq(calendars.userId, user.id), eq(calendars.isPrimary, true)))
-          .limit(1);
-        const primaryCalendar = primary[0];
-        if (primaryCalendar) calendarId = primaryCalendar.id;
-        else {
-          const [cal] = await ctx.db
-            .insert(calendars)
-            .values({ userId: user.id, name: "Calendar", color: "#22c55e", isPrimary: true })
-            .returning();
-          if (!cal) throw new Error("Failed to create default calendar");
-          calendarId = cal.id;
-        }
+        const list = await ensurePrimaryCalendars(ctx.db, user.id);
+        const primary = list.find((cal) => cal.isPrimary) ?? list[0];
+        if (!primary) throw new Error("Failed to resolve a primary calendar");
+        calendarId = primary.id;
       }
 
       const [row] = await ctx.db

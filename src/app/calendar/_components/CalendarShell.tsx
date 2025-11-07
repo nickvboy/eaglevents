@@ -76,6 +76,9 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   const today = startOfDay(new Date());
 
+  // business name
+  const { data: business } = api.calendar.getBusiness.useQuery(undefined);
+
   // calendars
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
@@ -270,6 +273,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
           />
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
+          {business?.name && (
+            <div className="border-b border-white/10 bg-black/40 px-4 py-3 lg:px-6">
+              <h1 className="text-xl font-semibold text-white lg:text-2xl">{business.name}</h1>
+            </div>
+          )}
           {isMobile ? (
             <>
               <MobileToolbar onToday={goToToday} currentUser={currentUser} view={activeView} onViewChange={setActiveView} />

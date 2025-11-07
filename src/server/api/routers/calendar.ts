@@ -2,12 +2,12 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { calendars, users } from "~/server/db/schema";
+import { calendars, users, businesses } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
+import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 type DbClient = typeof import("~/server/db").db;
 type UserRow = typeof users.$inferSelect;
-type CalendarRow = typeof calendars.$inferSelect;
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   // In absence of authentication, ensure a demo user exists so the app works out-of-the-box
@@ -22,19 +22,17 @@ async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   return inserted;
 }
 
-async function ensurePrimaryCalendar(db: DbClient, userId: number): Promise<CalendarRow[]> {
-  const list = await db.select().from(calendars).where(eq(calendars.userId, userId));
-  if (list.length > 0) return list;
-  await db.insert(calendars).values({ userId, name: "Calendar", color: "#22c55e", isPrimary: true });
-  return await db.select().from(calendars).where(eq(calendars.userId, userId));
-}
-
 export const calendarRouter = createTRPCRouter({
+  getBusiness: publicProcedure.query(async ({ ctx }) => {
+    const [business] = await ctx.db.select().from(businesses).orderBy(businesses.id).limit(1);
+    return business ? { name: business.name } : null;
+  }),
+
   listMine: publicProcedure
     .input(z.object({}).optional())
     .query(async ({ ctx }) => {
       const user = await getOrCreateDemoUser(ctx.db);
-      const list = await ensurePrimaryCalendar(ctx.db, user.id);
+      const list = await ensurePrimaryCalendars(ctx.db, user.id);
       return list;
     }),
 

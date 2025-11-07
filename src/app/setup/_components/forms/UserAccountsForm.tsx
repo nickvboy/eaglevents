@@ -1,0 +1,443 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import { api } from "~/trpc/react";
+import type { SetupStatusData } from "~/types/setup";
+
+type ScopeOption = {
+  label: string;
+  scopeType: "business" | "department" | "division";
+  scopeId: number;
+};
+
+type DepartmentFlatNode = SetupStatusData["departments"]["flat"][number];
+
+type AssignmentDraft = {
+  id: string;
+  scopeType: ScopeOption["scopeType"];
+  scopeId: number;
+  roleType: "admin" | "manager" | "employee";
+};
+
+type Credential = { identifier: string; password: string };
+
+const roleLabels = {
+  admin: "Admin",
+  manager: "Manager",
+  employee: "Employee",
+};
+
+export function UserAccountsForm({
+  status,
+  onUpdated,
+  onRememberCredential,
+  rememberedCredential,
+}: {
+  status: SetupStatusData;
+  onUpdated: () => void;
+  onRememberCredential: (credentials: Credential | null) => void;
+  rememberedCredential: Credential | null;
+}) {
+  const scopeOptions = useMemo<ScopeOption[]>(() => {
+    if (!status.business) return [];
+    const base: ScopeOption[] = [
+      { label: `${status.business.name} (Business)`, scopeType: "business", scopeId: status.business.id },
+    ];
+    status.departments.flat.forEach((dept: DepartmentFlatNode) => {
+      if (dept.parentDepartmentId === null) {
+        base.push({ label: `${dept.name} (Department)`, scopeType: "department", scopeId: dept.id });
+      } else {
+        base.push({ label: `${dept.name} (Division)`, scopeType: "division", scopeId: dept.id });
+      }
+    });
+    return base;
+  }, [status.business, status.departments.flat]);
+
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    username: "",
+    password: "",
+    dateOfBirth: "",
+    assignments: [] as AssignmentDraft[],
+    rememberForLogin: rememberedCredential ? false : true,
+  });
+
+  useEffect(() => {
+    if (scopeOptions.length === 0) return;
+    setForm((prev) => {
+      if (prev.assignments.length > 0) return prev;
+      return {
+        ...prev,
+        assignments: [
+          {
+            id: crypto.randomUUID(),
+            scopeType: scopeOptions[0]!.scopeType,
+            scopeId: scopeOptions[0]!.scopeId,
+            roleType: "admin",
+          },
+        ],
+      };
+    });
+  }, [scopeOptions]);
+
+  const mutation = api.setup.createUsersWithRoles.useMutation({
+    onSuccess: () => {
+      onUpdated();
+      setForm((prev) => ({
+        ...prev,
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        username: "",
+        password: "",
+        dateOfBirth: "",
+        assignments:
+          scopeOptions.length > 0
+            ? [
+                {
+                  id: crypto.randomUUID(),
+                  scopeType: scopeOptions[0]!.scopeType,
+                  scopeId: scopeOptions[0]!.scopeId,
+                  roleType: "admin",
+                },
+              ]
+            : [],
+      }));
+    },
+  });
+
+  const createDefaultUsersMutation = api.setup.createDefaultUsers.useMutation({
+    onSuccess: () => {
+      onUpdated();
+    },
+  });
+
+  const clearAccountsMutation = api.setup.clearAllAccounts.useMutation({
+    onSuccess: () => {
+      onUpdated();
+      onRememberCredential(null);
+    },
+  });
+
+  const groupedRoles = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; entries: string[] }>();
+    scopeOptions.forEach((option) => {
+      const key = `${option.scopeType}:${option.scopeId}`;
+      map.set(key, { key, label: option.label, entries: [] });
+    });
+    status.roles.forEach((role) => {
+      const key = `${role.scopeType}:${role.scopeId}`;
+      const entry = role.user
+        ? `${role.user.displayName || role.user.username} (${roleLabels[role.roleType]})`
+        : `${role.roleType}`;
+      if (!map.has(key)) {
+        map.set(key, { key, label: role.scopeLabel, entries: [entry] });
+      } else {
+        map.get(key)!.entries.push(entry);
+      }
+    });
+    return Array.from(map.values());
+  }, [scopeOptions, status.roles]);
+
+  const updateAssignment = (id: string, updates: Partial<AssignmentDraft>) => {
+    setForm((prev) => ({
+      ...prev,
+      assignments: prev.assignments.map((assignment) =>
+        assignment.id === id ? { ...assignment, ...updates } : assignment,
+      ),
+    }));
+  };
+
+  const addAssignment = () => {
+    if (scopeOptions.length === 0) return;
+    setForm((prev) => ({
+      ...prev,
+      assignments: [
+        ...prev.assignments,
+        {
+          id: crypto.randomUUID(),
+          scopeType: scopeOptions[0]!.scopeType,
+          scopeId: scopeOptions[0]!.scopeId,
+          roleType: "manager",
+        },
+      ],
+    }));
+  };
+
+  const removeAssignment = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      assignments: prev.assignments.length > 1 ? prev.assignments.filter((assignment) => assignment.id !== id) : prev.assignments,
+    }));
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.assignments.length === 0) return;
+    const payload = {
+      users: [
+        {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim(),
+          phoneNumber: form.phoneNumber,
+          username: form.username.trim(),
+          password: form.password,
+          dateOfBirth: form.dateOfBirth || undefined,
+          roleAssignments: form.assignments.map(({ scopeId, scopeType, roleType }) => ({
+            scopeId,
+            scopeType,
+            roleType,
+          })),
+        },
+      ],
+    };
+    await mutation.mutateAsync(payload);
+    if (form.rememberForLogin) {
+      const identifier = form.email.trim() || form.username.trim();
+      if (identifier && form.password) {
+        onRememberCredential({ identifier, password: form.password });
+      }
+    }
+  };
+
+  if (!status.business) {
+    return (
+      <div>
+        <p className="text-sm text-white/70">Complete the earlier steps before adding user accounts.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">Create team accounts</h2>
+        <p className="mt-1 text-sm text-white/60">
+          Each scope needs an admin. Add optional manager/employee roles for scheduling workflows.
+        </p>
+      </div>
+      <div className="rounded-md border border-white/10 bg-black/60 p-4 text-sm">
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase text-white/50">Current assignments</div>
+          <div className="flex gap-2">
+            {status.missingAdmins.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => createDefaultUsersMutation.mutate()}
+                disabled={createDefaultUsersMutation.isPending}
+                className="rounded-md border border-emerald-400/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-60"
+              >
+                {createDefaultUsersMutation.isPending ? "Creating..." : "Create default admins"}
+              </button>
+            ) : null}
+            {status.roles.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete all user accounts? This cannot be undone.")) {
+                    clearAccountsMutation.mutate();
+                  }
+                }}
+                disabled={clearAccountsMutation.isPending}
+                className="rounded-md border border-red-400/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-red-300 transition hover:bg-red-400/10 disabled:opacity-60"
+              >
+                {clearAccountsMutation.isPending ? "Clearing..." : "Clear all accounts"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="mt-2 space-y-3">
+          {groupedRoles.map((group) => (
+            <div key={group.key}>
+              <div className="font-semibold">{group.label}</div>
+              {group.entries.length > 0 ? (
+                <ul className="mt-1 list-disc pl-5 text-white/70">
+                  {group.entries.map((entry, idx) => (
+                    <li key={`${group.key}-${idx}`}>{entry}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-white/50">No users yet</div>
+              )}
+            </div>
+          ))}
+        </div>
+        {status.missingAdmins.length > 0 ? (
+          <div className="mt-3 rounded border border-yellow-500/30 bg-yellow-500/10 p-2 text-xs text-yellow-300">
+            <div className="font-semibold">Missing admins:</div>
+            <ul className="mt-1 list-disc pl-5">
+              {status.missingAdmins.map((missing) => (
+                <li key={`${missing.scopeType}-${missing.scopeId}`}>{missing.label}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {createDefaultUsersMutation.error ? (
+          <p className="mt-2 text-xs text-red-300">{createDefaultUsersMutation.error.message}</p>
+        ) : null}
+        {clearAccountsMutation.error ? (
+          <p className="mt-2 text-xs text-red-300">{clearAccountsMutation.error.message}</p>
+        ) : null}
+      </div>
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">First name</label>
+            <input
+              value={form.firstName}
+              onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="Riley"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">Last name</label>
+            <input
+              value={form.lastName}
+              onChange={(e) => setForm((prev) => ({ ...prev, lastName: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="Jordan"
+              required
+            />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">Email</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="riley@example.edu"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">Phone</label>
+            <input
+              value={form.phoneNumber}
+              onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="(555) 123-4567"
+              required
+            />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">Username</label>
+            <input
+              value={form.username}
+              onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="riley.jordan"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase text-white/50">Password</label>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              placeholder="Strong password"
+              required
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs uppercase text-white/50">Date of birth (optional)</label>
+          <input
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(e) => setForm((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+            className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+          />
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs uppercase text-white/50">Role assignments</label>
+            <button
+              type="button"
+              onClick={addAssignment}
+              className="text-xs font-semibold text-emerald-300 hover:text-emerald-200"
+            >
+              + Add assignment
+            </button>
+          </div>
+          {form.assignments.map((assignment) => (
+            <div key={assignment.id} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
+              <select
+                value={`${assignment.scopeType}:${assignment.scopeId}`}
+                onChange={(e) => {
+                  const [scopeType, scopeId] = e.target.value.split(":");
+                  updateAssignment(assignment.id, {
+                    scopeType: scopeType as ScopeOption["scopeType"],
+                    scopeId: Number(scopeId),
+                  });
+                }}
+                className="rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              >
+                {scopeOptions.map((option) => (
+                  <option key={`${option.scopeType}-${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={assignment.roleType}
+                onChange={(e) => updateAssignment(assignment.id, { roleType: e.target.value as AssignmentDraft["roleType"] })}
+                className="rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              >
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="employee">Employee</option>
+              </select>
+              <button type="button" className="text-xs text-white/50 hover:text-white" onClick={() => removeAssignment(assignment.id)}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+        <label className="flex items-center gap-2 text-xs text-white/70">
+          <input
+            type="checkbox"
+            checked={form.rememberForLogin}
+            onChange={(e) => setForm((prev) => ({ ...prev, rememberForLogin: e.target.checked }))}
+            className="h-4 w-4 rounded border-white/30 bg-black/70"
+          />
+          Use this account to sign in after setup
+        </label>
+        {rememberedCredential ? (
+          <p className="text-xs text-emerald-300">Will sign in as {rememberedCredential.identifier} once setup completes.</p>
+        ) : null}
+        {mutation.error ? <p className="text-sm text-red-300">{mutation.error.message}</p> : null}
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+          >
+            {mutation.isPending ? "Creating..." : "Create account"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onRememberCredential(null)}
+            className="text-xs text-white/60 hover:text-white"
+          >
+            Clear saved credentials
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
