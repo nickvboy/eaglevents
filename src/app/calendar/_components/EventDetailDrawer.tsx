@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, type ReactNode } from "react";
 import { api } from "~/trpc/react";
@@ -109,9 +109,9 @@ export function EventDetailDrawer({ event, calendar, open, onClose }: EventDetai
               <button
                 className="rounded-md border border-red-500 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 disabled:border-red-500/60 disabled:text-red-400/60"
                 onClick={() => deleteMutation.mutate({ id: event.id })}
-                disabled={deleteMutation.isLoading}
+                disabled={deleteMutation.isPending}
               >
-                {deleteMutation.isLoading ? "Deleting…" : "Delete"}
+                {deleteMutation.isPending ? "Deletingâ€¦" : "Delete"}
               </button>
             </div>
           </section>
@@ -155,7 +155,7 @@ function formatDatePart(start: Date, end: Date) {
     start.getDate() === end.getDate();
   return sameDay
     ? dateFormatter.format(start)
-    : `${dateFormatter.format(start)} – ${dateFormatter.format(end)}`;
+    : `${dateFormatter.format(start)} â€“ ${dateFormatter.format(end)}`;
 }
 
 function formatTimePart(start: Date, end: Date) {
@@ -163,5 +163,8 @@ function formatTimePart(start: Date, end: Date) {
     hour: "numeric",
     minute: "2-digit",
   });
-  return `${timeFormatter.format(start)} — ${timeFormatter.format(end)}`;
+  return `${timeFormatter.format(start)} â€” ${timeFormatter.format(end)}`;
 }
+
+
+
