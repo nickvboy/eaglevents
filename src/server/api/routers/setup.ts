@@ -1,3 +1,4 @@
+import { faker } from "@faker-js/faker";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -344,41 +345,82 @@ export const setupRouter = createTRPCRouter({
     // Track used usernames/emails to ensure uniqueness (in case labels sanitize to same value)
     const usedUsernames = new Set<string>();
     const usedEmails = new Set<string>();
-    
-    const defaultUsers = status.missingAdmins.map((missing) => {
-      const scopeLabel = missing.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      // Always include scopeId to ensure uniqueness
-      const username = `admin-${scopeLabel}-${missing.scopeId}`;
-      const email = `admin-${scopeLabel}-${missing.scopeId}@${status.business!.name.toLowerCase().replace(/[^a-z0-9]+/g, "")}.local`;
-      
-      // Double-check for duplicates (shouldn't happen with scopeId, but safety check)
-      if (usedUsernames.has(username)) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Duplicate username generated: ${username}` });
-      }
-      if (usedEmails.has(email)) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Duplicate email generated: ${email}` });
-      }
-      usedUsernames.add(username);
-      usedEmails.add(email);
-      
-      const firstName = missing.scopeType === "business" ? "System" : missing.label.split(" ")[0] ?? "Admin";
-      const lastName = missing.scopeType === "business" ? "Administrator" : "User";
+    const generatedUsersSummary: {
+      username: string;
+      password: string;
+      email: string;
+      roleType: (typeof roleTypeValues)[number];
+      scopeType: (typeof scopeTypeValues)[number];
+      scopeId: number;
+      scopeLabel: string;
+    }[] = [];
 
-      return {
-        firstName,
-        lastName,
-        email,
-        phoneNumber: "5550000000", // Default phone number
-        username,
-        password: `Admin${missing.scopeId}!`, // Default password
-        roleAssignments: [
-          {
-            scopeType: missing.scopeType,
-            scopeId: missing.scopeId,
-            roleType: "admin" as const,
-          },
-        ],
-      };
+    const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const normalizeHandle = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const businessSlug = slugify(status.business.name) || "organization";
+    const MAX_USERNAME_LENGTH = 50;
+    const roleVariants = [
+      { roleType: "admin" as const, prefix: "admin", passwordPrefix: "Admin" },
+      { roleType: "manager" as const, prefix: "manager", passwordPrefix: "Manager" },
+      { roleType: "employee" as const, prefix: "employee", passwordPrefix: "Employee" },
+    ] as const;
+
+    const defaultUsers = status.missingAdmins.flatMap((missing) => {
+      const scopeLabel = slugify(missing.label) || "scope";
+      const scopeSuffix = String(missing.scopeId).padStart(4, "0").slice(-4);
+
+      return roleVariants.map((variant) => {
+        const firstName = faker.person.firstName();
+        const lastName = faker.person.lastName();
+        const rawHandle = normalizeHandle(faker.internet.username({ firstName, lastName }));
+        const scopeIdStr = String(missing.scopeId);
+        const fallbackHandle = `${variant.prefix}${scopeSuffix}`;
+        const baseHandle = rawHandle || fallbackHandle;
+        const maxHandleLength = Math.max(3, MAX_USERNAME_LENGTH - variant.prefix.length - scopeIdStr.length - 2);
+        const handle = baseHandle.slice(0, maxHandleLength);
+        const username = `${variant.prefix}-${handle}-${scopeIdStr}`;
+        const email = `${username}@${businessSlug}.local`;
+
+        if (usedUsernames.has(username)) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Duplicate username generated: ${username}` });
+        }
+        if (usedEmails.has(email)) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Duplicate email generated: ${email}` });
+        }
+        usedUsernames.add(username);
+        usedEmails.add(email);
+
+        const phoneNumber = faker.string.numeric(10);
+        const dateOfBirth = faker.date.birthdate({ min: 22, max: 60, mode: "age" }).toISOString().slice(0, 10);
+        const password = `${variant.passwordPrefix}${scopeSuffix}${faker.string.alphanumeric(4)}!`;
+
+        generatedUsersSummary.push({
+          username,
+          password,
+          email,
+          roleType: variant.roleType,
+          scopeType: missing.scopeType,
+          scopeId: missing.scopeId,
+          scopeLabel: missing.label,
+        });
+
+        return {
+          firstName,
+          lastName,
+          email,
+          phoneNumber,
+          username,
+          password,
+          dateOfBirth,
+          roleAssignments: [
+            {
+              scopeType: missing.scopeType,
+              scopeId: missing.scopeId,
+              roleType: variant.roleType,
+            },
+          ],
+        };
+      });
     });
 
     // Use the existing createUsersWithRoles logic
@@ -486,7 +528,7 @@ export const setupRouter = createTRPCRouter({
             lastName: user.lastName.trim(),
             email: emailLower,
             phoneNumber: phoneDigits,
-            dateOfBirth: null,
+            dateOfBirth: user.dateOfBirth ?? null,
           })
           .returning();
         if (!profileRow) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create profile." });
@@ -505,7 +547,11 @@ export const setupRouter = createTRPCRouter({
       }
     });
 
-    return getSetupStatus(ctx.db);
+    const latestStatus = await getSetupStatus(ctx.db);
+    return {
+      status: latestStatus,
+      generatedUsers: generatedUsersSummary,
+    };
   }),
 
   completeSetup: publicProcedure.mutation(async ({ ctx }) => {

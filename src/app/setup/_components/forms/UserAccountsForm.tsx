@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
 
 type ScopeOption = {
@@ -21,11 +21,26 @@ type AssignmentDraft = {
 };
 
 type Credential = { identifier: string; password: string };
+type GeneratedDefaultUser = RouterOutputs["setup"]["createDefaultUsers"]["generatedUsers"][number];
 
-const roleLabels = {
+const roleLabels: Record<AssignmentDraft["roleType"], string> = {
   admin: "Admin",
   manager: "Manager",
   employee: "Employee",
+};
+
+const PHONE_DIGIT_LIMIT = 10;
+
+const extractPhoneDigits = (value: string) => value.replace(/\D/g, "").slice(0, PHONE_DIGIT_LIMIT);
+
+const formatPhone = (value: string) => {
+  const digits = extractPhoneDigits(value);
+  if (digits.length === 0) return "";
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
 
 export function UserAccountsForm({
@@ -65,6 +80,7 @@ export function UserAccountsForm({
     assignments: [] as AssignmentDraft[],
     rememberForLogin: rememberedCredential ? false : true,
   });
+  const [generatedDefaults, setGeneratedDefaults] = useState<GeneratedDefaultUser[]>([]);
 
   useEffect(() => {
     if (scopeOptions.length === 0) return;
@@ -112,8 +128,11 @@ export function UserAccountsForm({
   });
 
   const createDefaultUsersMutation = api.setup.createDefaultUsers.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       onUpdated();
+      if (data) {
+        setGeneratedDefaults(data.generatedUsers);
+      }
     },
   });
 
@@ -121,6 +140,7 @@ export function UserAccountsForm({
     onSuccess: () => {
       onUpdated();
       onRememberCredential(null);
+      setGeneratedDefaults([]);
     },
   });
 
@@ -143,6 +163,8 @@ export function UserAccountsForm({
     });
     return Array.from(map.values());
   }, [scopeOptions, status.roles]);
+
+  const phoneDisplay = useMemo(() => formatPhone(form.phoneNumber), [form.phoneNumber]);
 
   const updateAssignment = (id: string, updates: Partial<AssignmentDraft>) => {
     setForm((prev) => ({
@@ -233,7 +255,7 @@ export function UserAccountsForm({
                 disabled={createDefaultUsersMutation.isPending}
                 className="rounded-md border border-emerald-400/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-60"
               >
-                {createDefaultUsersMutation.isPending ? "Creating..." : "Create default admins"}
+                {createDefaultUsersMutation.isPending ? "Creating..." : "Create default accounts"}
               </button>
             ) : null}
             {status.roles.length > 0 ? (
@@ -285,6 +307,38 @@ export function UserAccountsForm({
           <p className="mt-2 text-xs text-red-300">{clearAccountsMutation.error.message}</p>
         ) : null}
       </div>
+      {generatedDefaults.length > 0 ? (
+        <div className="rounded-md border border-white/10 bg-black/60 p-4 text-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs uppercase text-white/50">Generated default accounts</div>
+              <p className="mt-1 text-xs text-white/60">Copy these credentials before leaving this page.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGeneratedDefaults([])}
+              className="text-xs text-white/60 transition hover:text-white"
+            >
+              Clear list
+            </button>
+          </div>
+          <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+            {generatedDefaults.map((user) => (
+              <div key={`${user.username}-${user.roleType}`} className="rounded border border-white/10 bg-black/50 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">{user.scopeLabel}</span>
+                  <span className="text-xs uppercase text-white/60">{roleLabels[user.roleType] ?? user.roleType}</span>
+                </div>
+                <div className="mt-2 grid gap-1 font-mono text-[11px] text-white/80">
+                  <span>username: {user.username}</span>
+                  <span>password: {user.password}</span>
+                  <span>email: {user.email}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <div>
@@ -323,8 +377,17 @@ export function UserAccountsForm({
           <div>
             <label className="mb-1 block text-xs uppercase text-white/50">Phone</label>
             <input
-              value={form.phoneNumber}
-              onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phoneDisplay}
+              onChange={(e) => {
+                const digits = extractPhoneDigits(e.target.value);
+                setForm((prev) => ({
+                  ...prev,
+                  phoneNumber: digits,
+                }));
+              }}
               className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
               placeholder="(555) 123-4567"
               required
