@@ -181,7 +181,8 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     setPreviewEventId(null);
     setSelectedEventId(event.id);
   };
-  const handleEditEvent = (eventId: number) => {
+  const handleEditEvent = (eventInput: number | CalendarEvent | RouterOutputs["event"]["list"][number]) => {
+    const eventId = typeof eventInput === "number" ? eventInput : eventInput.id;
     setPreviewEventId(null);
     setSelectedEventId(null);
     setOpenNew(false);

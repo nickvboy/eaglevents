@@ -3,13 +3,20 @@ import { and, eq, lt, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { events, users } from "~/server/db/schema";
+import { events, profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 type DbClient = typeof import("~/server/db").db;
 type UserRow = typeof users.$inferSelect;
 type EventRow = typeof events.$inferSelect;
+type ProfileSummary = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+type EventWithAssignee = EventRow & { assigneeProfile: ProfileSummary | null };
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   const email = "demo@local";
@@ -21,6 +28,34 @@ async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
     .returning();
   if (!inserted) throw new Error("Failed to create demo user");
   return inserted;
+}
+
+async function attachAssignees(db: DbClient, rows: EventRow[]): Promise<EventWithAssignee[]> {
+  if (rows.length === 0) return [];
+  const assigneeIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.assigneeProfileId)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value)),
+    ),
+  );
+  let assigneeMap = new Map<number, ProfileSummary>();
+  if (assigneeIds.length > 0) {
+    const assigneeRows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+      })
+      .from(profiles)
+      .where(inArray(profiles.id, assigneeIds));
+    assigneeMap = new Map(assigneeRows.map((row) => [row.id, row]));
+  }
+  return rows.map((row) => ({
+    ...row,
+    assigneeProfile: row.assigneeProfileId ? assigneeMap.get(row.assigneeProfileId) ?? null : null,
+  }));
 }
 
 export const eventRouter = createTRPCRouter({
@@ -42,7 +77,7 @@ export const eventRouter = createTRPCRouter({
         .from(events)
         .where(condition)
         .orderBy(events.startDatetime);
-      return list;
+      return attachAssignees(ctx.db, list as EventRow[]);
     }),
 
   create: publicProcedure
@@ -56,6 +91,7 @@ export const eventRouter = createTRPCRouter({
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
+        assigneeProfileId: z.number().int().positive().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -72,6 +108,7 @@ export const eventRouter = createTRPCRouter({
         .insert(events)
         .values({
           calendarId: calendarId!,
+          assigneeProfileId: input.assigneeProfileId ?? null,
           title: input.title,
           description: input.description,
           location: input.location,
@@ -83,7 +120,9 @@ export const eventRouter = createTRPCRouter({
         .returning();
       if (!row) throw new Error("Failed to create event");
 
-      return row as EventRow;
+      const [result] = await attachAssignees(ctx.db, [row as EventRow]);
+      if (!result) throw new Error("Failed to load created event");
+      return result;
     }),
 
   update: publicProcedure
@@ -98,6 +137,7 @@ export const eventRouter = createTRPCRouter({
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
+        assigneeProfileId: z.number().int().positive().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -111,6 +151,7 @@ export const eventRouter = createTRPCRouter({
         .update(events)
         .set({
           calendarId: input.calendarId ?? current.calendarId,
+          assigneeProfileId: input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId,
           title: input.title,
           description: input.description ?? null,
           location: input.location ?? null,
@@ -123,7 +164,9 @@ export const eventRouter = createTRPCRouter({
         .returning();
       if (!row) throw new Error("Failed to update event");
 
-      return row as EventRow;
+      const [result] = await attachAssignees(ctx.db, [row as EventRow]);
+      if (!result) throw new Error("Failed to load updated event");
+      return result;
     }),
 
   delete: publicProcedure

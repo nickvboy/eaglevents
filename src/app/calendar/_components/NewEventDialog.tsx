@@ -40,6 +40,13 @@ type Props = {
   event?: RouterOutputs["event"]["list"][number] | null;
 };
 
+type AssigneeSelection = {
+  profileId: number;
+  displayName: string;
+  email: string;
+  username?: string | null;
+};
+
 export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }: Props) {
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
@@ -55,6 +62,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [description, setDescription] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assignee, setAssignee] = useState<AssigneeSelection | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState("");
+  const [assigneeQuery, setAssigneeQuery] = useState("");
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -86,6 +96,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
       setError(null);
+      if (event.assigneeProfile) {
+        const fullName = [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim();
+        setAssignee({
+          profileId: event.assigneeProfile.id,
+          displayName: fullName || event.assigneeProfile.email,
+          email: event.assigneeProfile.email,
+        });
+      } else {
+        setAssignee(null);
+      }
+      setAssigneeSearch("");
+      setAssigneeQuery("");
       return;
     }
     setTitle("");
@@ -97,7 +119,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setDescription("");
     setRecurring(false);
     setError(null);
+    setAssignee(null);
+    setAssigneeSearch("");
+    setAssigneeQuery("");
   }, [open, defaultDate, event]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setAssigneeQuery(assigneeSearch.trim());
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [assigneeSearch]);
 
   const updateSegment = (id: string, updater: (current: Segment) => Segment) => {
     setSegments((prev) => prev.map((segment) => (segment.id === id ? updater(segment) : segment)));
@@ -168,11 +200,35 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const canSave = Boolean(title.trim()) && !segmentsInvalid && !isSaving;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
   const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
+  const assigneeResults = api.profile.search.useQuery(
+    { query: assigneeQuery, limit: 7 },
+    { enabled: open && assigneeQuery.length > 1 },
+  );
+  const assigneeMatches = assigneeResults.data ?? [];
+  const shouldShowAssigneeResults =
+    assigneeQuery.length > 1 && (assigneeResults.isFetching || assigneeMatches.length > 0);
 
   const handleBackdropMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
       onClose();
     }
+  };
+
+  const handleSelectAssignee = (option: RouterOutputs["profile"]["search"][number]) => {
+    setAssignee({
+      profileId: option.profileId,
+      displayName: option.displayName || option.email,
+      email: option.email,
+      username: option.username,
+    });
+    setAssigneeSearch("");
+    setAssigneeQuery("");
+  };
+
+  const handleClearAssignee = () => {
+    setAssignee(null);
+    setAssigneeSearch("");
+    setAssigneeQuery("");
   };
 
   const handleSave = async () => {
@@ -195,6 +251,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           startDatetime: dayStart,
           endDatetime: dayEnd,
           recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
+          assigneeProfileId: assignee ? assignee.profileId : null,
         });
       } else {
         for (const segment of segments) {
@@ -209,6 +266,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             startDatetime: dayStart,
             endDatetime: dayEnd,
             recurrenceRule: recurring ? "FREQ=DAILY" : null,
+            assigneeProfileId: assignee?.profileId ?? undefined,
           });
         }
       }
@@ -249,6 +307,56 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
               onChange={(e) => setAttendees(e.target.value)}
               className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
             />
+          </div>
+
+          <div>
+            <div className="mb-1 text-xs text-white/60">Assign to</div>
+            <div className="space-y-2">
+              {assignee && (
+                <div className="flex items-center justify-between rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-medium text-white">{assignee.displayName}</div>
+                    <div className="text-xs text-white/60">{assignee.email}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-emerald-300 hover:text-emerald-200"
+                    onClick={handleClearAssignee}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+              <div className="relative">
+                <input
+                  placeholder={assignee ? "Search to reassign" : "Search by name, username, or email"}
+                  value={assigneeSearch}
+                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                  className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
+                />
+                {shouldShowAssigneeResults && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-white/10 bg-black/90 shadow-xl">
+                    {assigneeResults.isFetching ? (
+                      <div className="px-3 py-2 text-sm text-white/60">Searching...</div>
+                    ) : assigneeMatches.length > 0 ? (
+                      assigneeMatches.map((match) => (
+                        <button
+                          key={match.profileId}
+                          type="button"
+                          className="flex w-full flex-col items-start gap-0.5 border-b border-white/5 px-3 py-2 text-left text-sm text-white hover:bg-white/10 last:border-b-0"
+                          onClick={() => handleSelectAssignee(match)}
+                        >
+                          <span className="font-medium">{match.displayName}</span>
+                          <span className="text-xs text-white/60">{match.email}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-white/60">No profiles found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-3">

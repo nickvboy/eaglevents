@@ -53,6 +53,13 @@
       "when": 1762482077219,
       "tag": "0006_setup_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1762720000000,
+      "tag": "0007_event_assignees",
+      "breakpoints": true
     }
   ]
 }

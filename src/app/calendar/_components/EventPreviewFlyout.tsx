@@ -12,6 +12,11 @@ type PreviewEvent = {
   description?: string | null;
   startDatetime: string | Date;
   endDatetime: string | Date;
+  assigneeProfile?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
 };
 
 type EventPreviewFlyoutProps = {
@@ -47,6 +52,10 @@ export function EventPreviewFlyout({ event, calendar, open, onExpand, onEdit }: 
   const end = new Date(displayEvent.endDatetime);
   const dateLabel = formatDateRange(start, end);
   const timeLabel = formatTimeRange(start, end);
+  const assigneeName = displayEvent.assigneeProfile
+    ? [displayEvent.assigneeProfile.firstName, displayEvent.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
+      displayEvent.assigneeProfile.email
+    : null;
 
   return (
     <aside
@@ -100,6 +109,11 @@ export function EventPreviewFlyout({ event, calendar, open, onExpand, onEdit }: 
             <div>{timeLabel}</div>
             {displayEvent.location && (
               <div className="mt-2 text-xs uppercase tracking-wide text-white/50">{displayEvent.location}</div>
+            )}
+            {displayEvent.assigneeProfile && assigneeName && (
+              <div className="mt-2 text-xs text-white/60">
+                Assigned to <span className="font-medium text-white/80">{assigneeName}</span>
+              </div>
             )}
           </div>
 

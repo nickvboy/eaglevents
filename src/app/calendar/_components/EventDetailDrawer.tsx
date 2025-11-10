@@ -39,6 +39,10 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   const end = new Date(event.endDatetime);
   const dateLabel = formatDatePart(start, end);
   const timeLabel = formatTimePart(start, end);
+  const assigneeName = event.assigneeProfile
+    ? [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
+      event.assigneeProfile.email
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white">
@@ -95,6 +99,13 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
               <div className="text-xs text-white/50">
                 Event created {start.toLocaleString()}
               </div>
+              {event.assigneeProfile && (
+                <div className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80">
+                  <div className="text-xs uppercase tracking-wide text-white/50">Assigned to</div>
+                  <div className="font-medium">{assigneeName}</div>
+                  <div className="text-xs text-white/60">{event.assigneeProfile.email}</div>
+                </div>
+              )}
               <div className="mt-3 text-xs text-white/60">
                 Attendee details are not available for this event.
               </div>

@@ -8,6 +8,12 @@ export type CalendarEvent = {
   startDatetime: string | Date;
   endDatetime: string | Date;
   calendarId: number;
+  assigneeProfile?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
 };
 
 export type PositionedEvent = {
@@ -84,4 +90,3 @@ export function positionEventsForDay(events: CalendarEvent[]): PositionedEvent[]
 
   return result;
 }
-
