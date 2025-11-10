@@ -11,6 +11,7 @@ type Props = {
   previewedEventId?: number | null;
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
   calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
@@ -21,6 +22,7 @@ export function WeekGrid({
   previewedEventId,
   onPreviewEvent,
   onOpenEvent,
+  onEditEvent,
   calendarLookup,
 }: Props) {
   const eventsByDay = new Map<string, CalendarEvent[]>();
@@ -62,6 +64,7 @@ export function WeekGrid({
             previewEventId={previewedEventId}
             onPreviewEvent={onPreviewEvent}
             onOpenEvent={onOpenEvent}
+            onEditEvent={onEditEvent}
             calendarLookup={calendarLookup}
           />
         </div>

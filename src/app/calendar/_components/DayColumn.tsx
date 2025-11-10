@@ -13,12 +13,13 @@ type Props = {
   previewEventId?: number | null;
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
   calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
 
-export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpenEvent, calendarLookup }: Props) {
+export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpenEvent, onEditEvent, calendarLookup }: Props) {
   const positioned = useMemo(() => positionEventsForDay(events), [events]);
   const [nowMinutes, setNowMinutes] = useState(minutesSinceStartOfDay(new Date()));
 
@@ -84,8 +85,8 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
               event={p.event}
               calendar={calendarLookup?.get(p.event.calendarId) ?? null}
               open={p.event.id === previewEventId}
-              onClose={() => onPreviewEvent?.(null)}
               onExpand={() => onOpenEvent?.(p.event)}
+              onEdit={() => onEditEvent?.(p.event)}
             />
           </div>
         </div>

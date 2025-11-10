@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
-import { ChevronLeftIcon } from "~/app/_components/icons";
+import { ChevronLeftIcon, EditIcon } from "~/app/_components/icons";
 
 type CalendarInfo = { name: string; color: string } | null;
 
@@ -12,9 +12,10 @@ type EventDetailDrawerProps = {
   calendar: CalendarInfo;
   open: boolean;
   onClose: () => void;
+  onEdit: (eventId: number) => void;
 };
 
-export function EventDetailDrawer({ event, calendar, open, onClose }: EventDetailDrawerProps) {
+export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: EventDetailDrawerProps) {
   const utils = api.useUtils();
   const deleteMutation = api.event.delete.useMutation({
     onSuccess: async () => {
@@ -103,15 +104,21 @@ export function EventDetailDrawer({ event, calendar, open, onClose }: EventDetai
           <section className="space-y-2">
             <SectionHeading>Actions</SectionHeading>
             <div className="flex flex-wrap gap-2">
-              <button className="rounded-md border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10">
-                Forward
+              <button
+                className="rounded-md border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                onClick={() => onEdit(event.id)}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <EditIcon className="h-4 w-4" />
+                  Edit
+                </span>
               </button>
               <button
                 className="rounded-md border border-red-500 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 disabled:border-red-500/60 disabled:text-red-400/60"
                 onClick={() => deleteMutation.mutate({ id: event.id })}
                 disabled={deleteMutation.isPending}
               >
-                {deleteMutation.isPending ? "Deletingâ€¦" : "Delete"}
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
               </button>
             </div>
           </section>

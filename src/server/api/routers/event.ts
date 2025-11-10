@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { and, eq, lt, gt, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { events, users } from "~/server/db/schema";
@@ -81,6 +82,46 @@ export const eventRouter = createTRPCRouter({
         })
         .returning();
       if (!row) throw new Error("Failed to create event");
+
+      return row as EventRow;
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        calendarId: z.number().optional(),
+        title: z.string().min(1),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        isAllDay: z.boolean(),
+        startDatetime: z.coerce.date(),
+        endDatetime: z.coerce.date(),
+        recurrenceRule: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);
+      const current = existing[0];
+      if (!current) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+
+      const [row] = await ctx.db
+        .update(events)
+        .set({
+          calendarId: input.calendarId ?? current.calendarId,
+          title: input.title,
+          description: input.description ?? null,
+          location: input.location ?? null,
+          isAllDay: input.isAllDay,
+          startDatetime: input.startDatetime,
+          endDatetime: input.endDatetime,
+          recurrenceRule: input.recurrenceRule ?? null,
+        })
+        .where(eq(events.id, input.id))
+        .returning();
+      if (!row) throw new Error("Failed to update event");
 
       return row as EventRow;
     }),

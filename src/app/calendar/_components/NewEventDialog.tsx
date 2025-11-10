@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
+import type { RouterOutputs } from "~/trpc/react";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
 
@@ -36,11 +37,14 @@ type Props = {
   onClose: () => void;
   defaultDate: Date;
   calendarId?: number;
+  event?: RouterOutputs["event"]["list"][number] | null;
 };
 
-export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props) {
+export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }: Props) {
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
+  const update = api.event.update.useMutation();
+  const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
   const [attendees, setAttendees] = useState("");
@@ -65,18 +69,35 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
   }, []);
 
   useEffect(() => {
-    if (open) {
-      setTitle("");
+    if (!open) return;
+    if (event) {
+      setTitle(event.title);
       setAttendees("");
-      setSegments([makeSegment(defaultDate)]);
-      setAllDay(false);
+      setSegments([
+        {
+          id: randomId(),
+          start: new Date(event.startDatetime),
+          end: new Date(event.endDatetime),
+        },
+      ]);
+      setAllDay(event.isAllDay);
       setInPerson(false);
-      setLocation("");
-      setDescription("");
-      setRecurring(false);
+      setLocation(event.location ?? "");
+      setDescription(event.description ?? "");
+      setRecurring(Boolean(event.recurrenceRule));
       setError(null);
+      return;
     }
-  }, [open, defaultDate]);
+    setTitle("");
+    setAttendees("");
+    setSegments([makeSegment(defaultDate)]);
+    setAllDay(false);
+    setInPerson(false);
+    setLocation("");
+    setDescription("");
+    setRecurring(false);
+    setError(null);
+  }, [open, defaultDate, event]);
 
   const updateSegment = (id: string, updater: (current: Segment) => Segment) => {
     setSegments((prev) => prev.map((segment) => (segment.id === id ? updater(segment) : segment)));
@@ -143,40 +164,70 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
   };
 
   const segmentsInvalid = segments.some((segment) => segment.start >= segment.end);
-  const canSave = Boolean(title.trim()) && !segmentsInvalid && !create.isPending;
+  const isSaving = isEditing ? update.isPending : create.isPending;
+  const canSave = Boolean(title.trim()) && !segmentsInvalid && !isSaving;
+  const dialogTitle = isEditing ? "Edit event" : "Create event";
+  const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
+
+  const handleBackdropMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
 
   const handleSave = async () => {
     setError(null);
     try {
-      for (const segment of segments) {
+      if (isEditing && event) {
+        const segment = segments[0];
+        if (!segment) {
+          throw new Error("Unable to determine event time range.");
+        }
         const dayStart = allDay ? startOfDay(segment.start) : segment.start;
         const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
-        await create.mutateAsync({
-          calendarId,
+        await update.mutateAsync({
+          id: event.id,
+          calendarId: calendarId ?? event.calendarId,
           title,
           description,
           location,
           isAllDay: allDay,
           startDatetime: dayStart,
           endDatetime: dayEnd,
-          recurrenceRule: recurring ? "FREQ=DAILY" : null,
+          recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
         });
+      } else {
+        for (const segment of segments) {
+          const dayStart = allDay ? startOfDay(segment.start) : segment.start;
+          const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
+          await create.mutateAsync({
+            calendarId,
+            title,
+            description,
+            location,
+            isAllDay: allDay,
+            startDatetime: dayStart,
+            endDatetime: dayEnd,
+            recurrenceRule: recurring ? "FREQ=DAILY" : null,
+          });
+        }
       }
       await utils.event.invalidate();
       onClose();
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to create event");
+      const fallback = isEditing ? "Failed to update event" : "Failed to create event";
+      setError(err instanceof Error ? err.message : fallback);
     }
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onMouseDown={handleBackdropMouseDown}>
       <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-white/10 bg-neutral-950 p-6 text-white shadow-2xl shadow-black/60">
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-lg font-semibold">Create event</div>
+          <div className="text-lg font-semibold">{dialogTitle}</div>
           <button className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10" onClick={onClose}>
             Close
           </button>
@@ -205,7 +256,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
               <div key={segment.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
                 <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-white/50">
                   <span>Day {index + 1}</span>
-                  {segments.length > 1 && (
+                  {!isEditing && segments.length > 1 && (
                     <button
                       type="button"
                       className="text-red-300 transition hover:text-red-200"
@@ -254,13 +305,15 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
                 </div>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addSegmentRow}
-              className="text-sm font-medium text-emerald-400 transition hover:text-emerald-300"
-            >
-              + Add another day
-            </button>
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={addSegmentRow}
+                className="text-sm font-medium text-emerald-400 transition hover:text-emerald-300"
+              >
+                + Add another day
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-4 border-y border-white/5 py-3">
@@ -307,7 +360,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId }: Props
               disabled={!canSave}
               onClick={handleSave}
             >
-              {create.isPending ? "Saving..." : "Save"}
+              {primaryButtonLabel}
             </button>
           </div>
         </div>

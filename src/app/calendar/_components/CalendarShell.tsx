@@ -28,6 +28,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const [mobileView, setMobileView] = useState<View>("day");
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [previewEventId, setPreviewEventId] = useState<number | null>(null);
   const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
@@ -160,6 +161,10 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     () => events.find((e) => e.id === selectedEventId) ?? null,
     [events, selectedEventId],
   );
+  const editingEvent = useMemo(
+    () => events.find((e) => e.id === editingEventId) ?? null,
+    [events, editingEventId],
+  );
   useEffect(() => {
     if (selectedEventId && !selectedEvent) setSelectedEventId(null);
   }, [selectedEventId, selectedEvent]);
@@ -176,6 +181,21 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     setPreviewEventId(null);
     setSelectedEventId(event.id);
   };
+  const handleEditEvent = (eventId: number) => {
+    setPreviewEventId(null);
+    setSelectedEventId(null);
+    setOpenNew(false);
+    setEditingEventId(eventId);
+  };
+  const handleCloseEditor = () => {
+    setOpenNew(false);
+    setEditingEventId(null);
+  };
+  const handleNewEventRequest = () => {
+    setEditingEventId(null);
+    setOpenNew(true);
+  };
+  const dialogOpen = openNew || editingEventId !== null;
 
   const goToToday = () => {
     const today = startOfDay(new Date());
@@ -295,30 +315,31 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
-              <div className="relative flex min-h-0 flex-1">
-                {monthOverlay}
-                {activeView === "month" ? (
-                  <MonthGrid
-                    days={monthViewDays}
-                    events={events}
-                    selectedMonth={selectedDate.getMonth()}
+                <div className="relative flex min-h-0 flex-1">
+                  {monthOverlay}
+                  {activeView === "month" ? (
+                    <MonthGrid
+                      days={monthViewDays}
+                      events={events}
+                      selectedMonth={selectedDate.getMonth()}
                     onSelectDay={(d) => {
                       setSelectedDate(startOfDay(d));
                       setActiveView("week");
                     }}
                   />
-                ) : (
-                  <WeekGrid
-                    days={days}
-                    events={events as CalendarEvent[]}
-                    variant="compact"
-                    previewedEventId={previewEventId}
-                    onPreviewEvent={handlePreviewEvent}
-                    onOpenEvent={handleOpenEvent}
-                    calendarLookup={calendarLookup}
-                  />
-                )}
-                <NewEventFab onClick={() => setOpenNew(true)} />
+                  ) : (
+                    <WeekGrid
+                      days={days}
+                      events={events as CalendarEvent[]}
+                      variant="compact"
+                      previewedEventId={previewEventId}
+                      onPreviewEvent={handlePreviewEvent}
+                      onOpenEvent={handleOpenEvent}
+                      onEditEvent={handleEditEvent}
+                      calendarLookup={calendarLookup}
+                    />
+                  )}
+                <NewEventFab onClick={handleNewEventRequest} />
               </div>
             </>
           ) : (
@@ -331,7 +352,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onToday={goToToday}
                 onPrev={onPrev}
                 onNext={onNext}
-                onNewEvent={() => setOpenNew(true)}
+                onNewEvent={handleNewEventRequest}
                 currentUser={currentUser}
               />
 
@@ -347,16 +368,17 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                       setActiveView("week");
                     }}
                   />
-                ) : (
-                  <WeekGrid
-                    days={days}
-                    events={events as CalendarEvent[]}
-                    previewedEventId={previewEventId}
-                    onPreviewEvent={handlePreviewEvent}
-                    onOpenEvent={handleOpenEvent}
-                    calendarLookup={calendarLookup}
-                  />
-                )}
+                  ) : (
+                    <WeekGrid
+                      days={days}
+                      events={events as CalendarEvent[]}
+                      previewedEventId={previewEventId}
+                      onPreviewEvent={handlePreviewEvent}
+                      onOpenEvent={handleOpenEvent}
+                      onEditEvent={handleEditEvent}
+                      calendarLookup={calendarLookup}
+                    />
+                  )}
               </div>
             </>
           )}
@@ -368,13 +390,15 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
         event={selectedEvent}
         calendar={selectedEvent ? calendarLookup.get(selectedEvent.calendarId) ?? null : null}
         onClose={() => setSelectedEventId(null)}
+        onEdit={handleEditEvent}
       />
 
       <NewEventDialog
-        open={openNew}
-        onClose={() => setOpenNew(false)}
+        open={dialogOpen}
+        onClose={handleCloseEditor}
         defaultDate={selectedDate}
         calendarId={defaultCalendarId}
+        event={editingEvent}
       />
     </>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MaximizeIcon, XIcon } from "~/app/_components/icons";
+import { EditIcon, MaximizeIcon } from "~/app/_components/icons";
 
 type CalendarInfo = { name: string; color: string } | null;
 
@@ -18,11 +18,11 @@ type EventPreviewFlyoutProps = {
   event: PreviewEvent | null;
   calendar: CalendarInfo;
   open: boolean;
-  onClose: () => void;
   onExpand: () => void;
+  onEdit: () => void;
 };
 
-export function EventPreviewFlyout({ event, calendar, open, onClose, onExpand }: EventPreviewFlyoutProps) {
+export function EventPreviewFlyout({ event, calendar, open, onExpand, onEdit }: EventPreviewFlyoutProps) {
   const [shouldRender, setShouldRender] = useState(open);
   const lastEventRef = useRef<typeof event>(null);
 
@@ -85,12 +85,12 @@ export function EventPreviewFlyout({ event, calendar, open, onClose, onExpand }:
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onClose();
+                onEdit();
               }}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:bg-white/10 hover:text-white"
-              aria-label="Close preview"
+              aria-label="Edit event"
             >
-              <XIcon className="h-4 w-4" />
+              <EditIcon className="h-4 w-4" />
             </button>
           </div>
         </header>
