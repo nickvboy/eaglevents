@@ -3,7 +3,7 @@ import { and, eq, lt, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { events, profiles, users } from "~/server/db/schema";
+import { eventHourLogs, events, profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
@@ -17,6 +17,24 @@ type ProfileSummary = {
   email: string;
 };
 type EventWithAssignee = EventRow & { assigneeProfile: ProfileSummary | null };
+type HourLogRow = typeof eventHourLogs.$inferSelect;
+type HourLogResponse = {
+  id: number;
+  startTime: Date;
+  endTime: Date;
+  durationMinutes: number;
+  durationHours: number;
+};
+type EventResponse = EventRow & {
+  assigneeProfile: ProfileSummary | null;
+  hourLogs: HourLogResponse[];
+  totalLoggedMinutes: number;
+};
+
+const hourLogInputSchema = z.object({
+  startTime: z.coerce.date(),
+  endTime: z.coerce.date(),
+});
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   const email = "demo@local";
@@ -58,6 +76,70 @@ async function attachAssignees(db: DbClient, rows: EventRow[]): Promise<EventWit
   }));
 }
 
+async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<EventResponse[]> {
+  if (rows.length === 0) return [];
+  const eventIds = rows.map((row) => row.id);
+  const logRows = await db
+    .select({
+      id: eventHourLogs.id,
+      eventId: eventHourLogs.eventId,
+      startTime: eventHourLogs.startTime,
+      endTime: eventHourLogs.endTime,
+      durationMinutes: eventHourLogs.durationMinutes,
+    })
+    .from(eventHourLogs)
+    .where(inArray(eventHourLogs.eventId, eventIds))
+    .orderBy(eventHourLogs.startTime, eventHourLogs.id);
+
+  const grouped = new Map<number, HourLogResponse[]>();
+  for (const log of logRows) {
+    const list = grouped.get(log.eventId) ?? [];
+    list.push({
+      id: log.id,
+      startTime: log.startTime,
+      endTime: log.endTime,
+      durationMinutes: log.durationMinutes,
+      durationHours: Math.round((log.durationMinutes / 60) * 100) / 100,
+    });
+    grouped.set(log.eventId, list);
+  }
+
+  return rows.map((row) => {
+    const hourLogs = grouped.get(row.id) ?? [];
+    const totalLoggedMinutes = hourLogs.reduce((sum, log) => sum + log.durationMinutes, 0);
+    return {
+      ...row,
+      hourLogs,
+      totalLoggedMinutes,
+    };
+  });
+}
+
+async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<EventResponse[]> {
+  const withAssignees = await attachAssignees(db, rows);
+  return attachHourLogs(db, withAssignees);
+}
+
+function normalizeHourLogs(
+  logs: Array<{ startTime: Date; endTime: Date }> | undefined,
+): Array<{ startTime: Date; endTime: Date; durationMinutes: number }> | undefined {
+  if (logs === undefined) return undefined;
+  const normalized: Array<{ startTime: Date; endTime: Date; durationMinutes: number }> = [];
+  for (const log of logs) {
+    if (!log.startTime || !log.endTime) continue;
+    if (log.endTime <= log.startTime) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Hour log end time must be after start time." });
+    }
+    const durationMinutes = Math.max(1, Math.round((log.endTime.getTime() - log.startTime.getTime()) / 60000));
+    normalized.push({
+      startTime: log.startTime,
+      endTime: log.endTime,
+      durationMinutes,
+    });
+  }
+  return normalized;
+}
+
 export const eventRouter = createTRPCRouter({
   list: publicProcedure
     .input(
@@ -77,7 +159,7 @@ export const eventRouter = createTRPCRouter({
         .from(events)
         .where(condition)
         .orderBy(events.startDatetime);
-      return attachAssignees(ctx.db, list as EventRow[]);
+      return buildEventResponses(ctx.db, list as EventRow[]);
     }),
 
   create: publicProcedure
@@ -92,6 +174,7 @@ export const eventRouter = createTRPCRouter({
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().optional(),
+        hourLogs: z.array(hourLogInputSchema).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -104,23 +187,39 @@ export const eventRouter = createTRPCRouter({
         calendarId = primary.id;
       }
 
-      const [row] = await ctx.db
-        .insert(events)
-        .values({
-          calendarId: calendarId!,
-          assigneeProfileId: input.assigneeProfileId ?? null,
-          title: input.title,
-          description: input.description,
-          location: input.location,
-          isAllDay: input.isAllDay,
-          startDatetime: input.startDatetime,
-          endDatetime: input.endDatetime,
-          recurrenceRule: input.recurrenceRule ?? null,
-        })
-        .returning();
-      if (!row) throw new Error("Failed to create event");
+      const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
 
-      const [result] = await attachAssignees(ctx.db, [row as EventRow]);
+      const created = await ctx.db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(events)
+          .values({
+            calendarId: calendarId!,
+            assigneeProfileId: input.assigneeProfileId ?? null,
+            title: input.title,
+            description: input.description,
+            location: input.location,
+            isAllDay: input.isAllDay,
+            startDatetime: input.startDatetime,
+            endDatetime: input.endDatetime,
+            recurrenceRule: input.recurrenceRule ?? null,
+          })
+          .returning();
+        if (!row) throw new Error("Failed to create event");
+
+        if (hourLogs.length > 0) {
+          await tx.insert(eventHourLogs).values(
+            hourLogs.map((log) => ({
+              eventId: row.id,
+              startTime: log.startTime,
+              endTime: log.endTime,
+              durationMinutes: log.durationMinutes,
+            })),
+          );
+        }
+        return row;
+      });
+
+      const [result] = await buildEventResponses(ctx.db, [created as EventRow]);
       if (!result) throw new Error("Failed to load created event");
       return result;
     }),
@@ -138,6 +237,7 @@ export const eventRouter = createTRPCRouter({
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().nullable().optional(),
+        hourLogs: z.array(hourLogInputSchema).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -147,24 +247,45 @@ export const eventRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
 
-      const [row] = await ctx.db
-        .update(events)
-        .set({
-          calendarId: input.calendarId ?? current.calendarId,
-          assigneeProfileId: input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId,
-          title: input.title,
-          description: input.description ?? null,
-          location: input.location ?? null,
-          isAllDay: input.isAllDay,
-          startDatetime: input.startDatetime,
-          endDatetime: input.endDatetime,
-          recurrenceRule: input.recurrenceRule ?? null,
-        })
-        .where(eq(events.id, input.id))
-        .returning();
-      if (!row) throw new Error("Failed to update event");
+      const hourLogs = normalizeHourLogs(input.hourLogs);
 
-      const [result] = await attachAssignees(ctx.db, [row as EventRow]);
+      const updated = await ctx.db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(events)
+          .set({
+            calendarId: input.calendarId ?? current.calendarId,
+            assigneeProfileId:
+              input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId,
+            title: input.title,
+            description: input.description ?? null,
+            location: input.location ?? null,
+            isAllDay: input.isAllDay,
+            startDatetime: input.startDatetime,
+            endDatetime: input.endDatetime,
+            recurrenceRule: input.recurrenceRule ?? null,
+          })
+          .where(eq(events.id, input.id))
+          .returning();
+        if (!row) throw new Error("Failed to update event");
+
+        if (hourLogs !== undefined) {
+          await tx.delete(eventHourLogs).where(eq(eventHourLogs.eventId, row.id));
+          if (hourLogs.length > 0) {
+            await tx.insert(eventHourLogs).values(
+              hourLogs.map((log) => ({
+                eventId: row.id,
+                startTime: log.startTime,
+                endTime: log.endTime,
+                durationMinutes: log.durationMinutes,
+              })),
+            );
+          }
+        }
+
+        return row;
+      });
+
+      const [result] = await buildEventResponses(ctx.db, [updated as EventRow]);
       if (!result) throw new Error("Failed to load updated event");
       return result;
     }),

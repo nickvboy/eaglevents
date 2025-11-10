@@ -243,3 +243,19 @@ export const eventReminders = createTable(
   }),
   (t) => [index("reminder_event_idx").on(t.eventId)],
 );
+
+export const eventHourLogs = createTable(
+  "event_hour_log",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    startTime: d.timestamp({ withTimezone: true }).notNull(),
+    endTime: d.timestamp({ withTimezone: true }).notNull(),
+    durationMinutes: integer().notNull(),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [index("event_hour_log_event_idx").on(t.eventId)],
+);

@@ -17,6 +17,7 @@ type PreviewEvent = {
     lastName: string;
     email: string;
   } | null;
+  totalLoggedMinutes?: number;
 };
 
 type EventPreviewFlyoutProps = {
@@ -56,6 +57,8 @@ export function EventPreviewFlyout({ event, calendar, open, onExpand, onEdit }: 
     ? [displayEvent.assigneeProfile.firstName, displayEvent.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
       displayEvent.assigneeProfile.email
     : null;
+  const totalLoggedMinutes = displayEvent.totalLoggedMinutes ?? 0;
+  const totalLoggedHours = Math.round((totalLoggedMinutes / 60) * 100) / 100;
 
   return (
     <aside
@@ -113,6 +116,11 @@ export function EventPreviewFlyout({ event, calendar, open, onExpand, onEdit }: 
             {displayEvent.assigneeProfile && assigneeName && (
               <div className="mt-2 text-xs text-white/60">
                 Assigned to <span className="font-medium text-white/80">{assigneeName}</span>
+              </div>
+            )}
+            {totalLoggedMinutes > 0 && (
+              <div className="mt-1 text-xs text-white/60">
+                Logged <span className="font-semibold text-white/80">{totalLoggedHours.toFixed(2)}h</span>
               </div>
             )}
           </div>

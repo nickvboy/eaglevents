@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, type ReactNode } from "react";
 import { api } from "~/trpc/react";
@@ -43,6 +43,8 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
     ? [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
       event.assigneeProfile.email
     : null;
+  const totalLoggedMinutes = event.totalLoggedMinutes ?? 0;
+  const totalLoggedHours = Math.round((totalLoggedMinutes / 60) * 100) / 100;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white">
@@ -74,6 +76,13 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                   {calendar.name}
                 </div>
               )}
+              {assigneeName && (
+                <div className="mt-3 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs">
+                  <div className="text-white/50">Assigned to</div>
+                  <div className="font-medium text-white/80">{assigneeName}</div>
+                  <div className="text-white/50">{event.assigneeProfile?.email}</div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -96,21 +105,35 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                 <span className="font-medium">Organizer</span>
                 <span className="text-xs text-white/50">{calendar?.name ?? "Calendar"}</span>
               </div>
-              <div className="text-xs text-white/50">
-                Event created {start.toLocaleString()}
-              </div>
-              {event.assigneeProfile && (
-                <div className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80">
-                  <div className="text-xs uppercase tracking-wide text-white/50">Assigned to</div>
-                  <div className="font-medium">{assigneeName}</div>
-                  <div className="text-xs text-white/60">{event.assigneeProfile.email}</div>
-                </div>
-              )}
-              <div className="mt-3 text-xs text-white/60">
-                Attendee details are not available for this event.
-              </div>
+              <div className="text-xs text-white/50">Event created {start.toLocaleString()}</div>
+              <div className="mt-3 text-xs text-white/60">Attendee details are not available for this event.</div>
             </div>
           </section>
+
+          {totalLoggedMinutes > 0 && event.hourLogs && event.hourLogs.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <SectionHeading>Hour logs</SectionHeading>
+                <div className="text-xs text-white/60">{totalLoggedHours.toFixed(2)} hours total</div>
+              </div>
+              <div className="space-y-2 rounded-xl border border-white/10 bg-black/40 p-4 text-sm text-white/80">
+                {event.hourLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div>
+                      <div className="font-medium">{formatLogRange(log.startTime, log.endTime)}</div>
+                      <div className="text-xs text-white/50">{formatLogDate(log.startTime)}</div>
+                    </div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-white/60">
+                      {(log.durationHours ?? log.durationMinutes / 60).toFixed(2)}h
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="space-y-2">
             <SectionHeading>Actions</SectionHeading>
@@ -173,7 +196,7 @@ function formatDatePart(start: Date, end: Date) {
     start.getDate() === end.getDate();
   return sameDay
     ? dateFormatter.format(start)
-    : `${dateFormatter.format(start)} â€“ ${dateFormatter.format(end)}`;
+    : `${dateFormatter.format(start)} - ${dateFormatter.format(end)}`;
 }
 
 function formatTimePart(start: Date, end: Date) {
@@ -181,8 +204,25 @@ function formatTimePart(start: Date, end: Date) {
     hour: "numeric",
     minute: "2-digit",
   });
-  return `${timeFormatter.format(start)} â€” ${timeFormatter.format(end)}`;
+  return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
 }
 
+function formatLogRange(startInput: string | Date, endInput: string | Date) {
+  const start = new Date(startInput);
+  const end = new Date(endInput);
+  const timeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
+}
 
-
+function formatLogDate(input: string | Date) {
+  const date = new Date(input);
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}

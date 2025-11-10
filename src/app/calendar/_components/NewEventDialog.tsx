@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+import { ChevronDownIcon, XIcon } from "~/app/_components/icons";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
 
@@ -11,6 +12,12 @@ type Segment = {
   id: string;
   start: Date;
   end: Date;
+};
+
+type HourLogDraft = {
+  id: string;
+  start: Date | null;
+  end: Date | null;
 };
 
 const randomId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -30,6 +37,93 @@ function formatDateInputValue(date: Date) {
 
 function formatTimeValue(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatHourLogTime(date: Date | null) {
+  if (!date) return "";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function parseHourLogTime(value: string, baseDate: Date) {
+  if (!value) return null;
+  const [hours, minutes] = value.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  const next = new Date(baseDate);
+  next.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+  return next;
+}
+
+function diffHours(start: Date | null, end: Date | null) {
+  if (!start || !end) return 0;
+  const ms = end.getTime() - start.getTime();
+  if (ms <= 0) return 0;
+  return ms / (1000 * 60 * 60);
+}
+
+type TimeSelectProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  invalid?: boolean;
+};
+
+function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSelectProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const label = value ? options.find((opt) => opt.value === value)?.label ?? value : placeholder;
+
+  return (
+    <div className="relative min-w-[9rem]" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={
+          "flex w-full items-center justify-between gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white transition hover:border-white/40 " +
+          (invalid ? "border-red-400/70 text-red-100" : "")
+        }
+      >
+        <span className={value ? "text-white" : "text-white/60"}>{label}</span>
+        <ChevronDownIcon className="h-3.5 w-3.5 text-white/60" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur">
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={
+                  "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
+                  (active ? "bg-emerald-500/15 text-white" : "text-white/80 hover:bg-white/5")
+                }
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                <span>{option.label}</span>
+                {active && <span className="text-xs text-emerald-300">Selected</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 type Props = {
@@ -65,6 +159,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [assignee, setAssignee] = useState<AssigneeSelection | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [assigneeQuery, setAssigneeQuery] = useState("");
+  const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
+  const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -108,6 +204,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       }
       setAssigneeSearch("");
       setAssigneeQuery("");
+      if (event.hourLogs && event.hourLogs.length > 0) {
+        setHourLogs(
+          event.hourLogs.map((log) => ({
+            id: randomId(),
+            start: log.startTime ? new Date(log.startTime) : null,
+            end: log.endTime ? new Date(log.endTime) : null,
+          })),
+        );
+      } else {
+        setHourLogs([]);
+      }
       return;
     }
     setTitle("");
@@ -122,6 +229,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setAssignee(null);
     setAssigneeSearch("");
     setAssigneeQuery("");
+    setHourLogs([]);
   }, [open, defaultDate, event]);
 
   useEffect(() => {
@@ -197,7 +305,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
 
   const segmentsInvalid = segments.some((segment) => segment.start >= segment.end);
   const isSaving = isEditing ? update.isPending : create.isPending;
-  const canSave = Boolean(title.trim()) && !segmentsInvalid && !isSaving;
+  const hourLogsIncomplete = hourLogs.some((log) => (log.start && !log.end) || (!log.start && log.end));
+  const hourLogsInvalid = hourLogs.some((log) => log.start && log.end && log.end <= log.start);
+  const canSave = Boolean(title.trim()) && !segmentsInvalid && !hourLogsInvalid && !hourLogsIncomplete && !isSaving;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
   const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
   const assigneeResults = api.profile.search.useQuery(
@@ -207,11 +317,51 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const assigneeMatches = assigneeResults.data ?? [];
   const shouldShowAssigneeResults =
     assigneeQuery.length > 1 && (assigneeResults.isFetching || assigneeMatches.length > 0);
+  const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
+  const hourLogsValidationMessage = hourLogsInvalid
+    ? "Each log's end time must be after its start time."
+    : hourLogsIncomplete
+      ? "Provide both a start and end time or remove the log."
+      : null;
 
-  const handleBackdropMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+  const handleBackdropMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
       onClose();
     }
+  };
+
+  const addHourLogRow = () => {
+    setHourLogs((prev) => {
+      const last = prev[prev.length - 1];
+      const fallbackStart = last?.end ?? logBaseDate;
+      const start = fallbackStart ? new Date(fallbackStart) : new Date(logBaseDate);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      return [
+        ...prev,
+        {
+          id: randomId(),
+          start,
+          end,
+        },
+      ];
+    });
+  };
+
+  const handleHourLogChange = (id: string, field: "start" | "end", value: string) => {
+    setHourLogs((prev) =>
+      prev.map((log) =>
+        log.id === id
+          ? {
+              ...log,
+              [field]: parseHourLogTime(value, logBaseDate),
+            }
+          : log,
+      ),
+    );
+  };
+
+  const removeHourLogRow = (id: string) => {
+    setHourLogs((prev) => prev.filter((log) => log.id !== id));
   };
 
   const handleSelectAssignee = (option: RouterOutputs["profile"]["search"][number]) => {
@@ -234,6 +384,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const handleSave = async () => {
     setError(null);
     try {
+      if (hourLogsInvalid || hourLogsIncomplete) {
+        setError("Please complete or remove invalid hour log entries.");
+        return;
+      }
+      const payloadHourLogs = hourLogs
+        .map((log) => {
+          if (!log.start || !log.end) return null;
+          return { startTime: log.start, endTime: log.end };
+        })
+        .filter((log): log is { startTime: Date; endTime: Date } => Boolean(log));
+
       if (isEditing && event) {
         const segment = segments[0];
         if (!segment) {
@@ -252,6 +413,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           endDatetime: dayEnd,
           recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
           assigneeProfileId: assignee ? assignee.profileId : null,
+          hourLogs: payloadHourLogs,
         });
       } else {
         for (const segment of segments) {
@@ -267,6 +429,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             endDatetime: dayEnd,
             recurrenceRule: recurring ? "FREQ=DAILY" : null,
             assigneeProfileId: assignee?.profileId ?? undefined,
+            hourLogs: payloadHourLogs,
           });
         }
       }
@@ -354,15 +517,110 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                       <div className="px-3 py-2 text-sm text-white/60">No profiles found</div>
                     )}
                   </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 border-t border-white/10 pt-4 text-sm text-white/80">
+            <div className="text-xs uppercase tracking-wide text-white/50">Hour logging</div>
+            {hourLogs.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-white/55">No intervals have been added.</span>
+                <button
+                  type="button"
+                  onClick={addHourLogRow}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/70 px-3 py-1.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/10"
+                >
+                  <span className="text-base leading-none">+</span>
+                  Add interval
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="divide-y divide-white/10">
+                  {hourLogs.map((log, index) => {
+                    const hours = diffHours(log.start, log.end);
+                    const invalid = Boolean(log.start && log.end && log.end <= log.start);
+                    const incomplete = (log.start && !log.end) || (!log.start && log.end);
+                    const pillClass = invalid
+                      ? "border border-red-400/70 bg-red-500/10 text-red-200"
+                      : hours > 0
+                        ? "border border-emerald-400/70 bg-emerald-500/10 text-emerald-200"
+                        : "border border-white/25 bg-white/5 text-white/70";
+                    const pillText = hours > 0 ? `${hours.toFixed(2)}h` : invalid ? "Invalid" : "-";
+                    return (
+                      <div key={log.id} className="flex flex-wrap items-start gap-3 py-3 transition hover:bg-white/5">
+                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
+                          #{index + 1}
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <TimeSelect
+                              value={formatHourLogTime(log.start)}
+                              onChange={(value) => handleHourLogChange(log.id, "start", value)}
+                              placeholder="Start"
+                              options={timeOptions}
+                              invalid={invalid}
+                            />
+                            <span className="text-xs text-white/50">to</span>
+                            <TimeSelect
+                              value={formatHourLogTime(log.end)}
+                              onChange={(value) => handleHourLogChange(log.id, "end", value)}
+                              placeholder="End"
+                              options={timeOptions}
+                              invalid={invalid}
+                            />
+                            <span
+                              className={
+                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold " + pillClass
+                              }
+                            >
+                              {pillText}
+                            </span>
+                          </div>
+                          {(invalid || incomplete) && (
+                            <div className="text-xs text-red-300">
+                              {invalid ? "End time must be after start time." : "Provide both a start and end time."}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-1 rounded-full p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
+                          onClick={() => removeHourLogRow(log.id)}
+                          aria-label="Remove interval"
+                        >
+                          <XIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
+                  <div>
+                    Total logged: <span className="font-semibold text-white">{totalLoggedHours.toFixed(2)} hours</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addHourLogRow}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white/80 transition hover:text-white"
+                  >
+                    <span className="text-base leading-none">+</span>
+                    Add interval
+                  </button>
+                </div>
+              </>
+            )}
+            {hourLogsValidationMessage && (
+              <div className="text-xs text-red-300">{hourLogsValidationMessage}</div>
+            )}
+          </div>
+          </div>
+
+          <div className="space-y-4 border-t border-white/10 pt-4">
             {segments.map((segment, index) => (
-              <div key={segment.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-white/50">
+              <div key={segment.id} className="space-y-2 border-b border-white/10 pb-3 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-white/50">
                   <span>Day {index + 1}</span>
                   {!isEditing && segments.length > 1 && (
                     <button
@@ -379,14 +637,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     type="date"
                     value={formatDateInputValue(segment.start)}
                     onChange={(e) => handleDateChange(segment.id, e.target.value)}
-                    className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                    className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                   />
                   {allDay ? (
                     <span className="rounded-md border border-white/20 px-3 py-2 text-sm text-white/80">All day</span>
                   ) : (
                     <>
                       <select
-                        className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                        className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         value={formatTimeValue(segment.start)}
                         onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
                       >
@@ -398,7 +656,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                       </select>
                       <span className="text-sm text-white/50">to</span>
                       <select
-                        className="rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                        className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
                         value={formatTimeValue(segment.end)}
                         onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
                       >
@@ -424,7 +682,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 border-y border-white/5 py-3">
+          <div className="flex flex-wrap items-center gap-4 border-t border-white/10 border-b border-white/10 py-3">
             <label className="ml-2 inline-flex items-center gap-2 text-sm">
               <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-emerald-500" />
               All day

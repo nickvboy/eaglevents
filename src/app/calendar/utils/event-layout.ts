@@ -14,6 +14,14 @@ export type CalendarEvent = {
     lastName: string;
     email: string;
   } | null;
+  hourLogs?: {
+    id: number;
+    startTime: string | Date;
+    endTime: string | Date;
+    durationMinutes: number;
+    durationHours: number;
+  }[];
+  totalLoggedMinutes?: number;
 };
 
 export type PositionedEvent = {
