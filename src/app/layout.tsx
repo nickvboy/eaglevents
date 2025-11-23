@@ -22,11 +22,11 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable}`}>
-      <body className="bg-neutral-950 text-white">
+      <body data-theme="dark" className="bg-surface-canvas text-ink-primary antialiased">
         <Providers>
           <div className="flex min-h-screen">
             <SidebarNav />
-            <main className="flex-1 min-h-screen bg-neutral-950">{children}</main>
+            <main className="min-h-screen flex-1 bg-surface-canvas">{children}</main>
           </div>
         </Providers>
       </body>

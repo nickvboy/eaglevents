@@ -1,6 +1,111 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+
+  /* Semantic color tokens that Tailwind utilities reference */
+  --color-surface-canvas: #04070c;
+  --color-surface-sunken: #050b13;
+  --color-surface-raised: #0b1220;
+  --color-surface-muted: #111a2a;
+  --color-surface-overlay: #0d111bbf;
+  --color-overlay-backdrop: #02070cb3;
+
+  --color-outline-muted: #1f2a37;
+  --color-outline-strong: #3b4a60;
+  --color-outline-accent: #34d399;
+
+  --color-ink-primary: #f7f8fb;
+  --color-ink-muted: #d4daea;
+  --color-ink-subtle: #a9b4c8;
+  --color-ink-faint: #7b879f;
+  --color-ink-inverted: #04070c;
+
+  --color-accent-strong: #34d399;
+  --color-accent-default: #10b981;
+  --color-accent-soft: #6ee7b7;
+  --color-accent-muted: #0f3c29;
+
+  --color-status-success: #34d399;
+  --color-status-success-surface: #04261d;
+  --color-status-warning: #fbbf24;
+  --color-status-warning-surface: #3b2505;
+  --color-status-danger: #f87171;
+  --color-status-danger-surface: #3b0d16;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+:root,
+[data-theme="dark"] {
+  --color-surface-canvas: #04070c;
+  --color-surface-sunken: #050b13;
+  --color-surface-raised: #0b1220;
+  --color-surface-muted: #111a2a;
+  --color-surface-overlay: #0d111bbf;
+  --color-overlay-backdrop: #02070cb3;
+
+  --color-outline-muted: #1f2a37;
+  --color-outline-strong: #3b4a60;
+  --color-outline-accent: #34d399;
+
+  --color-ink-primary: #f7f8fb;
+  --color-ink-muted: #d4daea;
+  --color-ink-subtle: #a9b4c8;
+  --color-ink-faint: #7b879f;
+  --color-ink-inverted: #030408;
+
+  --color-accent-strong: #34d399;
+  --color-accent-default: #10b981;
+  --color-accent-soft: #6ee7b7;
+  --color-accent-muted: #0f3c29;
+
+  --color-status-success: #34d399;
+  --color-status-success-surface: #04261d;
+  --color-status-warning: #fbbf24;
+  --color-status-warning-surface: #3b2505;
+  --color-status-danger: #f87171;
+  --color-status-danger-surface: #3b0d16;
+
+  --shadow-accent-glow: 0 0 14px rgba(52, 211, 153, 0.55);
+  --shadow-pane: 0 0 24px rgba(3, 5, 12, 0.5);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-surface-canvas: #f4f7fb;
+  --color-surface-sunken: #edf1f7;
+  --color-surface-raised: #ffffff;
+  --color-surface-muted: #e6ebf5;
+  --color-surface-overlay: #f8fbffeb;
+  --color-overlay-backdrop: #0f172a8c;
+
+  --color-outline-muted: #cbd4e4;
+  --color-outline-strong: #92a3c0;
+  --color-outline-accent: #0f9d7a;
+
+  --color-ink-primary: #0f172a;
+  --color-ink-muted: #334155;
+  --color-ink-subtle: #475569;
+  --color-ink-faint: #64748b;
+  --color-ink-inverted: #f7f8fb;
+
+  --color-accent-strong: #059669;
+  --color-accent-default: #0ea876;
+  --color-accent-soft: #34d399;
+  --color-accent-muted: #bff1da;
+
+  --color-status-success: #15803d;
+  --color-status-success-surface: #dcfce7;
+  --color-status-warning: #b45309;
+  --color-status-warning-surface: #fef3c7;
+  --color-status-danger: #b91c1c;
+  --color-status-danger-surface: #fee2e2;
+
+  --shadow-accent-glow: 0 0 18px rgba(14, 168, 118, 0.35);
+  --shadow-pane: 0 12px 24px rgba(15, 23, 42, 0.12);
 }

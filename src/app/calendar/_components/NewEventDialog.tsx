@@ -91,15 +91,15 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={
-          "flex w-full items-center justify-between gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white transition hover:border-white/40 " +
-          (invalid ? "border-red-400/70 text-red-100" : "")
+          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong " +
+          (invalid ? "border-status-danger text-status-danger" : "")
         }
       >
-        <span className={value ? "text-white" : "text-white/60"}>{label}</span>
-        <ChevronDownIcon className="h-3.5 w-3.5 text-white/60" />
+        <span className={value ? "text-ink-primary" : "text-ink-muted"}>{label}</span>
+        <ChevronDownIcon className="h-3.5 w-3.5 text-ink-muted" />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur">
+        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
           {options.map((option) => {
             const active = option.value === value;
             return (
@@ -108,7 +108,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 type="button"
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active ? "bg-emerald-500/15 text-white" : "text-white/80 hover:bg-white/5")
+                  (active ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
                 }
                 onClick={() => {
                   onChange(option.value);
@@ -116,7 +116,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 }}
               >
                 <span>{option.label}</span>
-                {active && <span className="text-xs text-emerald-300">Selected</span>}
+                {active && <span className="text-xs text-status-success">Selected</span>}
               </button>
             );
           })}
@@ -445,11 +445,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onMouseDown={handleBackdropMouseDown}>
-      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-white/10 bg-neutral-950 p-6 text-white shadow-2xl shadow-black/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4" onMouseDown={handleBackdropMouseDown}>
+      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-lg font-semibold">{dialogTitle}</div>
-          <button className="rounded-md border border-white/20 px-2 py-1 hover:bg-white/10" onClick={onClose}>
+          <button className="rounded-md border border-outline-muted px-2 py-1 hover:bg-surface-muted" onClick={onClose}>
             Close
           </button>
         </div>
@@ -459,31 +459,31 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             placeholder="Add a title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
+            className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
           />
 
           <div>
-            <div className="mb-1 text-xs text-white/60">Invite attendees</div>
+            <div className="mb-1 text-xs text-ink-muted">Invite attendees</div>
             <input
               placeholder="Emails, comma separated"
               value={attendees}
               onChange={(e) => setAttendees(e.target.value)}
-              className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
             />
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-white/60">Assign to</div>
+            <div className="mb-1 text-xs text-ink-muted">Assign to</div>
             <div className="space-y-2">
               {assignee && (
-                <div className="flex items-center justify-between rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-sm">
+                <div className="flex items-center justify-between rounded-md border border-outline-accent bg-accent-muted px-3 py-2 text-sm">
                   <div>
-                    <div className="font-medium text-white">{assignee.displayName}</div>
-                    <div className="text-xs text-white/60">{assignee.email}</div>
+                    <div className="font-medium text-ink-primary">{assignee.displayName}</div>
+                    <div className="text-xs text-ink-muted">{assignee.email}</div>
                   </div>
                   <button
                     type="button"
-                    className="text-xs font-medium text-emerald-300 hover:text-emerald-200"
+                    className="text-xs font-medium text-status-success hover:text-accent-soft"
                     onClick={handleClearAssignee}
                   >
                     Clear
@@ -495,41 +495,41 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                   placeholder={assignee ? "Search to reassign" : "Search by name, username, or email"}
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
-                  className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
                 />
                 {shouldShowAssigneeResults && (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-white/10 bg-black/90 shadow-xl">
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
                     {assigneeResults.isFetching ? (
-                      <div className="px-3 py-2 text-sm text-white/60">Searching...</div>
+                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
                     ) : assigneeMatches.length > 0 ? (
                       assigneeMatches.map((match) => (
                         <button
                           key={match.profileId}
                           type="button"
-                          className="flex w-full flex-col items-start gap-0.5 border-b border-white/5 px-3 py-2 text-left text-sm text-white hover:bg-white/10 last:border-b-0"
+                          className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
                           onClick={() => handleSelectAssignee(match)}
                         >
                           <span className="font-medium">{match.displayName}</span>
-                          <span className="text-xs text-white/60">{match.email}</span>
+                          <span className="text-xs text-ink-muted">{match.email}</span>
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-sm text-white/60">No profiles found</div>
+                      <div className="px-3 py-2 text-sm text-ink-muted">No profiles found</div>
                     )}
                   </div>
               )}
             </div>
           </div>
 
-          <div className="space-y-3 border-t border-white/10 pt-4 text-sm text-white/80">
-            <div className="text-xs uppercase tracking-wide text-white/50">Hour logging</div>
+          <div className="space-y-3 border-t border-outline-muted pt-4 text-sm text-ink-subtle">
+            <div className="text-xs uppercase tracking-wide text-ink-subtle">Hour logging</div>
             {hourLogs.length === 0 ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-white/55">No intervals have been added.</span>
+                <span className="text-ink-muted">No intervals have been added.</span>
                 <button
                   type="button"
                   onClick={addHourLogRow}
-                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/70 px-3 py-1.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/10"
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-accent px-3 py-1.5 text-sm font-semibold text-accent-soft transition hover:bg-accent-muted"
                 >
                   <span className="text-base leading-none">+</span>
                   Add interval
@@ -537,20 +537,20 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
               </div>
             ) : (
               <>
-                <div className="divide-y divide-white/10">
+                <div className="divide-y divide-outline-muted">
                   {hourLogs.map((log, index) => {
                     const hours = diffHours(log.start, log.end);
                     const invalid = Boolean(log.start && log.end && log.end <= log.start);
                     const incomplete = (log.start && !log.end) || (!log.start && log.end);
                     const pillClass = invalid
-                      ? "border border-red-400/70 bg-red-500/10 text-red-200"
+                      ? "border border-status-danger bg-status-danger-surface text-status-danger"
                       : hours > 0
-                        ? "border border-emerald-400/70 bg-emerald-500/10 text-emerald-200"
-                        : "border border-white/25 bg-white/5 text-white/70";
+                        ? "border border-outline-accent bg-accent-muted text-accent-soft"
+                        : "border border-outline-muted bg-surface-muted text-ink-subtle";
                     const pillText = hours > 0 ? `${hours.toFixed(2)}h` : invalid ? "Invalid" : "-";
                     return (
-                      <div key={log.id} className="flex flex-wrap items-start gap-3 py-3 transition hover:bg-white/5">
-                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
+                      <div key={log.id} className="flex flex-wrap items-start gap-3 py-3 transition hover:bg-surface-muted">
+                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
                           #{index + 1}
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -562,7 +562,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                               options={timeOptions}
                               invalid={invalid}
                             />
-                            <span className="text-xs text-white/50">to</span>
+                            <span className="text-xs text-ink-subtle">to</span>
                             <TimeSelect
                               value={formatHourLogTime(log.end)}
                               onChange={(value) => handleHourLogChange(log.id, "end", value)}
@@ -579,14 +579,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                             </span>
                           </div>
                           {(invalid || incomplete) && (
-                            <div className="text-xs text-red-300">
+                            <div className="text-xs text-status-danger">
                               {invalid ? "End time must be after start time." : "Provide both a start and end time."}
                             </div>
                           )}
                         </div>
                         <button
                           type="button"
-                          className="mt-1 rounded-full p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
+                          className="mt-1 rounded-full p-1 text-ink-faint transition hover:bg-surface-muted hover:text-ink-primary"
                           onClick={() => removeHourLogRow(log.id)}
                           aria-label="Remove interval"
                         >
@@ -596,14 +596,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted">
                   <div>
-                    Total logged: <span className="font-semibold text-white">{totalLoggedHours.toFixed(2)} hours</span>
+                    Total logged: <span className="font-semibold text-ink-primary">{totalLoggedHours.toFixed(2)} hours</span>
                   </div>
                   <button
                     type="button"
                     onClick={addHourLogRow}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white/80 transition hover:text-white"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink-subtle transition hover:text-ink-primary"
                   >
                     <span className="text-base leading-none">+</span>
                     Add interval
@@ -612,20 +612,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
               </>
             )}
             {hourLogsValidationMessage && (
-              <div className="text-xs text-red-300">{hourLogsValidationMessage}</div>
+              <div className="text-xs text-status-danger">{hourLogsValidationMessage}</div>
             )}
           </div>
           </div>
-
-          <div className="space-y-4 border-t border-white/10 pt-4">
+          <div className="space-y-4 border-t border-outline-muted pt-4">
             {segments.map((segment, index) => (
-              <div key={segment.id} className="space-y-2 border-b border-white/10 pb-3 last:border-b-0 last:pb-0">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-white/50">
+              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
                   <span>Day {index + 1}</span>
                   {!isEditing && segments.length > 1 && (
                     <button
                       type="button"
-                      className="text-red-300 transition hover:text-red-200"
+                      className="text-status-danger transition hover:text-status-danger"
                       onClick={() => removeSegment(segment.id)}
                     >
                       Remove
@@ -637,14 +636,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     type="date"
                     value={formatDateInputValue(segment.start)}
                     onChange={(e) => handleDateChange(segment.id, e.target.value)}
-                    className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                   />
                   {allDay ? (
-                    <span className="rounded-md border border-white/20 px-3 py-2 text-sm text-white/80">All day</span>
+                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
                   ) : (
                     <>
                       <select
-                        className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                         value={formatTimeValue(segment.start)}
                         onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
                       >
@@ -654,9 +653,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                           </option>
                         ))}
                       </select>
-                      <span className="text-sm text-white/50">to</span>
+                      <span className="text-sm text-ink-subtle">to</span>
                       <select
-                        className="rounded-md border border-white/20 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                         value={formatTimeValue(segment.end)}
                         onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
                       >
@@ -675,54 +674,54 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
               <button
                 type="button"
                 onClick={addSegmentRow}
-                className="text-sm font-medium text-emerald-400 transition hover:text-emerald-300"
+                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
               >
                 + Add another day
               </button>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 border-t border-white/10 border-b border-white/10 py-3">
+          <div className="flex flex-wrap items-center gap-4 border-t border-outline-muted border-b border-outline-muted py-3">
             <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-emerald-500" />
+              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-accent-strong" />
               All day
             </label>
             <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={inPerson} onChange={(e) => setInPerson(e.target.checked)} className="accent-emerald-500" />
+              <input type="checkbox" checked={inPerson} onChange={(e) => setInPerson(e.target.checked)} className="accent-accent-strong" />
               In-person event
             </label>
             <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} className="accent-emerald-500" />
+              <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} className="accent-accent-strong" />
               Make recurring
             </label>
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-white/60">Add a room or location</div>
+            <div className="mb-1 text-xs text-ink-muted">Add a room or location</div>
             <input
               placeholder="Location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/40"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
             />
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-white/60">Description</div>
+            <div className="mb-1 text-xs text-ink-muted">Description</div>
             <textarea
               rows={6}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full resize-y rounded-md border border-white/20 bg-black/30 p-3 text-white outline-none placeholder:text-white/40"
+              className="w-full resize-y rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
               placeholder="Notes"
             />
           </div>
 
-          {error && <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>}
+          {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
 
           <div className="mt-2 flex items-center gap-2">
             <button
-              className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-black disabled:opacity-50"
+              className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
               disabled={!canSave}
               onClick={handleSave}
             >
