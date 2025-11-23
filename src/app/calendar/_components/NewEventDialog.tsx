@@ -292,8 +292,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         ...prev,
         {
           id: randomId(),
-          start: addDays(last.start, 1),
-          end: addDays(last.end, 1),
+          start: new Date(last.start),
+          end: new Date(last.end),
         },
       ];
     });
