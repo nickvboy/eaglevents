@@ -115,3 +115,72 @@ export function CalendarIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function ShieldIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M12 3 5 6v5c0 5 3.8 9.4 7 10 3.2-.6 7-5 7-10V6Z" />
+      <path d="M9 12a3 3 0 0 0 6 0" />
+    </svg>
+  );
+}
+
+export function UsersIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+export function ChartLineIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M3 3v18h18" />
+      <path d="m19 7-5 6-4-4-5 6" />
+      <path d="M15 7h4v4" />
+    </svg>
+  );
+}
+
+export function BarChartIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <rect x="4" y="10" width="4" height="10" rx="1" />
+      <rect x="10" y="6" width="4" height="14" rx="1" />
+      <rect x="16" y="3" width="4" height="17" rx="1" />
+    </svg>
+  );
+}
+
+export function ReportIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+      <path d="M14 3v4a2 2 0 0 0 2 2h4" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </svg>
+  );
+}
+
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+export function SearchIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-4 w-4", className)}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3-3" />
+    </svg>
+  );
+}

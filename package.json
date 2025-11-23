@@ -19,6 +19,7 @@
     "preview": "next build && next start",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "user:create": "dotenv -e .env -- node scripts/create-user.mjs"
   },
   "dependencies": {

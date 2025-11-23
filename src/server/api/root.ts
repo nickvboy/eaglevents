@@ -2,6 +2,7 @@ import { calendarRouter } from "~/server/api/routers/calendar";
 import { eventRouter } from "~/server/api/routers/event";
 import { setupRouter } from "~/server/api/routers/setup";
 import { profileRouter } from "~/server/api/routers/profile";
+import { adminRouter } from "~/server/api/routers/admin";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -14,6 +15,7 @@ export const appRouter = createTRPCRouter({
   event: eventRouter,
   setup: setupRouter,
   profile: profileRouter,
+  admin: adminRouter,
 });
 
 // export type definition of API
