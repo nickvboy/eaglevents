@@ -43,18 +43,18 @@ export function AdminShell() {
   const activeDefinition = useMemo(() => tabs.find((tab) => tab.id === activeTab), [activeTab]);
 
   return (
-    <section className="flex min-h-screen flex-col gap-8 px-8 py-10">
+    <section className="flex min-h-screen flex-col gap-8 bg-surface-canvas px-8 py-10 text-ink-primary">
       <header className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-400">Control Center</p>
-          <h1 className="text-3xl font-semibold text-white">Admin Panel</h1>
+          <p className="text-sm uppercase tracking-[0.3em] text-accent-soft">Control Center</p>
+          <h1 className="text-3xl font-semibold text-ink-primary">Admin Panel</h1>
           {activeDefinition ? (
-            <p className="max-w-3xl text-sm text-white/60">{activeDefinition.description}</p>
+            <p className="max-w-3xl text-sm text-ink-muted">{activeDefinition.description}</p>
           ) : null}
         </div>
       </header>
 
-      <nav className="flex flex-wrap items-center gap-8 border-b border-white/10 pb-1" role="tablist" aria-label="Admin sections">
+      <nav className="flex flex-wrap items-center gap-8 border-b border-outline-muted pb-1" role="tablist" aria-label="Admin sections">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.id === activeTab;
@@ -66,17 +66,17 @@ export function AdminShell() {
               aria-selected={isActive}
               aria-controls={`${tab.id}-panel`}
               onClick={() => setActiveTab(tab.id)}
-              className="group relative flex items-center gap-2 pb-3 text-sm font-medium text-white/60 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 hover:text-white"
+              className="group relative flex items-center gap-2 pb-3 text-sm font-medium text-ink-muted transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong focus-visible:outline-offset-2 hover:text-ink-primary"
             >
-              <Icon className={"h-4 w-4 transition " + (isActive ? "text-emerald-300" : "group-hover:text-white")} />
-              <span className={isActive ? "text-white" : undefined}>{tab.label}</span>
+              <Icon className={"h-4 w-4 transition " + (isActive ? "text-accent-soft" : "group-hover:text-ink-primary")} />
+              <span className={isActive ? "text-ink-primary" : undefined}>{tab.label}</span>
               <span
                 aria-hidden
                 className={
                   "absolute inset-x-0 bottom-0 h-[3px] origin-center rounded-full transition " +
                   (isActive
-                    ? "scale-100 bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.55)]"
-                    : "scale-0 bg-white/40 group-hover:scale-100")
+                    ? "scale-100 bg-accent-strong shadow-[var(--shadow-accent-glow)]"
+                    : "scale-0 bg-outline-muted group-hover:scale-100")
                 }
               />
             </button>
@@ -98,4 +98,3 @@ export function AdminShell() {
     </section>
   );
 }
-

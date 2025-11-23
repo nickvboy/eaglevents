@@ -27,8 +27,8 @@ export function AccountMenu({ user, variant = "icon" }: Props) {
 
   const isIcon = variant === "icon";
   const buttonClass = isIcon
-    ? "inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-sm font-semibold text-black shadow hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
-    : "flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-white hover:bg-white/10";
+    ? "inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent-strong text-sm font-semibold text-ink-inverted shadow hover:bg-accent-default focus:outline-none focus:ring-2 focus:ring-accent-soft"
+    : "flex items-center gap-2 rounded-md border border-outline-muted bg-surface-muted px-2 py-1 text-sm text-ink-primary hover:bg-surface-muted";
 
   return (
     <div className="relative" ref={ref}>
@@ -42,17 +42,17 @@ export function AccountMenu({ user, variant = "icon" }: Props) {
           <span className="text-sm font-semibold">{initials}</span>
         ) : (
           <>
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs text-black">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-strong text-xs text-ink-inverted">
               {initials}
             </span>
-            <span className="max-w-[180px] truncate text-white/90">{email}</span>
+            <span className="max-w-[180px] truncate text-ink-primary">{email}</span>
           </>
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-white/10 bg-neutral-950 p-1 text-sm text-white shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-outline-muted bg-surface-raised p-1 text-sm text-ink-primary shadow-lg">
           <button
-            className="block w-full rounded-md px-2 py-1 text-left hover:bg-white/10"
+            className="block w-full rounded-md px-2 py-1 text-left hover:bg-surface-muted"
             onClick={() => signOut({ callbackUrl: "/login" })}
           >
             Sign out

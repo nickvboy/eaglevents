@@ -11,7 +11,7 @@ type MonthWidgetProps = {
   onSelect: (d: Date) => void;
   onMonthChange: (direction: number) => void;
   focusedWeekStart: Date; // start of the week currently in focus
-  calendars: { id: number; name: string; color: string }[];
+  calendars: { id: number; name: string; swatchClass: string }[];
   visibleCalendarIds: number[];
   onToggleCalendar: (id: number) => void;
 };
@@ -104,7 +104,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
   return (
     <aside
       ref={containerRef}
-      className="w-64 shrink-0 overflow-hidden border-r border-white/10 bg-black/30 p-3 text-sm text-white"
+      className="w-64 shrink-0 overflow-hidden border-r border-outline-muted bg-surface-muted p-3 text-sm text-ink-primary"
       style={{ overscrollBehavior: "contain" }}
     >
       <div className="mb-3">
@@ -114,7 +114,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
               <button
                 type="button"
                 aria-label="Previous month"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-base text-white transition hover:bg-white/10"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-outline-muted text-base text-ink-primary transition hover:bg-surface-muted"
                 onClick={() => applyMonthChange(-1)}
               >
                 <ChevronLeftIcon />
@@ -122,7 +122,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
               <button
                 type="button"
                 aria-label="Select month"
-                className="flex flex-1 items-center justify-center gap-1 rounded-md px-3 py-1 text-base font-semibold transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-2 cursor-pointer select-none"
+                className="flex flex-1 items-center justify-center gap-1 rounded-md px-3 py-1 text-base font-semibold transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong focus-visible:outline-offset-2 cursor-pointer select-none"
                 onClick={() => {
                   setMonthSelectionYear(props.monthDate.getFullYear());
                   setMode("month");
@@ -134,7 +134,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
               <button
                 type="button"
                 aria-label="Next month"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-base text-white transition hover:bg-white/10"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-outline-muted text-base text-ink-primary transition hover:bg-surface-muted"
                 onClick={() => applyMonthChange(1)}
               >
                 <ChevronRightIcon />
@@ -151,7 +151,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
               }
             >
               {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
-                <div key={`${d}-${idx}`} className="px-1 text-center text-xs text-white/60">
+                <div key={`${d}-${idx}`} className="px-1 text-center text-xs text-ink-muted">
                   {d}
                 </div>
               ))}
@@ -168,20 +168,20 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                     onClick={() => props.onSelect(d)}
                     className={
                       "relative h-8 rounded-md text-center transition-colors " +
-                      (inMonth ? "text-white" : "text-white/40")
+                      (inMonth ? "text-ink-primary" : "text-ink-faint")
                     }
                   >
                     {isInFocusWeek && (
-                      <span className="absolute inset-x-1/2 top-0 h-full w-9 -translate-x-1/2 rounded-full bg-white/5" />
+                      <span className="absolute inset-x-1/2 top-0 h-full w-9 -translate-x-1/2 rounded-full bg-surface-muted" />
                     )}
                     <span
                       className={
                         "relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full " +
                         (isSelected
-                          ? "bg-emerald-500 text-black font-medium"
+                          ? "bg-accent-strong text-ink-inverted font-medium"
                           : isToday
-                            ? "border border-emerald-500"
-                            : "hover:bg-white/10")
+                            ? "border border-outline-accent"
+                            : "hover:bg-surface-muted")
                       }
                     >
                       {d.getDate()}
@@ -193,11 +193,11 @@ export function CalendarSidebar(props: MonthWidgetProps) {
           </>
         ) : (
           <>
-            <div className="mb-2 flex items-center gap-2 text-white">
+            <div className="mb-2 flex items-center gap-2 text-ink-primary">
               <button
                 type="button"
                 aria-label="Back to day view"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-base transition hover:bg-white/10 cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-outline-muted text-base transition hover:bg-surface-muted cursor-pointer"
                 onClick={() => setMode("day")}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
@@ -208,7 +208,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                   <button
                     type="button"
                     aria-label="Increase year"
-                    className="flex items-center justify-center rounded-md p-1 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-1 cursor-pointer select-none"
+                    className="flex items-center justify-center rounded-md p-1 text-ink-primary transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong focus-visible:outline-offset-1 cursor-pointer select-none"
                     onClick={() => setMonthSelectionYear((year) => year + 1)}
                   >
                     <ArrowUpIcon className="h-4 w-4" />
@@ -216,7 +216,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                   <button
                     type="button"
                     aria-label="Decrease year"
-                    className="flex items-center justify-center rounded-md p-1 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500/60 focus-visible:outline-offset-1 cursor-pointer select-none"
+                    className="flex items-center justify-center rounded-md p-1 text-ink-primary transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong focus-visible:outline-offset-1 cursor-pointer select-none"
                     onClick={() => setMonthSelectionYear((year) => year - 1)}
                   >
                     <ArrowDownIcon className="h-4 w-4" />
@@ -237,8 +237,8 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                       className={
                         "rounded-md px-3 py-2 text-center transition-all duration-150 cursor-pointer select-none " +
                         (isSelected
-                          ? "bg-emerald-500 text-black shadow shadow-emerald-500/30"
-                          : "bg-white/5 text-white/80 hover:bg-white/10")
+                          ? "bg-accent-strong text-ink-inverted shadow shadow-[var(--shadow-accent-glow)]"
+                          : "bg-surface-muted text-ink-primary hover:bg-surface-muted")
                       }
                       aria-pressed={isSelected}
                     >
@@ -253,19 +253,19 @@ export function CalendarSidebar(props: MonthWidgetProps) {
       </div>
 
       <div>
-        <div className="mb-2 text-xs uppercase text-white/60">My calendars</div>
+        <div className="mb-2 text-xs uppercase text-ink-muted">My calendars</div>
         <div className="flex flex-col gap-1">
           {props.calendars.map((c) => {
             const visible = props.visibleCalendarIds.includes(c.id);
             return (
-              <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 hover:bg-white/5">
+              <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 hover:bg-surface-muted">
                 <input
                   type="checkbox"
                   checked={visible}
                   onChange={() => props.onToggleCalendar(c.id)}
-                  className="accent-emerald-500"
+                  className="accent-accent-strong"
                 />
-                <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: c.color }} />
+                <span className={`inline-block h-3 w-3 rounded ${c.swatchClass}`} />
                 <span className="truncate">{c.name}</span>
               </label>
             );

@@ -67,6 +67,20 @@
       "when": 1762806400000,
       "tag": "0008_event_hour_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1763500000000,
+      "tag": "0009_palette_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1763500001000,
+      "tag": "0010_theme_palette_camel",
+      "breakpoints": true
     }
   ]
 }

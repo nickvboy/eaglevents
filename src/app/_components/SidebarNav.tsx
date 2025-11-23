@@ -3,7 +3,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, HomeIcon, ShieldIcon } from "./icons";
+import { CalendarIcon, HomeIcon, SettingsIcon, ShieldIcon } from "./icons";
 
 type NavItem = {
   href: string;
@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/admin", label: "Admin", icon: ShieldIcon },
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export function SidebarNav() {

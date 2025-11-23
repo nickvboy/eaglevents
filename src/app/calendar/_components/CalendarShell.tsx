@@ -21,6 +21,7 @@ type CalendarShellProps = {
 };
 
 const MOBILE_QUERY = "(max-width: 768px)";
+const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
   const initialDate = startOfDay(new Date());
@@ -86,8 +87,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
   const calendarLookup = useMemo(() => {
-    const map = new Map<number, { name: string; color: string }>();
-    (calendars ?? []).forEach((c) => map.set(c.id, { name: c.name, color: c.color }));
+    const map = new Map<number, { name: string; swatchClass: string }>();
+    (calendars ?? []).forEach((c, idx) => {
+      const swatchClass = CALENDAR_SWATCHES[idx % CALENDAR_SWATCHES.length];
+      map.set(c.id, { name: c.name, swatchClass });
+    });
     return map;
   }, [calendars]);
 
@@ -261,7 +265,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
         (monthOverlayVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0")
       }
     >
-      <div className="rounded-full bg-black/75 px-4 py-1 text-sm font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
+      <div className="rounded-full bg-surface-overlay px-4 py-1 text-sm font-semibold text-ink-primary shadow-lg shadow-[var(--shadow-pane)] backdrop-blur">
         {monthOverlayText}
       </div>
     </div>
@@ -269,7 +273,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   return (
     <>
-      <div className="flex min-h-screen flex-col bg-neutral-950 lg:flex-row">
+      <div className="flex min-h-screen flex-col bg-surface-raised lg:flex-row">
         <div className="hidden lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
@@ -286,7 +290,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
               })
             }
             focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
-            calendars={(calendars ?? []).map((c) => ({ id: c.id, name: c.name, color: c.color }))}
+            calendars={(calendars ?? []).map((c) => ({
+              id: c.id,
+              name: c.name,
+              swatchClass: calendarLookup.get(c.id)?.swatchClass ?? CALENDAR_SWATCHES[0],
+            }))}
             visibleCalendarIds={effectiveVisible}
             onToggleCalendar={(id) =>
               setVisibleCalendarIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -295,8 +303,8 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
           {business?.name && (
-            <div className="border-b border-white/10 bg-black/40 px-4 py-3 lg:px-6">
-              <h1 className="text-xl font-semibold text-white lg:text-2xl">{business.name}</h1>
+            <div className="border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
+              <h1 className="text-xl font-semibold text-ink-primary lg:text-2xl">{business.name}</h1>
             </div>
           )}
           {isMobile ? (
@@ -438,7 +446,7 @@ function MonthGrid({
   const todayKey = startOfDay(new Date()).toISOString();
 
   return (
-    <div className="grid flex-1 grid-cols-7 gap-px bg-black p-1 md:p-px">
+    <div className="grid flex-1 grid-cols-7 gap-px bg-surface-sunken p-1 md:p-px">
       {days.map((d) => {
         const inMonth = d.getMonth() === selectedMonth;
         const key = startOfDay(d).toISOString();
@@ -452,22 +460,22 @@ function MonthGrid({
             key={d.toISOString()}
             onClick={() => onSelectDay(d)}
             className={
-              "flex min-h-[140px] flex-col rounded-lg border bg-black p-3 text-left text-white transition hover:border-emerald-400/60 hover:bg-black/80 " +
-              (inMonth ? "border-white/15" : "border-white/10 opacity-60") +
-              (isToday ? " ring-2 ring-emerald-500/70" : "")
+              "flex min-h-[140px] flex-col rounded-lg border bg-surface-sunken p-3 text-left text-ink-primary transition hover:border-outline-accent hover:bg-surface-overlay " +
+              (inMonth ? "border-outline-muted" : "border-outline-muted opacity-60") +
+              (isToday ? " ring-2 ring-accent-strong" : "")
             }
           >
-            <div className="flex items-center justify-between text-xs text-white/60">
-              <span className="font-semibold text-white">
+            <div className="flex items-center justify-between text-xs text-ink-muted">
+              <span className="font-semibold text-ink-primary">
                 {d.getDate()}
                 {!inMonth && (
-                  <span className="ml-1 text-[10px] uppercase text-white/40">
+                  <span className="ml-1 text-[10px] uppercase text-ink-faint">
                     {d.toLocaleDateString(undefined, { month: "short" })}
                   </span>
                 )}
               </span>
               {dayEvents.length > 0 && (
-                <span className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-emerald-300">
+                <span className="rounded-md border border-outline-accent/40 bg-accent-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-status-success">
                   {dayEvents.length} event{dayEvents.length > 1 ? "s" : ""}
                 </span>
               )}
@@ -480,13 +488,13 @@ function MonthGrid({
                 return (
                   <div
                     key={ev.id}
-                    className="w-full rounded-md border border-emerald-500/50 bg-emerald-600/20 px-2 py-1 text-left text-[11px] text-white/90"
+                    className="w-full rounded-md border border-outline-accent bg-accent-muted px-2 py-1 text-left text-[11px] text-ink-primary"
                     title={ev.title}
                   >
-                    <div className="truncate font-medium text-white">
+                    <div className="truncate font-medium text-ink-primary">
                       {ev.title}
                     </div>
-                    <div className="truncate text-[10px] text-white/70">
+                    <div className="truncate text-[10px] text-ink-subtle">
                       {ev.isAllDay ? "All day" : formatMonthEventTime(evStart, evEnd)}
                     </div>
                   </div>
@@ -494,7 +502,7 @@ function MonthGrid({
               })}
 
               {remaining > 0 && (
-                <div className="mt-auto rounded-md border border-white/10 bg-black/60 px-2 py-1 text-[10px] text-white/60">
+                <div className="mt-auto rounded-md border border-outline-muted bg-surface-overlay px-2 py-1 text-[10px] text-ink-muted">
                   +{remaining} more
                 </div>
               )}
@@ -524,22 +532,22 @@ type MobileToolbarProps = {
 function MobileToolbar({ onToday, currentUser, view, onViewChange }: MobileToolbarProps) {
   const views: View[] = ["day", "threeday", "workweek", "week", "month"];
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-black/80 px-4 py-3 text-white">
+    <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3 text-ink-primary">
       <button
-        className="shrink-0 rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+        className="shrink-0 rounded-md border border-outline-muted px-3 py-1.5 text-sm font-medium hover:bg-surface-muted"
         onClick={onToday}
       >
         Today
       </button>
       <div className="flex flex-1 justify-center">
-        <div className="inline-flex items-center gap-px rounded-lg border border-white/15 bg-black/50 p-1">
+        <div className="inline-flex items-center gap-px rounded-lg border border-outline-muted bg-surface-sunken/50 p-1">
           {views.map((v) => (
             <button
               key={v}
               onClick={() => onViewChange(v)}
               className={
                 "rounded-md px-2 py-1 text-xs font-medium capitalize transition " +
-                (view === v ? "bg-emerald-500 text-black shadow" : "text-white/70 hover:bg-white/10")
+                (view === v ? "bg-accent-strong text-ink-inverted shadow" : "text-ink-subtle hover:bg-surface-muted")
               }
             >
               {v === "workweek" ? "Work week" : v === "threeday" ? "3 day" : v}
@@ -573,24 +581,24 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
   const handleNext = props.calendarOpen ? props.onNextMonth : props.onNextDay;
 
   return (
-    <div className="border-b border-white/10 bg-black/80 text-white">
+    <div className="border-b border-outline-muted bg-surface-overlay text-ink-primary">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <button
           type="button"
           aria-label="Previous date"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-muted hover:bg-surface-muted"
           onClick={handlePrev}
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
         <div className="text-center">
           <div className="text-lg font-semibold">{focusDate.toLocaleString(undefined, { month: "long" })}</div>
-          <div className="text-xs text-white/60">{focusDate.getFullYear()}</div>
+          <div className="text-xs text-ink-muted">{focusDate.getFullYear()}</div>
         </div>
         <button
           type="button"
           aria-label="Next date"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-muted hover:bg-surface-muted"
           onClick={handleNext}
         >
           <ChevronRightIcon className="h-4 w-4" />
@@ -603,7 +611,7 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
             const isSelected = isSameDay(d, props.selectedDate);
             const isToday = isSameDay(d, props.today);
             const inMonth = d.getMonth() === props.selectedDate.getMonth();
-            const base = isSelected ? "bg-emerald-500 text-black" : "bg-white/5 text-white";
+            const base = isSelected ? "bg-accent-strong text-ink-inverted" : "bg-surface-muted text-ink-primary";
             return (
               <button
                 key={d.toISOString()}
@@ -614,10 +622,10 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
                   (inMonth ? "" : " opacity-60")
                 }
               >
-                <span className={"uppercase " + (isSelected ? "text-black/80" : "text-white/60")}>
+                <span className={"uppercase " + (isSelected ? "text-ink-inverted" : "text-ink-muted")}>
                   {d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2)}
                 </span>
-                <span className={"text-sm font-medium " + (isSelected ? "" : isToday ? "text-emerald-300" : "")}>
+                <span className={"text-sm font-medium " + (isSelected ? "" : isToday ? "text-status-success" : "")}>
                   {d.getDate()}
                 </span>
               </button>
@@ -632,13 +640,13 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
           className="flex h-8 w-16 items-center justify-center"
           onClick={() => props.onCalendarOpenChange(!props.calendarOpen)}
         >
-          <span className="h-1.5 w-full rounded-full bg-white/25" />
+          <span className="h-1.5 w-full rounded-full bg-surface-muted" />
         </button>
       </div>
 
       {props.calendarOpen && (
         <div className="px-4 pb-3">
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-white/50">
+          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-ink-subtle">
             {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
               <span key={d}>{d}</span>
             ))}
@@ -657,16 +665,16 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
                   }}
                   className={
                     "relative h-10 rounded-md text-center text-sm transition-colors " +
-                    (inMonth ? "text-white" : "text-white/40")
+                    (inMonth ? "text-ink-primary" : "text-ink-faint")
                   }
                 >
                   <span
                     className={
                       "relative z-10 inline-flex h-9 w-9 items-center justify-center rounded-full " +
                       (isSelected
-                        ? "bg-emerald-500 text-black font-medium"
+                        ? "bg-accent-strong text-ink-inverted font-medium"
                         : isToday
-                          ? "border border-emerald-400"
+                          ? "border border-outline-accent"
                           : "")
                     }
                   >
@@ -687,7 +695,7 @@ function NewEventFab({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-[18px] bg-emerald-500 text-3xl font-semibold leading-none text-black shadow-lg shadow-emerald-500/40 transition hover:bg-emerald-400"
+      className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-[18px] bg-accent-strong text-3xl font-semibold leading-none text-ink-inverted shadow-lg shadow-[var(--shadow-accent-glow)] transition hover:bg-accent-default"
       aria-label="Create event"
     >
       +

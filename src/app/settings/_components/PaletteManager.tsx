@@ -40,70 +40,134 @@ function createPreset(id: string, name: string, description: string, overrides: 
 const PALETTE_PRESETS: PalettePreset[] = [
   createPreset("azure", "Azure Radiance", "Crisp blues with teal accents for calm dashboards.", {
     dark: {
-      surfaceCanvas: "#050a18",
-      surfaceMuted: "#0e1b33",
-      accentStrong: "#1ab3ff",
-      accentDefault: "#4fd3ff",
-      accentMuted: "#0b2c44",
+      surfaceCanvas: "#020617",
+      surfaceMuted: "#0f172a",
+      accentStrong: "#38bdf8",
+      accentDefault: "#60a5fa",
+      accentMuted: "#082f49",
+      statusSuccess: "#22d3ee",
+      statusWarning: "#facc15",
+      statusDanger: "#f87171",
     },
     light: {
-      surfaceCanvas: "#f5fbff",
-      surfaceMuted: "#e1edf8",
-      accentStrong: "#0b77c5",
-      accentDefault: "#3aa7ff",
-      accentMuted: "#cde9ff",
+      surfaceCanvas: "#f0f7ff",
+      surfaceMuted: "#dce9ff",
+      accentStrong: "#0f82f2",
+      accentDefault: "#38bdf8",
+      accentMuted: "#c4e0ff",
+      statusSuccess: "#0ea5e9",
+      statusWarning: "#facc15",
+      statusDanger: "#ef4444",
     },
   }),
   createPreset("sunset", "Sunset Dusk", "Warm amber highlights with deep ruby accents.", {
     dark: {
-      surfaceCanvas: "#12050a",
-      surfaceMuted: "#1e0d16",
-      accentStrong: "#ff6f61",
-      accentDefault: "#ff9a76",
-      accentMuted: "#40141c",
-      statusSuccess: "#3cd39f",
-      statusWarning: "#ffc857",
+      surfaceCanvas: "#1a0807",
+      surfaceMuted: "#2a1412",
+      accentStrong: "#ff6b3b",
+      accentDefault: "#ff9468",
+      accentMuted: "#43130e",
+      statusSuccess: "#ffd966",
+      statusWarning: "#ff9f1a",
+      statusDanger: "#ff4d4d",
     },
     light: {
-      surfaceCanvas: "#fff8f5",
-      surfaceMuted: "#ffe3d8",
-      accentStrong: "#d8515f",
-      accentDefault: "#ff8e72",
-      accentMuted: "#ffe0d6",
+      surfaceCanvas: "#fff6ef",
+      surfaceMuted: "#ffe1d0",
+      accentStrong: "#e45826",
+      accentDefault: "#ff8f57",
+      accentMuted: "#ffd0b8",
+      statusSuccess: "#ffa45b",
+      statusWarning: "#ff7a18",
+      statusDanger: "#e63946",
     },
   }),
-  createPreset("forest", "Emerald Forest", "Earthy greens inspired by Microsoft Fluent.", {
+  createPreset("orchid", "Orchid Gloss", "Vivid magenta paired with graphite surfaces.", {
     dark: {
-      surfaceCanvas: "#050d09",
-      surfaceMuted: "#0e2016",
-      accentStrong: "#37d996",
-      accentDefault: "#59f2b7",
-      accentMuted: "#0a3020",
-      statusSuccess: "#37d996",
-    },
-    light: {
-      surfaceCanvas: "#f3fbf6",
-      surfaceMuted: "#e0f3e6",
-      accentStrong: "#0a8f4d",
-      accentDefault: "#24c781",
-      accentMuted: "#b4f1ce",
-    },
-  }),
-  createPreset("orchid", "Orchid Gloss", "Vivid magenta accent balanced with graphite surfaces.", {
-    dark: {
-      surfaceCanvas: "#080514",
-      surfaceMuted: "#150c24",
-      accentStrong: "#d946ef",
-      accentDefault: "#f472b6",
-      accentMuted: "#301436",
+      surfaceCanvas: "#0f0615",
+      surfaceMuted: "#1f0a2a",
+      accentStrong: "#c636ff",
+      accentDefault: "#f472d0",
+      accentMuted: "#380f3f",
+      statusSuccess: "#f472d0",
+      statusWarning: "#feb278",
       statusDanger: "#ff8ba7",
     },
     light: {
-      surfaceCanvas: "#fdf7ff",
-      surfaceMuted: "#f7e7ff",
+      surfaceCanvas: "#fff4ff",
+      surfaceMuted: "#f7daff",
       accentStrong: "#a21caf",
       accentDefault: "#d946ef",
-      accentMuted: "#f5dbff",
+      accentMuted: "#f4d0ff",
+      statusSuccess: "#d946ef",
+      statusWarning: "#f97316",
+      statusDanger: "#f43f5e",
+    },
+  }),
+  createPreset("citrus", "Citrus Pop", "Electric yellows with navy surfaces for contrast.", {
+    dark: {
+      surfaceCanvas: "#050910",
+      surfaceMuted: "#0b1624",
+      accentStrong: "#facc15",
+      accentDefault: "#fde047",
+      accentMuted: "#342c08",
+      statusSuccess: "#facc15",
+      statusWarning: "#fde047",
+      statusDanger: "#f87171",
+    },
+    light: {
+      surfaceCanvas: "#fffdeb",
+      surfaceMuted: "#fef3c7",
+      accentStrong: "#ca8a04",
+      accentDefault: "#facc15",
+      accentMuted: "#fff1a1",
+      statusSuccess: "#fca311",
+      statusWarning: "#fbbf24",
+      statusDanger: "#dc2626",
+    },
+  }),
+  createPreset("slate", "Slate Pulse", "Cool slate neutrals with cyan accents.", {
+    dark: {
+      surfaceCanvas: "#050c12",
+      surfaceMuted: "#102029",
+      accentStrong: "#0be5e5",
+      accentDefault: "#38edf0",
+      accentMuted: "#083742",
+      statusSuccess: "#67e8f9",
+      statusWarning: "#eab308",
+      statusDanger: "#f87171",
+    },
+    light: {
+      surfaceCanvas: "#edf7fb",
+      surfaceMuted: "#d3e5ed",
+      accentStrong: "#0284c7",
+      accentDefault: "#0ea5e9",
+      accentMuted: "#c8ecff",
+      statusSuccess: "#38bdf8",
+      statusWarning: "#d97706",
+      statusDanger: "#dc2626",
+    },
+  }),
+  createPreset("crimson", "Crimson Wave", "An all-red palette for bold alerts and attention.", {
+    dark: {
+      surfaceCanvas: "#190204",
+      surfaceMuted: "#2b0609",
+      accentStrong: "#ff2d55",
+      accentDefault: "#ff6b81",
+      accentMuted: "#43060f",
+      statusSuccess: "#f87171",
+      statusWarning: "#ff9f43",
+      statusDanger: "#ff2d55",
+    },
+    light: {
+      surfaceCanvas: "#fff0f3",
+      surfaceMuted: "#ffd5dd",
+      accentStrong: "#b91c1c",
+      accentDefault: "#ef4444",
+      accentMuted: "#ffc2ce",
+      statusSuccess: "#f87171",
+      statusWarning: "#ffa94d",
+      statusDanger: "#dc2626",
     },
   }),
 ];
@@ -185,6 +249,7 @@ export function PaletteManager() {
     if (!confirm("Delete this palette? This cannot be undone.")) return;
     try {
       await deletePalette.mutateAsync({ id: paletteId });
+      void utils.theme.current.invalidate();
       setStatusMessage("Palette deleted");
       if (selectedPaletteId === paletteId) {
         handleCreate();
@@ -217,6 +282,7 @@ export function PaletteManager() {
         });
       }
       setModalOpen(false);
+      void utils.theme.current.invalidate();
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to save palette");
     }
@@ -230,6 +296,7 @@ export function PaletteManager() {
         paletteId,
       });
       setStatusMessage("Assignment updated");
+      void utils.theme.current.invalidate();
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to update assignment");
     }
@@ -309,18 +376,20 @@ export function PaletteManager() {
                   (active ? "border-outline-accent bg-accent-muted/20" : "border-outline-muted bg-surface-muted/80")
                 }
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-ink-primary">{palette.name}</p>
-                    <p className="text-xs text-ink-muted">{palette.description || "No description"}</p>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-ink-primary">{palette.name}</p>
+                      <p className="text-xs text-ink-muted">{palette.description || "No description"}</p>
+                    </div>
+                    {active ? (
+                      <span className="rounded-full bg-accent-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-accent-strong">
+                        Workspace default
+                      </span>
+                    ) : null}
                   </div>
-                  {active ? (
-                    <span className="rounded-full bg-accent-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-accent-strong">
-                      Workspace default
-                    </span>
-                  ) : null}
+                  <PalettePreview tokens={palette.tokens} />
                 </div>
-                <PalettePreview tokens={palette.tokens} />
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -358,10 +427,12 @@ export function PaletteManager() {
         <div className="grid gap-4 md:grid-cols-2">
           {PALETTE_PRESETS.map((preset) => (
             <article key={preset.id} className="rounded-2xl border border-outline-muted bg-surface-muted/70 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-ink-primary">{preset.name}</p>
-                  <p className="text-xs text-ink-muted">{preset.description}</p>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink-primary">{preset.name}</p>
+                    <p className="text-xs text-ink-muted">{preset.description}</p>
+                  </div>
                 </div>
                 <PalettePreview tokens={preset.tokens} />
               </div>
@@ -407,6 +478,7 @@ export function PaletteManager() {
           onSubmit={handleSubmit}
           isSaving={createPalette.isPending || updatePalette.isPending}
           onClose={handleCloseModal}
+          presets={PALETTE_PRESETS}
         />
       ) : null}
     </section>
@@ -449,7 +521,46 @@ function PaletteEditorModal({
   onSubmit,
   isSaving,
   onClose,
-}: PaletteEditorProps & { onClose: () => void }) {
+  presets,
+}: PaletteEditorProps & { onClose: () => void; presets: PalettePreset[] }) {
+  const [presetSelection, setPresetSelection] = useState<string>("");
+  const [manualTokens, setManualTokens] = useState(() => JSON.stringify(state.tokens, null, 2));
+  const [manualError, setManualError] = useState<string | null>(null);
+
+  const handlePresetChange = (value: string) => {
+    setPresetSelection(value);
+    const preset = presets.find((p) => p.id === value);
+    if (preset) {
+      onChange({
+        ...state,
+        tokens: cloneThemePaletteTokens(preset.tokens),
+      });
+      setManualTokens(JSON.stringify(preset.tokens, null, 2));
+      setManualError(null);
+    }
+  };
+
+  const handleLoadCurrentTokens = () => {
+    setManualTokens(JSON.stringify(state.tokens, null, 2));
+    setManualError(null);
+  };
+
+  const handleApplyManualTokens = () => {
+    try {
+      const parsed = JSON.parse(manualTokens) as ThemePaletteTokens;
+      if (!parsed?.dark || !parsed?.light) {
+        throw new Error("Tokens must include both dark and light objects.");
+      }
+      onChange({
+        ...state,
+        tokens: cloneThemePaletteTokens(parsed),
+      });
+      setManualError(null);
+    } catch (error) {
+      setManualError(error instanceof Error ? error.message : "Unable to parse tokens");
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--color-overlay-backdrop)] px-4 py-8">
       <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-outline-muted bg-surface-raised/95 p-6 shadow-[var(--shadow-pane)]">
@@ -468,6 +579,21 @@ function PaletteEditorModal({
         </div>
 
         <div className="mt-4 space-y-4">
+          <label className="flex flex-col gap-1 text-sm text-ink-primary">
+            Apply preset
+            <select
+              className="rounded-lg border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary outline-none focus:border-outline-accent"
+              value={presetSelection}
+              onChange={(event) => handlePresetChange(event.target.value)}
+            >
+              <option value="">Custom / current colors</option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex flex-col gap-1 text-sm text-ink-primary">
             Palette name
             <input
@@ -526,6 +652,36 @@ function PaletteEditorModal({
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-ink-primary">Typed tokens (JSON)</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle transition hover:bg-surface-muted"
+                onClick={handleLoadCurrentTokens}
+              >
+                Load current
+              </button>
+              <button
+                type="button"
+                className="rounded-full border border-outline-accent px-3 py-1 text-xs text-ink-primary transition hover:bg-accent-muted"
+                onClick={handleApplyManualTokens}
+              >
+                Apply typed tokens
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={manualTokens}
+            onChange={(event) => setManualTokens(event.target.value)}
+            rows={6}
+            className="w-full rounded-lg border border-outline-muted bg-surface-raised p-3 text-xs text-ink-primary outline-none focus:border-outline-accent"
+            spellCheck={false}
+          />
+          {manualError ? <p className="text-xs text-status-danger">{manualError}</p> : null}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">

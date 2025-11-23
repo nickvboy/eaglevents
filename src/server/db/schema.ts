@@ -2,11 +2,12 @@
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
 import { sql } from "drizzle-orm";
-import { index, pgTableCreator, text, foreignKey } from "drizzle-orm/pg-core";
+import { index, pgTableCreator, text, foreignKey, jsonb } from "drizzle-orm/pg-core";
 import { sql as psql } from "drizzle-orm";
 
 // Drizzle column builders
 import { varchar, integer, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
+import { ThemePaletteTokens } from "~/types/theme";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -19,6 +20,7 @@ export const createTable = pgTableCreator((name) => `t3-app-template_${name}`);
 export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofit", "corporation", "government", "venue", "other"]);
 export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "manager", "employee"]);
 export const organizationScopeTypeEnum = pgEnum("organization_scope_type", ["business", "department", "division"]);
+export const themeProfileScopeEnum = pgEnum("theme_profile_scope", ["business", "department"]);
 
 export const users = createTable(
   "user",
@@ -153,6 +155,50 @@ export const departments = createTable(
       foreignColumns: [t.id],
       name: "department_parent_fk",
     }).onDelete("cascade"),
+  ],
+);
+
+export const themePalettes = createTable(
+  "theme_palette",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    name: d.varchar({ length: 120 }).notNull(),
+    description: text().default("").notNull(),
+    tokens: jsonb("tokens").$type<ThemePaletteTokens>().notNull(),
+    isDefault: d.boolean().default(false).notNull(),
+    createdByUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index("theme_palette_business_idx").on(t.businessId),
+    uniqueIndex("theme_palette_business_name_idx").on(t.businessId, t.name),
+  ],
+);
+
+export const themeProfiles = createTable(
+  "theme_profile",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    scopeType: themeProfileScopeEnum().notNull(),
+    scopeId: d.integer().notNull(),
+    label: d.varchar({ length: 120 }).default("").notNull(),
+    description: text().default("").notNull(),
+    paletteId: d.integer().notNull().references(() => themePalettes.id, { onDelete: "cascade" }),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    uniqueIndex("theme_profile_scope_idx").on(t.businessId, t.scopeType, t.scopeId),
+    index("theme_profile_palette_idx").on(t.paletteId),
   ],
 );
 

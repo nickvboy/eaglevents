@@ -12,7 +12,7 @@ type Props = {
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
-  calendarLookup?: Map<number, { name: string; color: string }>;
+  calendarLookup?: Map<number, { name: string; swatchClass: string }>;
 };
 
 export function WeekGrid({
@@ -33,27 +33,27 @@ export function WeekGrid({
   }
 
   return (
-    <div className={"flex min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-black/40" : "")}>
+    <div className={"flex min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-surface-muted" : "")}>
       {/* Time gutter */}
       <TimeGutter />
       {/* Day columns */}
       {days.map((d) => (
         <div key={d.toISOString()} className="min-w-0 flex-1">
           {variant === "default" ? (
-            <div className="sticky top-0 z-10 border-b border-l border-white/10 bg-black/60 px-2 py-1 text-xs text-white">
+            <div className="sticky top-0 z-10 border-b border-l border-outline-muted bg-surface-overlay px-2 py-1 text-xs text-ink-primary">
               <div className="font-medium">
                 {d.toLocaleDateString(undefined, { weekday: "long" })}
               </div>
-              <div className="text-white/60">
+              <div className="text-ink-muted">
                 {d.getMonth() + 1}/{d.getDate()}
               </div>
             </div>
           ) : (
-            <div className="border-b border-l border-white/10 bg-black/70 px-3 py-2 text-sm text-white">
+            <div className="border-b border-l border-outline-muted bg-surface-overlay px-3 py-2 text-sm text-ink-primary">
               <div className="font-semibold">
                 {d.toLocaleDateString(undefined, { weekday: "long" })}
               </div>
-              <div className="text-xs text-white/60">
+              <div className="text-xs text-ink-muted">
                 {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
               </div>
             </div>
@@ -81,7 +81,7 @@ function formatHour(h: number) {
 
 function TimeGutter() {
   return (
-    <div className="relative w-14 shrink-0 border-r border-white/10 bg-black/30 text-[10px] text-white/50">
+    <div className="relative w-14 shrink-0 border-r border-outline-muted bg-surface-muted text-[10px] text-ink-subtle">
       {Array.from({ length: 24 }).map((_, i) => (
         <div key={i} className="flex h-[60px] items-center justify-center border-b border-transparent px-1 text-center">
           {i > 0 ? formatHour(i) : ""}

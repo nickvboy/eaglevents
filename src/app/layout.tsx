@@ -1,10 +1,13 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
+import { getServerSession } from "next-auth";
 import { Geist } from "next/font/google";
 
 import { Providers } from "./providers";
 import { SidebarNav } from "./_components/SidebarNav";
+import { authOptions } from "~/server/auth";
+import { resolvePalette } from "~/server/services/theme";
 
 export const metadata: Metadata = {
   title: "Create T3 App",
@@ -17,13 +20,18 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const session = await getServerSession(authOptions);
+  const resolvedPalette = await resolvePalette({
+    userId: session?.user?.id ? Number(session.user.id) : null,
+  });
+
   return (
     <html lang="en" className={`${geist.variable}`}>
       <body data-theme="dark" className="bg-surface-canvas text-ink-primary antialiased">
-        <Providers>
+        <Providers palette={resolvedPalette}>
           <div className="flex min-h-screen">
             <SidebarNav />
             <main className="min-h-screen flex-1 bg-surface-canvas">{children}</main>

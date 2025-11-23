@@ -3,6 +3,7 @@ import { eventRouter } from "~/server/api/routers/event";
 import { setupRouter } from "~/server/api/routers/setup";
 import { profileRouter } from "~/server/api/routers/profile";
 import { adminRouter } from "~/server/api/routers/admin";
+import { themeRouter } from "~/server/api/routers/theme";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   setup: setupRouter,
   profile: profileRouter,
   admin: adminRouter,
+  theme: themeRouter,
 });
 
 // export type definition of API

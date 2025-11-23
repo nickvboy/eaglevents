@@ -159,15 +159,15 @@ export function UsersView() {
   if (isLoading) {
     return (
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <div className="h-96 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
-        <div className="h-96 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+        <div className="h-96 animate-pulse rounded-2xl border border-outline-muted bg-surface-muted" />
+        <div className="h-96 animate-pulse rounded-2xl border border-outline-muted bg-surface-muted" />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+      <div className="rounded-2xl border border-status-danger bg-status-danger-surface p-6 text-sm text-status-danger">
         Unable to load users. Please refresh.
       </div>
     );
@@ -175,27 +175,27 @@ export function UsersView() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-      <section className="flex flex-col rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+      <section className="flex flex-col rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">User Directory</h2>
-            <p className="text-sm text-white/60">Search, review, and select a user to manage their details.</p>
+            <h2 className="text-lg font-semibold text-ink-primary">User Directory</h2>
+            <p className="text-sm text-ink-muted">Search, review, and select a user to manage their details.</p>
           </div>
-          <div className="flex w-full max-w-xs items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-            <SearchIcon className="text-white/60" />
+          <div className="flex w-full max-w-xs items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-4 py-2">
+            <SearchIcon className="text-ink-muted" />
             <input
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search users..."
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-ink-primary placeholder:text-ink-faint focus:outline-none"
             />
           </div>
         </header>
 
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5">
-          <table className="min-w-full divide-y divide-white/5 text-sm text-white/80">
-            <thead className="bg-white/5 text-left uppercase tracking-wide text-xs text-white/50">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-outline-muted">
+          <table className="min-w-full divide-y divide-outline-muted text-sm text-ink-primary">
+            <thead className="bg-surface-muted text-left uppercase tracking-wide text-xs text-ink-muted">
               <tr>
                 <th scope="col" className="px-4 py-3">Name</th>
                 <th scope="col" className="px-4 py-3">Email</th>
@@ -203,7 +203,7 @@ export function UsersView() {
                 <th scope="col" className="px-4 py-3">Last Activity</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-outline-muted">
               {filteredUsers.map((user) => {
                 const isActive = user.id === selectedUserId;
                 return (
@@ -219,25 +219,25 @@ export function UsersView() {
                       }
                     }}
                     className={
-                      "cursor-pointer transition hover:bg-emerald-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400/70 " +
-                      (isActive ? "bg-emerald-500/10" : "")
+                      "cursor-pointer transition hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong " +
+                      (isActive ? "bg-accent-muted" : "")
                     }
                   >
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="font-medium text-white">{user.displayName || user.username}</span>
-                        <span className="text-xs text-white/40">Created {user.createdAt.toLocaleDateString()}</span>
+                        <span className="font-medium text-ink-primary">{user.displayName || user.username}</span>
+                        <span className="text-xs text-ink-faint">Created {user.createdAt.toLocaleDateString()}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-white/70">{user.email}</td>
-                    <td className="px-4 py-3 text-white/70 capitalize">{user.primaryRole ?? "—"}</td>
-                    <td className="px-4 py-3 text-white/70">{formatDateCell(user.lastActivity)}</td>
+                    <td className="px-4 py-3 text-ink-subtle">{user.email}</td>
+                    <td className="px-4 py-3 text-ink-subtle capitalize">{user.primaryRole ?? "â€”"}</td>
+                    <td className="px-4 py-3 text-ink-subtle">{formatDateCell(user.lastActivity)}</td>
                   </tr>
                 );
               })}
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-white/60">
+                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-ink-muted">
                     No users match your search.
                   </td>
                 </tr>
@@ -249,98 +249,98 @@ export function UsersView() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400/70"
+            className="rounded-full border border-outline-muted px-4 py-2 text-xs font-semibold text-ink-subtle transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong"
           >
             Refresh list
           </button>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
         <header className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">User Details</h2>
-            <p className="text-sm text-white/60">
+            <h2 className="text-lg font-semibold text-ink-primary">User Details</h2>
+            <p className="text-sm text-ink-muted">
               Update profile information and role assignments.
             </p>
           </div>
         </header>
 
         {!selectedUser ? (
-          <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-10 text-center text-sm text-white/60">
+          <div className="mt-8 rounded-2xl border border-dashed border-outline-muted bg-surface-muted px-4 py-10 text-center text-sm text-ink-muted">
             Select a user from the directory to edit their details.
           </div>
         ) : (
           <form className="mt-6 flex flex-col gap-6" onSubmit={handleSubmit}>
             <div className="grid gap-4">
-              <label className="flex flex-col gap-2 text-sm text-white">
+              <label className="flex flex-col gap-2 text-sm text-ink-primary">
                 <span>Display name</span>
                 <input
                   value={formState.displayName}
                   onChange={(event) => setFormState((prev) => ({ ...prev, displayName: event.target.value }))}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                  className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                   placeholder="Display name"
                   required
                 />
               </label>
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-2 text-sm text-white">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
                   <span>First name</span>
                   <input
                     value={formState.firstName}
                     onChange={(event) => setFormState((prev) => ({ ...prev, firstName: event.target.value }))}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                     placeholder="First name"
                     required
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm text-white">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
                   <span>Last name</span>
                   <input
                     value={formState.lastName}
                     onChange={(event) => setFormState((prev) => ({ ...prev, lastName: event.target.value }))}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                     placeholder="Last name"
                     required
                   />
                 </label>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-2 text-sm text-white">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
                   <span>Contact email</span>
                   <input
                     type="email"
                     value={formState.profileEmail}
                     onChange={(event) => setFormState((prev) => ({ ...prev, profileEmail: event.target.value }))}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                     placeholder="user@example.com"
                     required
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm text-white">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
                   <span>Phone number</span>
                   <input
                     value={formState.phoneNumber}
                     onChange={(event) => setFormState((prev) => ({ ...prev, phoneNumber: event.target.value }))}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                     placeholder="+1 555 555 0101"
                     required
                   />
                 </label>
               </div>
-              <label className="flex flex-col gap-2 text-sm text-white md:max-w-[200px]">
+              <label className="flex flex-col gap-2 text-sm text-ink-primary md:max-w-[200px]">
                 <span>Date of birth</span>
                 <input
                   type="date"
                   value={formState.dateOfBirth}
                   onChange={(event) => setFormState((prev) => ({ ...prev, dateOfBirth: event.target.value }))}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none"
+                  className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                 />
               </label>
             </div>
 
-            <fieldset className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <legend className="px-2 text-sm font-semibold text-white">Primary role</legend>
+            <fieldset className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
+              <legend className="px-2 text-sm font-semibold text-ink-primary">Primary role</legend>
               <div className="mt-3 flex flex-col gap-3">
                 {roleOptions.map((option) => {
                   const checked = formState.primaryRole === option.value;
@@ -350,8 +350,8 @@ export function UsersView() {
                       className={
                         "flex cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2 text-sm transition " +
                         (checked
-                          ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200"
-                          : "border-white/10 bg-transparent text-white/70 hover:border-white/20")
+                          ? "border-outline-accent bg-accent-muted text-accent-soft"
+                          : "border-outline-muted bg-transparent text-ink-subtle hover:border-outline-muted")
                       }
                     >
                       <div className="flex items-center gap-3">
@@ -361,11 +361,11 @@ export function UsersView() {
                           value={option.value}
                           checked={checked}
                           onChange={() => setFormState((prev) => ({ ...prev, primaryRole: option.value }))}
-                          className="h-4 w-4 accent-emerald-400"
+                          className="h-4 w-4 accent-accent-strong"
                         />
                         <span className="font-medium">{option.label}</span>
                       </div>
-                      <span className="pl-7 text-xs text-white/50">{option.helper}</span>
+                      <span className="pl-7 text-xs text-ink-muted">{option.helper}</span>
                     </label>
                   );
                 })}
@@ -377,8 +377,8 @@ export function UsersView() {
                 className={
                   "rounded-xl border px-3 py-2 text-sm " +
                   (feedback.type === "success"
-                    ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
-                    : "border-red-500/50 bg-red-500/10 text-red-200")
+                    ? "border-outline-accent bg-accent-muted text-accent-soft"
+                    : "border-status-danger bg-status-danger-surface text-status-danger")
                 }
               >
                 {feedback.message}
@@ -389,14 +389,14 @@ export function UsersView() {
               <button
                 type="submit"
                 disabled={mutation.isPending}
-                className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-500/40"
+                className="rounded-full bg-accent-strong px-5 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {mutation.isPending ? "Saving..." : "Save changes"}
               </button>
               <button
                 type="button"
                 onClick={handleReset}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+                className="rounded-full border border-outline-muted px-4 py-2 text-sm text-ink-subtle transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
               >
                 Reset
               </button>
@@ -407,4 +407,5 @@ export function UsersView() {
     </div>
   );
 }
+
 

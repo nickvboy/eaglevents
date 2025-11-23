@@ -80,7 +80,7 @@ function formatFutureTime(input: Date | string) {
   });
 }
 
-function Sparkline({ series, color = "#34d399" }: { series: SeriesPoint[]; color?: string }) {
+function Sparkline({ series, color = "var(--color-accent-strong)" }: { series: SeriesPoint[]; color?: string }) {
   const path = useMemo(() => {
     if (series.length === 0) return "";
     const max = Math.max(...series.map((point) => point.value), 1);
@@ -112,11 +112,11 @@ function BarColumns({ series }: { series: SeriesPoint[] }) {
         return (
           <div key={point.label} className="flex w-full flex-col items-center gap-2">
             <div
-              className="w-full max-w-[22px] rounded-full bg-gradient-to-t from-emerald-500/20 via-emerald-400/60 to-emerald-300"
+              className="w-full max-w-[22px] rounded-full bg-[linear-gradient(to_top,var(--color-accent-muted),var(--color-accent-default),var(--color-accent-strong))]"
               style={{ height: `${height}%` }}
               aria-hidden
             />
-            <span className="text-xs font-medium text-white/60">{point.label}</span>
+            <span className="text-xs font-medium text-ink-muted">{point.label}</span>
           </div>
         );
       })}
@@ -134,14 +134,14 @@ export function DashboardView() {
       <div className="grid gap-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="h-28 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-              <div className="h-full animate-pulse rounded-xl bg-white/5" />
+            <div key={index} className="h-28 rounded-2xl border border-outline-muted bg-surface-muted p-6 backdrop-blur-sm">
+              <div className="h-full animate-pulse rounded-xl bg-surface-muted" />
             </div>
           ))}
         </div>
         <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-          <div className="h-64 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
-          <div className="h-64 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+          <div className="h-64 animate-pulse rounded-2xl border border-outline-muted bg-surface-muted" />
+          <div className="h-64 animate-pulse rounded-2xl border border-outline-muted bg-surface-muted" />
         </div>
       </div>
     );
@@ -149,7 +149,7 @@ export function DashboardView() {
 
   if (isError || !data) {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+      <div className="rounded-2xl border border-status-danger bg-status-danger-surface p-6 text-sm text-status-danger">
         Unable to load admin dashboard data. Please try again in a moment.
       </div>
     );
@@ -163,30 +163,30 @@ export function DashboardView() {
           return (
             <article
               key={card.id}
-              className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/3 to-transparent p-6 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+              className="rounded-2xl border border-outline-muted bg-[radial-gradient(circle_at_top,var(--color-surface-overlay),transparent)] p-6 shadow-[var(--shadow-pane)]"
             >
               <header className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-[0.2em] text-white/50">{card.label}</span>
+                  <span className="text-xs uppercase tracking-[0.2em] text-ink-muted">{card.label}</span>
                 </div>
-                <ChartLineIcon className="h-4 w-4 text-emerald-300/80" />
+                <ChartLineIcon className="h-4 w-4 text-accent-soft" />
               </header>
               <div className="mt-4 flex items-end gap-2">
-                <span className="text-3xl font-semibold text-white">{formatNumber(card.value)}</span>
-                <span className="text-xs text-white/50">{card.helper}</span>
+                <span className="text-3xl font-semibold text-ink-primary">{formatNumber(card.value)}</span>
+                <span className="text-xs text-ink-muted">{card.helper}</span>
               </div>
               {delta.icon ? (
                 <div
                   className={
                     "mt-4 flex items-center gap-1 text-xs font-medium " +
-                    (delta.tone === "positive" ? "text-emerald-300" : "text-red-300")
+                    (delta.tone === "positive" ? "text-accent-soft" : "text-status-danger")
                   }
                 >
                   <delta.icon className="h-3 w-3" />
                   <span>{delta.text}</span>
                 </div>
               ) : (
-                <div className="mt-4 text-xs text-white/60">{delta.text}</div>
+                <div className="mt-4 text-xs text-ink-muted">{delta.text}</div>
               )}
             </article>
           );
@@ -194,46 +194,46 @@ export function DashboardView() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <article className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
+        <article className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
           <header className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-white">Event Volume</h2>
-              <p className="text-sm text-white/60">Total activity across the last {data.charts.eventTrend.length} months</p>
+              <h2 className="text-lg font-semibold text-ink-primary">Event Volume</h2>
+              <p className="text-sm text-ink-muted">Total activity across the last {data.charts.eventTrend.length} months</p>
             </div>
-            <ChartLineIcon className="h-5 w-5 text-emerald-300" />
+            <ChartLineIcon className="h-5 w-5 text-accent-soft" />
           </header>
           <div className="mt-6">
             <Sparkline series={data.charts.eventTrend} />
           </div>
-          <footer className="mt-4 flex items-center justify-between text-xs text-white/60">
+          <footer className="mt-4 flex items-center justify-between text-xs text-ink-muted">
             <span>
               {formatNumber(data.charts.totals.eventTrendTotal)} events across{" "}
               {data.charts.eventTrend.length} months
             </span>
-            <span className="text-emerald-300">Peak: {formatNumber(Math.max(...data.charts.eventTrend.map((p) => p.value), 0))}</span>
+            <span className="text-accent-soft">Peak: {formatNumber(Math.max(...data.charts.eventTrend.map((p) => p.value), 0))}</span>
           </footer>
         </article>
 
-        <article className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
+        <article className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
           <header className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-white">Active Users</h2>
-              <p className="text-sm text-white/60">Most recent contributors</p>
+              <h2 className="text-lg font-semibold text-ink-primary">Active Users</h2>
+              <p className="text-sm text-ink-muted">Most recent contributors</p>
             </div>
-            <UsersIcon className="h-5 w-5 text-emerald-300" />
+            <UsersIcon className="h-5 w-5 text-accent-soft" />
           </header>
           <ul className="mt-6 flex flex-col gap-4">
             {data.activeUsers.map((user) => (
-              <li key={user.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3">
+              <li key={user.id} className="flex items-center justify-between rounded-xl border border-outline-muted bg-surface-muted px-4 py-3">
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-white">{user.name}</span>
-                  <span className="text-xs text-white/50">{user.email}</span>
+                  <span className="text-sm font-semibold text-ink-primary">{user.name}</span>
+                  <span className="text-xs text-ink-muted">{user.email}</span>
                 </div>
-                <span className="text-xs font-medium text-emerald-300">{formatRelativeTime(user.lastActivity)}</span>
+                <span className="text-xs font-medium text-accent-soft">{formatRelativeTime(user.lastActivity)}</span>
               </li>
             ))}
             {data.activeUsers.length === 0 ? (
-              <li className="rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/50">
+              <li className="rounded-xl border border-dashed border-outline-muted bg-surface-muted px-4 py-8 text-center text-sm text-ink-muted">
                 No active users yet. Encourage teams to start scheduling events.
               </li>
             ) : null}
@@ -242,11 +242,11 @@ export function DashboardView() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <article className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
+        <article className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
           <header className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-white">User Growth</h2>
-              <p className="text-sm text-white/60">New users added by month</p>
+              <h2 className="text-lg font-semibold text-ink-primary">User Growth</h2>
+              <p className="text-sm text-ink-muted">New users added by month</p>
             </div>
           </header>
           <div className="mt-6">
@@ -254,14 +254,14 @@ export function DashboardView() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
+        <article className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
           <header className="flex items-center gap-2">
-            <BellIcon className="h-5 w-5 text-emerald-300" />
-            <h2 className="text-lg font-semibold text-white">Recent Alerts</h2>
+            <BellIcon className="h-5 w-5 text-accent-soft" />
+            <h2 className="text-lg font-semibold text-ink-primary">Recent Alerts</h2>
           </header>
           <ul className="mt-6 flex flex-col gap-4">
             {data.alerts.length === 0 ? (
-              <li className="rounded-xl border border-white/5 bg-white/5 px-4 py-6 text-sm text-white/60">
+              <li className="rounded-xl border border-outline-muted bg-surface-muted px-4 py-6 text-sm text-ink-muted">
                 No alerts to show. Operations are running smoothly.
               </li>
             ) : (
@@ -271,15 +271,15 @@ export function DashboardView() {
                   className={
                     "rounded-xl border px-4 py-3 text-sm " +
                     (alert.severity === "critical"
-                      ? "border-red-500/40 bg-red-500/10 text-red-200"
+                      ? "border-status-danger bg-status-danger-surface text-status-danger"
                       : alert.severity === "warning"
-                        ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
-                        : "border-emerald-400/30 bg-emerald-500/10 text-emerald-100")
+                        ? "border-status-warning bg-status-warning-surface text-status-warning"
+                        : "border-outline-accent bg-accent-muted text-status-success")
                   }
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{alert.message}</span>
-                    <span className="text-xs text-white/60">{formatRelativeTime(alert.occurredAt)}</span>
+                    <span className="text-xs text-ink-muted">{formatRelativeTime(alert.occurredAt)}</span>
                   </div>
                 </li>
               ))
@@ -288,25 +288,25 @@ export function DashboardView() {
         </article>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
         <header className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Upcoming Events</h2>
-            <p className="text-sm text-white/60">Next two weeks across all calendars</p>
+            <h2 className="text-lg font-semibold text-ink-primary">Upcoming Events</h2>
+            <p className="text-sm text-ink-muted">Next two weeks across all calendars</p>
           </div>
         </header>
-        <ul className="mt-6 divide-y divide-white/5 border border-white/5 rounded-xl overflow-hidden">
+        <ul className="mt-6 divide-y divide-outline-muted border border-outline-muted rounded-xl overflow-hidden">
           {data.upcomingEvents.length === 0 ? (
-            <li className="px-4 py-6 text-center text-sm text-white/60">
+            <li className="px-4 py-6 text-center text-sm text-ink-muted">
               Nothing on the horizon. Schedule events to keep teams aligned.
             </li>
           ) : (
             data.upcomingEvents.map((event) => (
-              <li key={event.id} className="flex items-center justify-between px-4 py-3 transition hover:bg-white/5">
+              <li key={event.id} className="flex items-center justify-between px-4 py-3 transition hover:bg-surface-muted">
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-white">{event.title}</span>
-                  <span className="text-xs text-white/60">
-                    {event.assigneeName ? `${event.assigneeName} • ` : ""}
+                  <span className="text-sm font-semibold text-ink-primary">{event.title}</span>
+                  <span className="text-xs text-ink-muted">
+                    {event.assigneeName ? `${event.assigneeName} â€¢ ` : ""}
                     {event.start.toLocaleString(undefined, {
                       weekday: "short",
                       month: "short",
@@ -316,7 +316,7 @@ export function DashboardView() {
                     })}
                   </span>
                 </div>
-                <span className="text-xs font-medium text-emerald-300">{formatFutureTime(event.start)}</span>
+                <span className="text-xs font-medium text-accent-soft">{formatFutureTime(event.start)}</span>
               </li>
             ))
           )}

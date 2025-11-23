@@ -14,7 +14,7 @@ type Props = {
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
-  calendarLookup?: Map<number, { name: string; color: string }>;
+  calendarLookup?: Map<number, { name: string; swatchClass: string }>;
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
@@ -31,15 +31,15 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
   const isToday = new Date().toDateString() === date.toDateString();
 
   return (
-    <div className="relative h-[1440px] border-l border-white/10 bg-black/20">
+    <div className="relative h-[1440px] border-l border-outline-muted bg-surface-muted">
       {/* hour lines */}
       {Array.from({ length: 24 }).map((_, i) => (
         <div
           key={i}
-          className="absolute left-0 right-0 border-t border-white/10"
+          className="absolute left-0 right-0 border-t border-outline-muted"
           style={{ top: i * 60 * MINUTE_PX }}
         >
-          <div className="-translate-y-2 select-none pl-1 text-[10px] text-white/50">
+          <div className="-translate-y-2 select-none pl-1 text-[10px] text-ink-subtle">
             {formatHour(i)}
           </div>
         </div>
@@ -51,8 +51,8 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
           className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
           style={{ top: nowMinutes * MINUTE_PX }}
         >
-          <span className="h-[1px] flex-1 bg-emerald-400" />
-          <span className="ml-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-black shadow">
+          <span className="h-[1px] flex-1 bg-accent-default" />
+          <span className="ml-2 rounded-full bg-accent-strong px-2 py-0.5 text-[10px] font-semibold text-ink-inverted shadow">
             {formatClockLabel(nowMinutes)}
           </span>
         </div>
