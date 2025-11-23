@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
 import { Providers } from "./providers";
+import { SidebarNav } from "./_components/SidebarNav";
 
 export const metadata: Metadata = {
   title: "Create T3 App",
@@ -21,8 +22,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable}`}>
-      <body>
-        <Providers>{children}</Providers>
+      <body className="bg-neutral-950 text-white">
+        <Providers>
+          <div className="flex min-h-screen">
+            <SidebarNav />
+            <main className="flex-1 min-h-screen bg-neutral-950">{children}</main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

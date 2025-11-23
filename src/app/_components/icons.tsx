@@ -95,3 +95,23 @@ export function EditIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function HomeIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10.5V20h14v-9.5" />
+    </svg>
+  );
+}
+
+export function CalendarIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-5 w-5", className)}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M16 3v4" />
+      <path d="M8 3v4" />
+      <path d="M3 11h18" />
+    </svg>
+  );
+}
