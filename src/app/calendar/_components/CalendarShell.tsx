@@ -357,7 +357,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   return (
     <>
-      <div className="flex min-h-screen flex-col bg-surface-raised lg:flex-row">
+      <div className="flex h-screen flex-col overflow-hidden bg-surface-raised lg:flex-row">
         <div className="hidden lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
@@ -385,7 +385,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {business?.name && (
             <div className="border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
               <h1 className="text-xl font-semibold text-ink-primary lg:text-2xl">{business.name}</h1>
@@ -408,7 +408,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
-                <div className="relative flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
                   {monthOverlay}
                   {activeView === "month" ? (
                     <MonthGrid
@@ -449,7 +449,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 currentUser={currentUser}
               />
 
-                <div className="relative flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
                   {monthOverlay}
                   {activeView === "month" ? (
                     <MonthGrid
