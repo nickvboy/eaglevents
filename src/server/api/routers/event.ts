@@ -6,6 +6,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { calendars, eventHourLogs, events, profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import type { Session } from "next-auth";
 
 type DbClient = typeof import("~/server/db").db;
 type UserRow = typeof users.$inferSelect;
@@ -24,6 +25,8 @@ type HourLogResponse = {
   endTime: Date;
   durationMinutes: number;
   durationHours: number;
+  loggedByProfileId: number | null;
+  loggedByProfile: ProfileSummary | null;
 };
 type EventResponse = EventRow & {
   assigneeProfile: ProfileSummary | null;
@@ -42,6 +45,7 @@ const requestCategorySchema = z.enum(requestCategoryValues);
 const zendeskTicketSchema = z.string().trim().max(64);
 
 const hourLogInputSchema = z.object({
+  id: z.number().int().positive().optional(),
   startTime: z.coerce.date(),
   endTime: z.coerce.date(),
 });
@@ -50,6 +54,19 @@ function cleanZendeskTicketNumber(value: string | null | undefined) {
   if (!value) return null;
   const cleaned = value.replace(/[^a-zA-Z0-9]/g, "");
   return cleaned.length > 0 ? cleaned : null;
+}
+
+async function getSessionProfileId(ctx: { session: Session | null; db: DbClient }) {
+  const userIdRaw = ctx.session?.user?.id;
+  if (!userIdRaw) return null;
+  const userId = Number(userIdRaw);
+  if (!Number.isFinite(userId)) return null;
+  const rows = await ctx.db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+  return rows[0]?.id ?? null;
 }
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
@@ -97,18 +114,29 @@ async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<
   const eventIds = rows.map((row) => row.id);
   const logRows = await db
     .select({
-      id: eventHourLogs.id,
-      eventId: eventHourLogs.eventId,
-      startTime: eventHourLogs.startTime,
-      endTime: eventHourLogs.endTime,
-      durationMinutes: eventHourLogs.durationMinutes,
+      log: {
+        id: eventHourLogs.id,
+        eventId: eventHourLogs.eventId,
+        startTime: eventHourLogs.startTime,
+        endTime: eventHourLogs.endTime,
+        durationMinutes: eventHourLogs.durationMinutes,
+        loggedByProfileId: eventHourLogs.loggedByProfileId,
+      },
+      profile: {
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+      },
     })
     .from(eventHourLogs)
+    .leftJoin(profiles, eq(eventHourLogs.loggedByProfileId, profiles.id))
     .where(inArray(eventHourLogs.eventId, eventIds))
     .orderBy(eventHourLogs.startTime, eventHourLogs.id);
 
   const grouped = new Map<number, HourLogResponse[]>();
-  for (const log of logRows) {
+  for (const row of logRows) {
+    const { log, profile } = row;
     const list = grouped.get(log.eventId) ?? [];
     list.push({
       id: log.id,
@@ -116,6 +144,16 @@ async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<
       endTime: log.endTime,
       durationMinutes: log.durationMinutes,
       durationHours: Math.round((log.durationMinutes / 60) * 100) / 100,
+      loggedByProfileId: log.loggedByProfileId ?? null,
+      loggedByProfile:
+        profile?.id != null
+          ? {
+              id: profile.id,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              email: profile.email,
+            }
+          : null,
     });
     grouped.set(log.eventId, list);
   }
@@ -137,10 +175,10 @@ async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<Even
 }
 
 function normalizeHourLogs(
-  logs: Array<{ startTime: Date; endTime: Date }> | undefined,
-): Array<{ startTime: Date; endTime: Date; durationMinutes: number }> | undefined {
+  logs: Array<{ id?: number; startTime: Date; endTime: Date }> | undefined,
+): Array<{ id?: number; startTime: Date; endTime: Date; durationMinutes: number }> | undefined {
   if (logs === undefined) return undefined;
-  const normalized: Array<{ startTime: Date; endTime: Date; durationMinutes: number }> = [];
+  const normalized: Array<{ id?: number; startTime: Date; endTime: Date; durationMinutes: number }> = [];
   for (const log of logs) {
     if (!log.startTime || !log.endTime) continue;
     if (log.endTime <= log.startTime) {
@@ -148,6 +186,7 @@ function normalizeHourLogs(
     }
     const durationMinutes = Math.max(1, Math.round((log.endTime.getTime() - log.startTime.getTime()) / 60000));
     normalized.push({
+      id: log.id,
       startTime: log.startTime,
       endTime: log.endTime,
       durationMinutes,
@@ -249,6 +288,13 @@ export const eventRouter = createTRPCRouter({
       }
 
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
+      let sessionProfileId: number | null = null;
+      if (hourLogs.length > 0) {
+        sessionProfileId = await getSessionProfileId(ctx);
+        if (sessionProfileId === null) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You must be signed in to log hours." });
+        }
+      }
       const zendeskTicketNumber = cleanZendeskTicketNumber(input.zendeskTicketNumber);
 
       const created = await ctx.db.transaction(async (tx) => {
@@ -302,6 +348,7 @@ export const eventRouter = createTRPCRouter({
               startTime: log.startTime,
               endTime: log.endTime,
               durationMinutes: log.durationMinutes,
+              loggedByProfileId: sessionProfileId,
             })),
           );
         }
@@ -345,6 +392,12 @@ export const eventRouter = createTRPCRouter({
       }
 
       const hourLogs = normalizeHourLogs(input.hourLogs);
+      const needsProfileForNewLogs = hourLogs?.some((log) => log.id === undefined) ?? false;
+      const sessionProfileIdForNewLogs =
+        needsProfileForNewLogs && (hourLogs?.length ?? 0) > 0 ? await getSessionProfileId(ctx) : null;
+      if (needsProfileForNewLogs && sessionProfileIdForNewLogs === null) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You must be signed in to log hours." });
+      }
       const zendeskTicketNumber = cleanZendeskTicketNumber(
         input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
       );
@@ -401,15 +454,32 @@ export const eventRouter = createTRPCRouter({
         if (!row) throw new Error("Failed to update event");
 
         if (hourLogs !== undefined) {
+          const existingLogProfiles = new Map<number, number | null>();
+          if (hourLogs.some((log) => log.id !== undefined)) {
+            const existingRows = await tx
+              .select({
+                id: eventHourLogs.id,
+                loggedByProfileId: eventHourLogs.loggedByProfileId,
+              })
+              .from(eventHourLogs)
+              .where(eq(eventHourLogs.eventId, row.id));
+            for (const existing of existingRows) existingLogProfiles.set(existing.id, existing.loggedByProfileId ?? null);
+          }
           await tx.delete(eventHourLogs).where(eq(eventHourLogs.eventId, row.id));
           if (hourLogs.length > 0) {
             await tx.insert(eventHourLogs).values(
-              hourLogs.map((log) => ({
-                eventId: row.id,
-                startTime: log.startTime,
-                endTime: log.endTime,
-                durationMinutes: log.durationMinutes,
-              })),
+              hourLogs.map((log) => {
+                const existingProfileId = log.id !== undefined ? existingLogProfiles.get(log.id) ?? null : null;
+                const loggedByProfileId =
+                  log.id !== undefined ? existingProfileId : sessionProfileIdForNewLogs;
+                return {
+                  eventId: row.id,
+                  startTime: log.startTime,
+                  endTime: log.endTime,
+                  durationMinutes: log.durationMinutes,
+                  loggedByProfileId: loggedByProfileId ?? null,
+                };
+              }),
             );
           }
         }

@@ -97,6 +97,13 @@
       "when": 1764028801000,
       "tag": "0012_add_zendesk_ticket",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1764028802000,
+      "tag": "0013_hour_log_profile",
+      "breakpoints": true
     }
   ]
 }

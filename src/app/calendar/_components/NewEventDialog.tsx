@@ -20,6 +20,7 @@ type HourLogDraft = {
   id: string;
   start: Date | null;
   end: Date | null;
+  sourceId?: number | null;
 };
 
 const randomId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -478,6 +479,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         setHourLogs(
           event.hourLogs.map((log) => ({
             id: randomId(),
+            sourceId: log.id,
             start: log.startTime ? new Date(log.startTime) : null,
             end: log.endTime ? new Date(log.endTime) : null,
           })),
@@ -685,6 +687,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         ...prev,
         {
           id: randomId(),
+          sourceId: null,
           start,
           end,
         },
@@ -736,9 +739,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       const payloadHourLogs = hourLogs
         .map((log) => {
           if (!log.start || !log.end) return null;
-          return { startTime: log.start, endTime: log.end };
+          return { id: log.sourceId ?? undefined, startTime: log.start, endTime: log.end };
         })
-        .filter((log): log is { startTime: Date; endTime: Date } => Boolean(log));
+        .filter((log): log is { id?: number; startTime: Date; endTime: Date } => Boolean(log));
       const participantCountValue =
         trimmedParticipantCount === ""
           ? isEditing

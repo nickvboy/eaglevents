@@ -309,6 +309,7 @@ export const eventHourLogs = createTable(
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    loggedByProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
     startTime: d.timestamp({ withTimezone: true }).notNull(),
     endTime: d.timestamp({ withTimezone: true }).notNull(),
     durationMinutes: integer().notNull(),
