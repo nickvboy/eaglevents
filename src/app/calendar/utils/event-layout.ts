@@ -22,6 +22,7 @@ export type CalendarEvent = {
     durationHours: number;
   }[];
   totalLoggedMinutes?: number;
+  zendeskTicketNumber?: string | null;
 };
 
 export type PositionedEvent = {

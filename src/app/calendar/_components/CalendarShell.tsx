@@ -25,20 +25,10 @@ const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-w
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
   const initialDate = startOfDay(new Date());
-  const [desktopView, setDesktopView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.desktop");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "workweek";
-});
-  const [mobileView, setMobileView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.mobile");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "day";
-});
+  const [desktopView, setDesktopView] = useState<View>("workweek");
+  const [mobileView, setMobileView] = useState<View>("day");
+  const desktopViewHydrated = useRef(false);
+  const mobileViewHydrated = useRef(false);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
@@ -67,6 +57,21 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const saved = window.localStorage.getItem("calendar.view.desktop");
+      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
+        setDesktopView(saved as View);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      desktopViewHydrated.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!desktopViewHydrated.current) return;
+    try {
       window.localStorage.setItem("calendar.view.desktop", desktopView);
     } catch {
       // ignore storage errors
@@ -75,6 +80,21 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem("calendar.view.mobile");
+      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
+        setMobileView(saved as View);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      mobileViewHydrated.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!mobileViewHydrated.current) return;
     try {
       window.localStorage.setItem("calendar.view.mobile", mobileView);
     } catch {
@@ -116,6 +136,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
+  const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
   const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
   const calendarLookup = useMemo(() => {
     const map = new Map<number, { name: string; swatchClass: string }>();
@@ -129,12 +150,13 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   // Persist visible calendars selection
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!visibleCalendarsLoaded) return;
     try {
       window.localStorage.setItem("calendar.visibleCalendars", JSON.stringify(visibleCalendarIds));
     } catch {
       // ignore storage errors
     }
-  }, [visibleCalendarIds]);
+  }, [visibleCalendarIds, visibleCalendarsLoaded]);
 
   // Restore visible calendars when calendars load
   useEffect(() => {
@@ -142,14 +164,17 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (!calendars) return;
     try {
       const raw = window.localStorage.getItem("calendar.visibleCalendars");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const valid = parsed.filter((id: unknown) => typeof id === 'number' && calendars.some((c) => c.id === id));
-        setVisibleCalendarIds(valid as number[]);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((id: unknown) => typeof id === "number" && calendars.some((c) => c.id === id));
+          setVisibleCalendarIds(valid as number[]);
+        }
       }
     } catch {
       // ignore storage errors
+    } finally {
+      setVisibleCalendarsLoaded(true);
     }
   }, [calendars]);
 

@@ -7,6 +7,7 @@ import type { RouterOutputs } from "~/trpc/react";
 import { ChevronDownIcon, XIcon } from "~/app/_components/icons";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
+const DEFAULT_TIME_VALUE = "06:30";
 
 type Segment = {
   id: string;
@@ -22,9 +23,37 @@ type HourLogDraft = {
 
 const randomId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
+const REQUEST_CATEGORY_OPTIONS = [
+  {
+    value: "university_affiliated_request_to_university_business",
+    label: "University affiliated request to university business",
+  },
+  {
+    value: "university_affiliated_nonrequest_to_university_business",
+    label: "University affiliated non-request to university business",
+  },
+  {
+    value: "fgcu_student_affiliated_event",
+    label: "FGCU student-affiliated activity/event",
+  },
+  {
+    value: "non_affiliated_or_revenue_generating_event",
+    label: "Non-affiliated or revenue generating event",
+  },
+] as const;
+
+type RequestCategoryValue = (typeof REQUEST_CATEGORY_OPTIONS)[number]["value"];
+type InfoField = "eventStart" | "eventEnd" | "setup";
+
 function makeSegment(base: Date) {
   const start = new Date(base);
+  if (start.getHours() === 0 && start.getMinutes() === 0) {
+    start.setHours(6, 30, 0, 0);
+  }
   const end = new Date(base.getTime() + MIN_DURATION_MS);
+  if (end <= start) {
+    end.setTime(start.getTime() + MIN_DURATION_MS);
+  }
   return { id: randomId(), start, end };
 }
 
@@ -73,6 +102,8 @@ type TimeSelectProps = {
 function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSelectProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const activeOptionRef = useRef<HTMLButtonElement | null>(null);
+  const defaultOptionRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -83,7 +114,14 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const target = activeOptionRef.current ?? defaultOptionRef.current;
+    if (target) target.scrollIntoView({ block: "start" });
+  }, [open]);
+
   const label = value ? options.find((opt) => opt.value === value)?.label ?? value : placeholder;
+  activeOptionRef.current = null;
 
   return (
     <div className="relative min-w-[9rem]" ref={containerRef}>
@@ -102,10 +140,12 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
         <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
           {options.map((option) => {
             const active = option.value === value;
+            const shouldDefault = !value && option.value === DEFAULT_TIME_VALUE;
             return (
               <button
                 key={option.value}
                 type="button"
+                ref={active ? activeOptionRef : shouldDefault ? defaultOptionRef : null}
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
                   (active ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
@@ -155,12 +195,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [recurring, setRecurring] = useState(false);
+  const [participantCount, setParticipantCount] = useState("");
+  const [technicianNeeded, setTechnicianNeeded] = useState(false);
+  const [requestCategory, setRequestCategory] = useState<RequestCategoryValue | "">("");
+  const [equipmentNeeded, setEquipmentNeeded] = useState("");
+  const [zendeskTicket, setZendeskTicket] = useState("");
+  const [eventInfoStart, setEventInfoStart] = useState<Date | null>(null);
+  const [eventInfoEnd, setEventInfoEnd] = useState<Date | null>(null);
+  const [setupInfoTime, setSetupInfoTime] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [assignee, setAssignee] = useState<AssigneeSelection | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [assigneeQuery, setAssigneeQuery] = useState("");
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
+  const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0]!.start) : new Date(defaultDate)), [segments, defaultDate]);
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -191,6 +240,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setLocation(event.location ?? "");
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
+      setParticipantCount(typeof event.participantCount === "number" ? String(event.participantCount) : "");
+      setTechnicianNeeded(Boolean(event.technicianNeeded));
+      setRequestCategory((event.requestCategory as RequestCategoryValue | null) ?? "");
+      setEquipmentNeeded(event.equipmentNeeded ?? "");
+      setZendeskTicket(event.zendeskTicketNumber ?? "");
+      setEventInfoStart(event.eventStartTime ? new Date(event.eventStartTime) : null);
+      setEventInfoEnd(event.eventEndTime ? new Date(event.eventEndTime) : null);
+      setSetupInfoTime(event.setupTime ? new Date(event.setupTime) : null);
       setError(null);
       if (event.assigneeProfile) {
         const fullName = [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim();
@@ -225,6 +282,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setLocation("");
     setDescription("");
     setRecurring(false);
+    setParticipantCount("");
+    setTechnicianNeeded(false);
+    setRequestCategory("");
+    setEquipmentNeeded("");
+    setZendeskTicket("");
+    setEventInfoStart(null);
+    setEventInfoEnd(null);
+    setSetupInfoTime(null);
     setError(null);
     setAssignee(null);
     setAssigneeSearch("");
@@ -284,6 +349,48 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     });
   };
 
+  const getInfoFieldState = (field: InfoField) => {
+    switch (field) {
+      case "eventStart":
+        return [eventInfoStart, setEventInfoStart] as const;
+      case "eventEnd":
+        return [eventInfoEnd, setEventInfoEnd] as const;
+      case "setup":
+      default:
+        return [setupInfoTime, setSetupInfoTime] as const;
+    }
+  };
+
+  const handleInfoDateChange = (field: InfoField, value: string) => {
+    const [, setter] = getInfoFieldState(field);
+    if (!value) {
+      setter(null);
+      return;
+    }
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return;
+    setter((prev) => {
+      const next = prev ? new Date(prev) : new Date(infoBaseDate);
+      next.setFullYear(year, month - 1, day);
+      return next;
+    });
+  };
+
+  const handleInfoTimeChange = (field: InfoField, value: string) => {
+    const [, setter] = getInfoFieldState(field);
+    if (!value) {
+      setter(null);
+      return;
+    }
+    const [hours, minutes] = value.split(":").map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return;
+    setter((prev) => {
+      const next = prev ? new Date(prev) : new Date(infoBaseDate);
+      next.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+      return next;
+    });
+  };
+
   const addSegmentRow = () => {
     setSegments((prev) => {
       const last = prev[prev.length - 1];
@@ -307,7 +414,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const isSaving = isEditing ? update.isPending : create.isPending;
   const hourLogsIncomplete = hourLogs.some((log) => (log.start && !log.end) || (!log.start && log.end));
   const hourLogsInvalid = hourLogs.some((log) => log.start && log.end && log.end <= log.start);
-  const canSave = Boolean(title.trim()) && !segmentsInvalid && !hourLogsInvalid && !hourLogsIncomplete && !isSaving;
+  const trimmedParticipantCount = participantCount.trim();
+  const parsedParticipantCount =
+    trimmedParticipantCount === ""
+      ? null
+      : /^[0-9]+$/.test(trimmedParticipantCount)
+        ? Number.parseInt(trimmedParticipantCount, 10)
+        : NaN;
+  const participantCountInvalid =
+    parsedParticipantCount !== null &&
+    (Number.isNaN(parsedParticipantCount) || parsedParticipantCount < 0 || parsedParticipantCount > 100000);
+  const canSave = Boolean(title.trim()) && !segmentsInvalid && !hourLogsInvalid && !hourLogsIncomplete && !participantCountInvalid && !isSaving;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
   const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
   const assigneeResults = api.profile.search.useQuery(
@@ -323,6 +440,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     : hourLogsIncomplete
       ? "Provide both a start and end time or remove the log."
       : null;
+  const primarySegment = segments[0] ?? null;
+  const fallbackEventInfoStart = eventInfoStart ?? (primarySegment ? new Date(primarySegment.start) : null);
+  const fallbackEventInfoEnd = eventInfoEnd ?? (primarySegment ? new Date(primarySegment.end) : null);
+  const fallbackSetupInfoTime = setupInfoTime ?? (primarySegment ? new Date(primarySegment.start) : null);
 
   const handleBackdropMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
@@ -394,6 +515,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           return { startTime: log.start, endTime: log.end };
         })
         .filter((log): log is { startTime: Date; endTime: Date } => Boolean(log));
+      const participantCountValue =
+        trimmedParticipantCount === ""
+          ? isEditing
+            ? null
+            : undefined
+          : parsedParticipantCount ?? undefined;
+      const equipmentValue = equipmentNeeded.trim();
+      const equipmentPayload =
+        equipmentValue.length > 0 ? equipmentValue : isEditing ? null : undefined;
+      const requestCategoryValue = requestCategory ? requestCategory : isEditing ? null : undefined;
+      const eventInfoStartValue = eventInfoStart ? new Date(eventInfoStart) : isEditing ? null : undefined;
+      const eventInfoEndValue = eventInfoEnd ? new Date(eventInfoEnd) : isEditing ? null : undefined;
+      const setupInfoValue = setupInfoTime ? new Date(setupInfoTime) : isEditing ? null : undefined;
+      const zendeskTicketValueRaw = zendeskTicket.replace(/[^a-zA-Z0-9]/g, "");
+      const zendeskTicketPayload =
+        zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -414,6 +551,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
           assigneeProfileId: assignee ? assignee.profileId : null,
           hourLogs: payloadHourLogs,
+          participantCount: participantCountValue,
+          technicianNeeded,
+          requestCategory: requestCategoryValue,
+          equipmentNeeded: equipmentPayload,
+          eventStartTime: eventInfoStartValue,
+          eventEndTime: eventInfoEndValue,
+          setupTime: setupInfoValue,
+          zendeskTicketNumber: zendeskTicketPayload,
         });
       } else {
         for (const segment of segments) {
@@ -430,6 +575,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             recurrenceRule: recurring ? "FREQ=DAILY" : null,
             assigneeProfileId: assignee?.profileId ?? undefined,
             hourLogs: payloadHourLogs,
+            participantCount: participantCountValue,
+            technicianNeeded,
+            requestCategory: requestCategoryValue,
+            equipmentNeeded: equipmentPayload,
+            eventStartTime: eventInfoStartValue,
+            eventEndTime: eventInfoEndValue,
+            setupTime: setupInfoValue,
+            zendeskTicketNumber: zendeskTicketPayload,
           });
         }
       }
@@ -461,6 +614,20 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             onChange={(e) => setTitle(e.target.value)}
             className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
           />
+
+          <div>
+            <div className="mb-1 text-xs text-ink-muted">Zendesk ticket number</div>
+            <input
+              type="text"
+              inputMode="text"
+              maxLength={64}
+              value={zendeskTicket}
+              onChange={(e) => setZendeskTicket(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              placeholder="e.g., 123456"
+            />
+            <p className="mt-1 text-xs text-ink-subtle">Only letters and numbers are kept.</p>
+          </div>
 
           <div>
             <div className="mb-1 text-xs text-ink-muted">Invite attendees</div>
@@ -518,6 +685,210 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     )}
                   </div>
               )}
+            </div>
+          </div>
+
+          <div className="space-y-4 border-t border-outline-muted pt-4">
+            {segments.map((segment, index) => (
+              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                  <span>Day {index + 1}</span>
+                  {!isEditing && segments.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-status-danger transition hover:text-status-danger"
+                      onClick={() => removeSegment(segment.id)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={formatDateInputValue(segment.start)}
+                    onChange={(e) => handleDateChange(segment.id, e.target.value)}
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  />
+                  {allDay ? (
+                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
+                  ) : (
+                    <>
+                      <select
+                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                        value={formatTimeValue(segment.start)}
+                        onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
+                      >
+                        {timeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-sm text-ink-subtle">to</span>
+                      <select
+                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                        value={formatTimeValue(segment.end)}
+                        onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
+                      >
+                        {timeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={addSegmentRow}
+                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
+              >
+                + Add another day
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-4 border-t border-outline-muted pt-4">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-ink-subtle">Event timeline (informational)</div>
+              <div className="text-xs text-ink-muted">These fields do not change the calendar block.</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-outline-muted p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Event start</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={fallbackEventInfoStart ? formatDateInputValue(fallbackEventInfoStart) : ""}
+                    onChange={(e) => handleInfoDateChange("eventStart", e.target.value)}
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  />
+                  <select
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                    value={fallbackEventInfoStart ? formatTimeValue(fallbackEventInfoStart) : ""}
+                    onChange={(e) => handleInfoTimeChange("eventStart", e.target.value)}
+                  >
+                    <option value="">Select time</option>
+                    {timeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="rounded-lg border border-outline-muted p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Event end</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={fallbackEventInfoEnd ? formatDateInputValue(fallbackEventInfoEnd) : ""}
+                    onChange={(e) => handleInfoDateChange("eventEnd", e.target.value)}
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  />
+                  <select
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                    value={fallbackEventInfoEnd ? formatTimeValue(fallbackEventInfoEnd) : ""}
+                    onChange={(e) => handleInfoTimeChange("eventEnd", e.target.value)}
+                  >
+                    <option value="">Select time</option>
+                    {timeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-outline-muted p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Setup time</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={fallbackSetupInfoTime ? formatDateInputValue(fallbackSetupInfoTime) : ""}
+                  onChange={(e) => handleInfoDateChange("setup", e.target.value)}
+                  className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                />
+                <select
+                  className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  value={fallbackSetupInfoTime ? formatTimeValue(fallbackSetupInfoTime) : ""}
+                  onChange={(e) => handleInfoTimeChange("setup", e.target.value)}
+                >
+                  <option value="">Select time</option>
+                  {timeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 border-t border-outline-muted pt-4">
+            <div className="text-xs uppercase tracking-wide text-ink-subtle">Event request details</div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-ink-muted">Number of participants</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100000}
+                  inputMode="numeric"
+                  value={participantCount}
+                  onChange={(e) => setParticipantCount(e.target.value)}
+                  className={
+                    "w-full rounded-md border bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint " +
+                    (participantCountInvalid ? "border-status-danger text-status-danger" : "border-outline-muted")
+                  }
+                  placeholder="Estimated attendance"
+                />
+                {participantCountInvalid && (
+                  <div className="mt-1 text-xs text-status-danger">Enter a whole number up to 100,000.</div>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-ink-muted">Technician needed?</label>
+                <select
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none"
+                  value={technicianNeeded ? "yes" : "no"}
+                  onChange={(e) => setTechnicianNeeded(e.target.value === "yes")}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-muted">Request category</label>
+              <select
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none"
+                value={requestCategory}
+                onChange={(e) => setRequestCategory(e.target.value as RequestCategoryValue | "")}
+              >
+                <option value="">Select a category</option>
+                {REQUEST_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-muted">Equipment needed</label>
+              <textarea
+                rows={3}
+                value={equipmentNeeded}
+                onChange={(e) => setEquipmentNeeded(e.target.value)}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
+                placeholder="List staging, audio, lighting, or other needs"
+              />
             </div>
           </div>
 
@@ -616,71 +987,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             )}
           </div>
           </div>
-          <div className="space-y-4 border-t border-outline-muted pt-4">
-            {segments.map((segment, index) => (
-              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                  <span>Day {index + 1}</span>
-                  {!isEditing && segments.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-status-danger transition hover:text-status-danger"
-                      onClick={() => removeSegment(segment.id)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    value={formatDateInputValue(segment.start)}
-                    onChange={(e) => handleDateChange(segment.id, e.target.value)}
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                  />
-                  {allDay ? (
-                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
-                  ) : (
-                    <>
-                      <select
-                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                        value={formatTimeValue(segment.start)}
-                        onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
-                      >
-                        {timeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="text-sm text-ink-subtle">to</span>
-                      <select
-                        className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                        value={formatTimeValue(segment.end)}
-                        onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
-                      >
-                        {timeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-            {!isEditing && (
-              <button
-                type="button"
-                onClick={addSegmentRow}
-                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
-              >
-                + Add another day
-              </button>
-            )}
-          </div>
-
           <div className="flex flex-wrap items-center gap-4 border-t border-outline-muted border-b border-outline-muted py-3">
             <label className="ml-2 inline-flex items-center gap-2 text-sm">
               <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-accent-strong" />

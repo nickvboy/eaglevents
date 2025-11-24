@@ -31,10 +31,26 @@ type EventResponse = EventRow & {
   totalLoggedMinutes: number;
 };
 
+const requestCategoryValues = [
+  "university_affiliated_request_to_university_business",
+  "university_affiliated_nonrequest_to_university_business",
+  "fgcu_student_affiliated_event",
+  "non_affiliated_or_revenue_generating_event",
+] as const;
+
+const requestCategorySchema = z.enum(requestCategoryValues);
+const zendeskTicketSchema = z.string().trim().max(64);
+
 const hourLogInputSchema = z.object({
   startTime: z.coerce.date(),
   endTime: z.coerce.date(),
 });
+
+function cleanZendeskTicketNumber(value: string | null | undefined) {
+  if (!value) return null;
+  const cleaned = value.replace(/[^a-zA-Z0-9]/g, "");
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   const email = "demo@local";
@@ -212,6 +228,14 @@ export const eventRouter = createTRPCRouter({
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
+        participantCount: z.number().int().min(0).max(100000).optional(),
+        technicianNeeded: z.boolean().optional(),
+        requestCategory: requestCategorySchema.optional(),
+        equipmentNeeded: z.string().trim().max(2000).optional(),
+        eventStartTime: z.coerce.date().optional(),
+        eventEndTime: z.coerce.date().optional(),
+        setupTime: z.coerce.date().optional(),
+        zendeskTicketNumber: zendeskTicketSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -225,6 +249,7 @@ export const eventRouter = createTRPCRouter({
       }
 
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
+      const zendeskTicketNumber = cleanZendeskTicketNumber(input.zendeskTicketNumber);
 
       const created = await ctx.db.transaction(async (tx) => {
         // Auto-assign to calendar owner's profile when logs are present and no explicit assignee provided
@@ -258,6 +283,14 @@ export const eventRouter = createTRPCRouter({
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
             recurrenceRule: input.recurrenceRule ?? null,
+            participantCount: input.participantCount ?? null,
+            technicianNeeded: input.technicianNeeded ?? false,
+            requestCategory: input.requestCategory ?? null,
+            equipmentNeeded: input.equipmentNeeded ?? null,
+            eventStartTime: input.eventStartTime ?? null,
+            eventEndTime: input.eventEndTime ?? null,
+            setupTime: input.setupTime ?? null,
+            zendeskTicketNumber,
           })
           .returning();
         if (!row) throw new Error("Failed to create event");
@@ -294,6 +327,14 @@ export const eventRouter = createTRPCRouter({
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().nullable().optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
+        participantCount: z.number().int().min(0).max(100000).nullable().optional(),
+        technicianNeeded: z.boolean().optional(),
+        requestCategory: requestCategorySchema.nullable().optional(),
+        equipmentNeeded: z.string().trim().max(2000).nullable().optional(),
+        eventStartTime: z.coerce.date().nullable().optional(),
+        eventEndTime: z.coerce.date().nullable().optional(),
+        setupTime: z.coerce.date().nullable().optional(),
+        zendeskTicketNumber: zendeskTicketSchema.nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -304,6 +345,9 @@ export const eventRouter = createTRPCRouter({
       }
 
       const hourLogs = normalizeHourLogs(input.hourLogs);
+      const zendeskTicketNumber = cleanZendeskTicketNumber(
+        input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
+      );
 
       const updated = await ctx.db.transaction(async (tx) => {
         // Determine next assignee
@@ -343,6 +387,14 @@ export const eventRouter = createTRPCRouter({
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
             recurrenceRule: input.recurrenceRule ?? null,
+            participantCount: input.participantCount === undefined ? current.participantCount : input.participantCount,
+            technicianNeeded: input.technicianNeeded ?? current.technicianNeeded,
+            requestCategory: input.requestCategory === undefined ? current.requestCategory : input.requestCategory,
+            equipmentNeeded: input.equipmentNeeded === undefined ? current.equipmentNeeded : input.equipmentNeeded,
+            eventStartTime: input.eventStartTime === undefined ? current.eventStartTime : input.eventStartTime,
+            eventEndTime: input.eventEndTime === undefined ? current.eventEndTime : input.eventEndTime,
+            setupTime: input.setupTime === undefined ? current.setupTime : input.setupTime,
+            zendeskTicketNumber: zendeskTicketNumber,
           })
           .where(eq(events.id, input.id))
           .returning();

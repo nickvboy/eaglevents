@@ -21,6 +21,12 @@ export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofi
 export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "manager", "employee"]);
 export const organizationScopeTypeEnum = pgEnum("organization_scope_type", ["business", "department", "division"]);
 export const themeProfileScopeEnum = pgEnum("theme_profile_scope", ["business", "department"]);
+export const eventRequestCategoryEnum = pgEnum("event_request_category", [
+  "university_affiliated_request_to_university_business",
+  "university_affiliated_nonrequest_to_university_business",
+  "fgcu_student_affiliated_event",
+  "non_affiliated_or_revenue_generating_event",
+]);
 
 export const users = createTable(
   "user",
@@ -256,6 +262,14 @@ export const events = createTable(
     startDatetime: d.timestamp({ withTimezone: true }).notNull(),
     endDatetime: d.timestamp({ withTimezone: true }).notNull(),
     recurrenceRule: text(),
+    participantCount: d.integer(),
+    technicianNeeded: d.boolean().default(false).notNull(),
+    requestCategory: eventRequestCategoryEnum(),
+    equipmentNeeded: text(),
+    eventStartTime: d.timestamp({ withTimezone: true }),
+    eventEndTime: d.timestamp({ withTimezone: true }),
+    setupTime: d.timestamp({ withTimezone: true }),
+    zendeskTicketNumber: d.varchar({ length: 64 }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
