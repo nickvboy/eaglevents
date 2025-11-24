@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { and, eq, lt, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, lt, gt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { eventHourLogs, events, profiles, users } from "~/server/db/schema";
+import { calendars, eventHourLogs, events, profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
@@ -141,6 +141,43 @@ function normalizeHourLogs(
 }
 
 export const eventRouter = createTRPCRouter({
+  tickets: publicProcedure
+    .input(
+      z
+        .object({
+          assigned: z.boolean().optional(),
+          search: z.string().trim().optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+          offset: z.number().int().min(0).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 100;
+      const offset = input?.offset ?? 0;
+
+      const conditions: unknown[] = [];
+      if (input?.assigned === true) {
+        conditions.push(sql`${events.assigneeProfileId} IS NOT NULL`);
+      } else if (input?.assigned === false) {
+        conditions.push(eq(events.assigneeProfileId, null));
+      }
+
+      if (input?.search && input.search.trim().length > 0) {
+        const like = `%${input.search.trim().replace(/[%_]/g, (m) => `\\${m}`)}%`;
+        conditions.push(or(ilike(events.title, like), ilike(events.description, like), ilike(events.location, like)));
+      }
+
+      let query = ctx.db.select().from(events);
+      if (conditions.length > 0) {
+        let whereCond = conditions[0] as any;
+        for (let i = 1; i < conditions.length; i++) whereCond = and(whereCond, conditions[i] as any);
+        query = query.where(whereCond);
+      }
+
+      const rows = await query.orderBy(desc(events.updatedAt), desc(events.id)).limit(limit).offset(offset);
+      return buildEventResponses(ctx.db, rows as EventRow[]);
+    }),
   list: publicProcedure
     .input(
       z.object({
@@ -190,11 +227,30 @@ export const eventRouter = createTRPCRouter({
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
 
       const created = await ctx.db.transaction(async (tx) => {
+        // Auto-assign to calendar owner's profile when logs are present and no explicit assignee provided
+        let assignee: number | null | undefined = input.assigneeProfileId;
+        if ((assignee ?? null) === null && hourLogs.length > 0) {
+          const [cal] = await tx
+            .select({ userId: calendars.userId })
+            .from(calendars)
+            .where(eq(calendars.id, calendarId!))
+            .limit(1);
+          const userId = cal?.userId ?? null;
+          if (userId !== null) {
+            const [profile] = await tx
+              .select({ id: profiles.id })
+              .from(profiles)
+              .where(eq(profiles.userId, userId))
+              .limit(1);
+            if (profile?.id) assignee = profile.id;
+          }
+        }
+
         const [row] = await tx
           .insert(events)
           .values({
             calendarId: calendarId!,
-            assigneeProfileId: input.assigneeProfileId ?? null,
+            assigneeProfileId: assignee ?? null,
             title: input.title,
             description: input.description,
             location: input.location,
@@ -250,12 +306,36 @@ export const eventRouter = createTRPCRouter({
       const hourLogs = normalizeHourLogs(input.hourLogs);
 
       const updated = await ctx.db.transaction(async (tx) => {
+        // Determine next assignee
+        let nextAssignee: number | null | undefined =
+          input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId;
+        const hasAnyLogs = (hourLogs?.length ?? 0) > 0;
+        const timesChanged =
+          input.startDatetime.getTime() !== new Date(current.startDatetime).getTime() ||
+          input.endDatetime.getTime() !== new Date(current.endDatetime).getTime();
+        if ((nextAssignee ?? null) === null && (hasAnyLogs || timesChanged)) {
+          const effectiveCalendarId = input.calendarId ?? current.calendarId;
+          const [cal] = await tx
+            .select({ userId: calendars.userId })
+            .from(calendars)
+            .where(eq(calendars.id, effectiveCalendarId))
+            .limit(1);
+          const userId = cal?.userId ?? null;
+          if (userId !== null) {
+            const [profile] = await tx
+              .select({ id: profiles.id })
+              .from(profiles)
+              .where(eq(profiles.userId, userId))
+              .limit(1);
+            if (profile?.id) nextAssignee = profile.id;
+          }
+        }
+
         const [row] = await tx
           .update(events)
           .set({
             calendarId: input.calendarId ?? current.calendarId,
-            assigneeProfileId:
-              input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId,
+            assigneeProfileId: nextAssignee ?? null,
             title: input.title,
             description: input.description ?? null,
             location: input.location ?? null,

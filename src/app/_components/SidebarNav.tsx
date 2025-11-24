@@ -3,7 +3,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, HomeIcon, SettingsIcon, ShieldIcon } from "./icons";
+import { CalendarIcon, HomeIcon, ReportIcon, SettingsIcon, ShieldIcon } from "./icons";
 
 type NavItem = {
   href: string;
@@ -13,6 +13,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/tickets", label: "Tickets", icon: ReportIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/admin", label: "Admin", icon: ShieldIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
