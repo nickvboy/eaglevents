@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "~/trpc/react";
-import { ReportIcon, SearchIcon } from "~/app/_components/icons";
+import { ChevronDownIcon, ReportIcon, SearchIcon } from "~/app/_components/icons";
 
 type TicketView = "unassigned" | "assigned" | "all";
 
@@ -24,7 +24,7 @@ export function TicketsShell() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 shrink-0 border-r border-outline-muted bg-surface-sunken/40 px-3 py-4">
+      <aside className="hidden w-64 shrink-0 border-r border-outline-muted bg-surface-sunken/40 px-3 py-4 lg:block">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink-primary">
           <ReportIcon className="h-5 w-5 text-accent-soft" />
           Tickets
@@ -37,17 +37,40 @@ export function TicketsShell() {
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-outline-muted bg-surface-overlay/60 px-5 py-3">
-          <div className="text-sm font-semibold text-ink-primary">
-            {view === "unassigned" ? "Unassigned Tickets Open" : view === "assigned" ? "Assigned Tickets" : "All Tickets"}
+        <header className="border-b border-outline-muted bg-surface-overlay/60 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            {/* Desktop title */}
+            <div className="hidden text-sm font-semibold text-ink-primary md:block">
+              {view === "unassigned" ? "Unassigned Tickets Open" : view === "assigned" ? "Assigned Tickets" : "All Tickets"}
+            </div>
+            {/* Mobile title dropdown */}
+            <div className="md:hidden">
+              <MobileViewSwitcher
+                value={view}
+                onChange={setView}
+                label={view === "unassigned" ? "Unassigned Tickets" : view === "assigned" ? "Assigned Tickets" : "All Tickets"}
+              />
+            </div>
+            <div className="hidden items-center gap-2 md:flex">
+              <div className="relative">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search tickets"
+                  className="w-64 rounded-lg border border-outline-muted bg-surface-muted px-8 py-1.5 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                />
+                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          {/* Mobile search row */}
+          <div className="mt-3 flex items-center gap-2 md:hidden">
+            <div className="relative flex-1">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search tickets"
-                className="w-64 rounded-lg border border-outline-muted bg-surface-muted px-8 py-1.5 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                placeholder="Search"
+                className="w-full rounded-full border border-outline-muted bg-surface-muted px-8 py-1.5 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
               />
               <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             </div>
@@ -56,9 +79,14 @@ export function TicketsShell() {
 
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-auto">
-            <TicketTable rows={rows} selectedId={selectedId} onSelect={setSelectedId} />
+            <div className="hidden md:block">
+              <TicketTable rows={rows} selectedId={selectedId} onSelect={setSelectedId} />
+            </div>
+            <div className="md:hidden">
+              <MobileTicketList rows={rows} onOpen={(id) => setSelectedId(id)} />
+            </div>
           </div>
-          <aside className="w-80 shrink-0 border-l border-outline-muted bg-surface-raised/80 backdrop-blur">
+          <aside className="hidden w-80 shrink-0 border-l border-outline-muted bg-surface-raised/80 backdrop-blur xl:block">
             <SidePreview row={selected} />
           </aside>
         </div>
@@ -88,11 +116,11 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
       <thead className="bg-surface-overlay/60 text-ink-subtle">
         <tr className="border-b border-outline-muted">
           <Th>Ticket status</Th>
-          <Th>Requested</Th>
+          <Th className="hidden md:table-cell">Requested</Th>
           <Th>ID</Th>
           <Th>Subject</Th>
-          <Th>Assignee</Th>
-          <Th>Updated</Th>
+          <Th className="hidden lg:table-cell">Assignee</Th>
+          <Th className="hidden md:table-cell">Updated</Th>
         </tr>
       </thead>
       <tbody>
@@ -109,11 +137,11 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
               <Td>
                 <StatusPill row={row} />
               </Td>
-              <Td>{formatDate(row.startDatetime)}</Td>
+              <Td className="hidden md:table-cell">{formatDate(row.startDatetime)}</Td>
               <Td>#{row.id}</Td>
-              <Td className="max-w-[28rem] truncate text-ink-primary">{row.title}</Td>
-              <Td className="text-ink-subtle">{row.assigneeProfile ? formatName(row.assigneeProfile) : "—"}</Td>
-              <Td className="text-ink-subtle">{formatRelative(updatedAt)}</Td>
+              <Td className="max-w-[16rem] truncate text-ink-primary md:max-w-[24rem] lg:max-w-[28rem]">{row.title}</Td>
+              <Td className="hidden text-ink-subtle lg:table-cell">{row.assigneeProfile ? formatName(row.assigneeProfile) : "—"}</Td>
+              <Td className="hidden text-ink-subtle md:table-cell">{formatRelative(updatedAt)}</Td>
             </tr>
           );
         })}
@@ -175,8 +203,102 @@ function SidePreview({ row }: { row: any | null }) {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">{children}</th>;
+function MobileViewSwitcher({ value, onChange, label }: { value: TicketView; onChange: (v: TicketView) => void; label: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const options: { value: TicketView; label: string }[] = [
+    { value: "unassigned", label: "Unassigned Tickets" },
+    { value: "assigned", label: "Assigned Tickets" },
+    { value: "all", label: "All Tickets" },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-primary hover:text-accent-soft"
+        onClick={() => setOpen((p) => !p)}
+      >
+        {label}
+        <ChevronDownIcon className="h-4 w-4 text-ink-muted" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-auto z-40 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-outline-muted bg-surface-overlay shadow-xl">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`block w-full px-3 py-2 text-left text-sm ${
+                value === opt.value ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted"
+              }`}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileTicketList({ rows, onOpen }: { rows: any[]; onOpen: (id: number) => void }) {
+  return (
+    <ul className="divide-y divide-outline-muted">
+      {rows.map((row, idx) => {
+        const letter = (row.assigneeProfile?.firstName || row.title || "?").charAt(0).toUpperCase();
+        const date = new Date(row.startDatetime);
+        const dateLabel = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}`;
+        const snippet = row.description ? String(row.description).slice(0, 120) : row.location ?? "";
+        return (
+          <li
+            key={row.id}
+            className={`${idx % 2 === 0 ? "bg-surface-sunken/30" : "bg-surface-muted/20"} px-3 py-3`}
+            onClick={() => onOpen(row.id)}
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-ink-subtle">
+                {letter}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between text-xs text-ink-subtle">
+                  <div>
+                    <span className="font-medium text-ink-muted">#{row.id}</span>
+                    {row.assigneeProfile && (
+                      <span> · {formatName(row.assigneeProfile)}</span>
+                    )}
+                  </div>
+                  <div className="ml-2 whitespace-nowrap">{dateLabel}</div>
+                </div>
+                <div className="mt-0.5 truncate text-base font-semibold text-ink-primary">{row.title}</div>
+                {snippet && <div className="mt-0.5 line-clamp-1 text-sm text-ink-subtle">{snippet}</div>}
+              </div>
+              <div className="ml-2 flex-shrink-0">
+                <StatusPill row={row} />
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <th className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${className}`}>{children}</th>;
 }
 function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <td className={`px-3 py-2 ${className}`}>{children}</td>;

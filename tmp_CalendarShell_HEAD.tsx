@@ -25,20 +25,8 @@ const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-w
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
   const initialDate = startOfDay(new Date());
-  const [desktopView, setDesktopView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.desktop");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "workweek";
-});
-  const [mobileView, setMobileView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.mobile");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "day";
-});
+  const [desktopView, setDesktopView] = useState<View>("workweek");
+  const [mobileView, setMobileView] = useState<View>("day");
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
@@ -62,25 +50,6 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (isMobile) setMobileView(next);
     else setDesktopView(next);
   };
-  
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem("calendar.view.desktop", desktopView);
-    } catch {
-      // ignore storage errors
-    }
-  }, [desktopView]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem("calendar.view.mobile", mobileView);
-    } catch {
-      // ignore storage errors
-    }
-  }, [mobileView]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -124,33 +93,6 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
       map.set(c.id, { name: c.name, swatchClass });
     });
     return map;
-  }, [calendars]);
-
-  // Persist visible calendars selection
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem("calendar.visibleCalendars", JSON.stringify(visibleCalendarIds));
-    } catch {
-      // ignore storage errors
-    }
-  }, [visibleCalendarIds]);
-
-  // Restore visible calendars when calendars load
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!calendars) return;
-    try {
-      const raw = window.localStorage.getItem("calendar.visibleCalendars");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const valid = parsed.filter((id: unknown) => typeof id === 'number' && calendars.some((c) => c.id === id));
-        setVisibleCalendarIds(valid as number[]);
-      }
-    } catch {
-      // ignore storage errors
-    }
   }, [calendars]);
 
   // visible range
@@ -228,10 +170,8 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     [events, editingEventId],
   );
   useEffect(() => {
-    if (!eventsQuery.isFetching && selectedEventId && !selectedEvent) {
-      setSelectedEventId(null);
-    }
-  }, [selectedEventId, selectedEvent, eventsQuery.isFetching]);
+    if (selectedEventId && !selectedEvent) setSelectedEventId(null);
+  }, [selectedEventId, selectedEvent]);
 
   const handlePreviewEvent = (event: CalendarEvent | null) => {
     if (!event) {
@@ -248,6 +188,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const handleEditEvent = (eventInput: number | CalendarEvent | RouterOutputs["event"]["list"][number]) => {
     const eventId = typeof eventInput === "number" ? eventInput : eventInput.id;
     setPreviewEventId(null);
+    setSelectedEventId(null);
     setOpenNew(false);
     setEditingEventId(eventId);
   };
@@ -771,8 +712,3 @@ function buildMonthGrid(refDate: Date) {
 function isSameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
-
-
-
-
-
