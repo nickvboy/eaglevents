@@ -3,7 +3,7 @@ import { and, desc, eq, ilike, inArray, lt, gt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { calendars, eventHourLogs, events, profiles, users } from "~/server/db/schema";
+import { calendars, eventAttendees, eventHourLogs, events, profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import type { Session } from "next-auth";
@@ -18,7 +18,6 @@ type ProfileSummary = {
   email: string;
 };
 type EventWithAssignee = EventRow & { assigneeProfile: ProfileSummary | null };
-type HourLogRow = typeof eventHourLogs.$inferSelect;
 type HourLogResponse = {
   id: number;
   startTime: Date;
@@ -28,10 +27,21 @@ type HourLogResponse = {
   loggedByProfileId: number | null;
   loggedByProfile: ProfileSummary | null;
 };
+type EventWithAssigneeAndLogs = EventWithAssignee & {
+  hourLogs: HourLogResponse[];
+  totalLoggedMinutes: number;
+};
+type AttendeeSummary = {
+  profileId: number | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+};
 type EventResponse = EventRow & {
   assigneeProfile: ProfileSummary | null;
   hourLogs: HourLogResponse[];
   totalLoggedMinutes: number;
+  attendees: AttendeeSummary[];
 };
 
 const requestCategoryValues = [
@@ -109,7 +119,7 @@ async function attachAssignees(db: DbClient, rows: EventRow[]): Promise<EventWit
   }));
 }
 
-async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<EventResponse[]> {
+async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<EventWithAssigneeAndLogs[]> {
   if (rows.length === 0) return [];
   const eventIds = rows.map((row) => row.id);
   const logRows = await db
@@ -169,9 +179,50 @@ async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<
   });
 }
 
+async function attachAttendees(db: DbClient, rows: EventWithAssigneeAndLogs[]): Promise<EventResponse[]> {
+  if (rows.length === 0) return [];
+  const eventIds = rows.map((row) => row.id);
+  const attendeeRows = await db
+    .select({
+      attendee: {
+        eventId: eventAttendees.eventId,
+        profileId: eventAttendees.profileId,
+        email: eventAttendees.email,
+      },
+      profile: {
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+      },
+    })
+    .from(eventAttendees)
+    .leftJoin(profiles, eq(eventAttendees.profileId, profiles.id))
+    .where(inArray(eventAttendees.eventId, eventIds));
+
+  const grouped = new Map<number, AttendeeSummary[]>();
+  for (const row of attendeeRows) {
+    const { attendee, profile } = row;
+    const list = grouped.get(attendee.eventId) ?? [];
+    list.push({
+      profileId: attendee.profileId ?? profile?.id ?? null,
+      firstName: profile?.firstName ?? null,
+      lastName: profile?.lastName ?? null,
+      email: profile?.email ?? attendee.email,
+    });
+    grouped.set(attendee.eventId, list);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    attendees: grouped.get(row.id) ?? [],
+  }));
+}
+
 async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<EventResponse[]> {
   const withAssignees = await attachAssignees(db, rows);
-  return attachHourLogs(db, withAssignees);
+  const withLogs = await attachHourLogs(db, withAssignees);
+  return attachAttendees(db, withLogs);
 }
 
 function normalizeHourLogs(
@@ -267,6 +318,7 @@ export const eventRouter = createTRPCRouter({
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
+        attendeeProfileIds: z.array(z.number().int().positive()).optional(),
         participantCount: z.number().int().min(0).max(100000).optional(),
         technicianNeeded: z.boolean().optional(),
         requestCategory: requestCategorySchema.optional(),
@@ -352,6 +404,49 @@ export const eventRouter = createTRPCRouter({
             })),
           );
         }
+
+        const attendeeIds = Array.from(new Set(input.attendeeProfileIds ?? [])).filter((id) => Number.isFinite(id));
+        if (attendeeIds.length > 0) {
+          const attendeeProfiles = await tx
+            .select({
+              id: profiles.id,
+              email: profiles.email,
+            })
+            .from(profiles)
+            .where(inArray(profiles.id, attendeeIds));
+          if (attendeeProfiles.length > 0) {
+            await tx.insert(eventAttendees).values(
+              attendeeProfiles.map((profile) => ({
+                eventId: row.id,
+                profileId: profile.id,
+                email: profile.email,
+              })),
+            );
+          }
+        }
+        if (input.attendeeProfileIds !== undefined) {
+          await tx.delete(eventAttendees).where(eq(eventAttendees.eventId, row.id));
+          const attendeeIds = Array.from(new Set(input.attendeeProfileIds)).filter((id) => Number.isFinite(id));
+          if (attendeeIds.length > 0) {
+            const attendeeProfiles = await tx
+              .select({
+                id: profiles.id,
+                email: profiles.email,
+              })
+              .from(profiles)
+              .where(inArray(profiles.id, attendeeIds));
+            if (attendeeProfiles.length > 0) {
+              await tx.insert(eventAttendees).values(
+                attendeeProfiles.map((profile) => ({
+                  eventId: row.id,
+                  profileId: profile.id,
+                  email: profile.email,
+                })),
+              );
+            }
+          }
+        }
+
         return row;
       });
 
@@ -374,6 +469,7 @@ export const eventRouter = createTRPCRouter({
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().nullable().optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
+        attendeeProfileIds: z.array(z.number().int().positive()).optional(),
         participantCount: z.number().int().min(0).max(100000).nullable().optional(),
         technicianNeeded: z.boolean().optional(),
         requestCategory: requestCategorySchema.nullable().optional(),

@@ -288,10 +288,11 @@ export const eventAttendees = createTable(
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    profileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
     email: d.varchar({ length: 255 }).notNull(),
     responseStatus: d.varchar({ length: 32 }).default("needsAction").notNull(),
   }),
-  (t) => [index("attendee_event_idx").on(t.eventId)],
+  (t) => [index("attendee_event_idx").on(t.eventId), index("attendee_profile_idx").on(t.profileId)],
 );
 
 export const eventReminders = createTable(

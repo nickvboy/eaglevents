@@ -393,6 +393,37 @@ type AssigneeSelection = {
   email: string;
   username?: string | null;
 };
+type ProfileDraft = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+};
+
+const emptyProfileDraft: ProfileDraft = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phoneNumber: "",
+};
+
+function deriveProfileDraft(raw: string): ProfileDraft {
+  const trimmed = raw.trim();
+  const emailMatch = trimmed.match(/[^\s,;]+@[^\s,;]+/);
+  const email = emailMatch?.[0] ?? "";
+  const withoutEmail = email ? trimmed.replace(email, "").trim() : trimmed;
+  const phoneMatch = trimmed.match(/\+?[\d\-\s().]{7,}/);
+  const phoneNumber = phoneMatch?.[0]?.replace(/[^\d+]/g, "") ?? "";
+  const parts = withoutEmail.split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? "";
+  const lastName = parts.slice(1).join(" ");
+  return {
+    firstName,
+    lastName,
+    email,
+    phoneNumber,
+  };
+}
 
 export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }: Props) {
   const utils = api.useUtils();
@@ -401,7 +432,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
-  const [attendees, setAttendees] = useState("");
   const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
   const [allDay, setAllDay] = useState(false);
   const [inPerson, setInPerson] = useState(false);
@@ -420,6 +450,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [assignee, setAssignee] = useState<AssigneeSelection | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [assigneeQuery, setAssigneeQuery] = useState("");
+  const [selectedAttendees, setSelectedAttendees] = useState<AssigneeSelection[]>([]);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeeQuery, setAttendeeQuery] = useState("");
+  const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | null>(null);
+  const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
+  const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0]!.start) : new Date(defaultDate)), [segments, defaultDate]);
@@ -441,7 +477,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     if (!open) return;
     if (event) {
       setTitle(event.title);
-      setAttendees("");
       setSegments([
         {
           id: randomId(),
@@ -475,6 +510,24 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       }
       setAssigneeSearch("");
       setAssigneeQuery("");
+      if (event.attendees && event.attendees.length > 0) {
+        setSelectedAttendees(
+          event.attendees
+            .filter((attendee) => attendee.profileId !== null)
+            .map((attendee) => ({
+              profileId: attendee.profileId as number,
+              displayName: [attendee.firstName, attendee.lastName].filter(Boolean).join(" ").trim() || attendee.email,
+              email: attendee.email,
+            })),
+        );
+      } else {
+        setSelectedAttendees([]);
+      }
+      setAttendeeSearch("");
+      setAttendeeQuery("");
+      setQuickCreateTarget(null);
+      setQuickCreateDraft(emptyProfileDraft);
+      setQuickCreateError(null);
       if (event.hourLogs && event.hourLogs.length > 0) {
         setHourLogs(
           event.hourLogs.map((log) => ({
@@ -490,7 +543,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       return;
     }
     setTitle("");
-    setAttendees("");
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
     setInPerson(false);
@@ -509,6 +561,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setAssignee(null);
     setAssigneeSearch("");
     setAssigneeQuery("");
+    setSelectedAttendees([]);
+    setAttendeeSearch("");
+    setAttendeeQuery("");
+    setQuickCreateTarget(null);
+    setQuickCreateDraft(emptyProfileDraft);
+    setQuickCreateError(null);
     setHourLogs([]);
   }, [open, defaultDate, event]);
 
@@ -518,6 +576,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     }, 250);
     return () => window.clearTimeout(handle);
   }, [assigneeSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setAttendeeQuery(attendeeSearch.trim());
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [attendeeSearch]);
 
   const updateSegment = (id: string, updater: (current: Segment) => Segment) => {
     setSegments((prev) => prev.map((segment) => (segment.id === id ? updater(segment) : segment)));
@@ -652,8 +717,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     { enabled: open && assigneeQuery.length > 1 },
   );
   const assigneeMatches = assigneeResults.data ?? [];
-  const shouldShowAssigneeResults =
-    assigneeQuery.length > 1 && (assigneeResults.isFetching || assigneeMatches.length > 0);
+  const shouldShowAssigneeResults = assigneeQuery.length > 1;
+  const attendeeResults = api.profile.search.useQuery(
+    { query: attendeeQuery, limit: 7 },
+    { enabled: open && attendeeQuery.length > 1 },
+  );
+  const attendeeMatches = attendeeResults.data ?? [];
+  const shouldShowAttendeeResults = attendeeQuery.length > 1;
+  const createProfile = api.profile.create.useMutation();
   const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
   const hourLogsValidationMessage = hourLogsInvalid
     ? "Each log's end time must be after its start time."
@@ -729,6 +800,161 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setAssigneeQuery("");
   };
 
+  const handleAddAttendee = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
+    setSelectedAttendees((prev) => {
+      if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
+      const displayName =
+        "displayName" in option
+          ? option.displayName
+          : [option.firstName, option.lastName].filter(Boolean).join(" ").trim() || option.email;
+      return [
+        ...prev,
+        {
+          profileId: option.profileId,
+          displayName,
+          email: option.email,
+          username: "username" in option ? option.username : undefined,
+        },
+      ];
+    });
+    setAttendeeSearch("");
+    setAttendeeQuery("");
+  };
+
+  const handleRemoveAttendee = (profileId: number) => {
+    setSelectedAttendees((prev) => prev.filter((entry) => entry.profileId !== profileId));
+  };
+
+  const closeQuickCreate = () => {
+    setQuickCreateTarget(null);
+    setQuickCreateDraft(emptyProfileDraft);
+    setQuickCreateError(null);
+  };
+
+  const openQuickCreate = (target: "assignee" | "attendee", seed?: string) => {
+    const source = seed ?? (target === "assignee" ? assigneeSearch : attendeeSearch);
+    const derived = deriveProfileDraft(source);
+    setQuickCreateTarget(target);
+    setQuickCreateDraft({
+      ...emptyProfileDraft,
+      ...derived,
+    });
+    setQuickCreateError(null);
+  };
+
+  const handleQuickCreateSubmit = async () => {
+    setQuickCreateError(null);
+    const firstName = quickCreateDraft.firstName.trim();
+    const lastName = quickCreateDraft.lastName.trim();
+    const email = quickCreateDraft.email.trim();
+    if (!firstName || !lastName || !email) {
+      setQuickCreateError("Add a first name, last name, and email.");
+      return;
+    }
+    try {
+      const created = await createProfile.mutateAsync({
+        firstName,
+        lastName,
+        email,
+        phoneNumber: quickCreateDraft.phoneNumber.trim(),
+      });
+      if (!created.profileId) {
+        throw new Error("Profile could not be created.");
+      }
+      const selection: AssigneeSelection = {
+        profileId: created.profileId,
+        displayName:
+          created.displayName ||
+          [created.firstName, created.lastName].filter(Boolean).join(" ").trim() ||
+          created.email,
+        email: created.email,
+        username: created.username,
+      };
+      if (quickCreateTarget === "assignee") {
+        setAssignee(selection);
+        setAssigneeSearch("");
+        setAssigneeQuery("");
+      } else if (quickCreateTarget === "attendee") {
+        handleAddAttendee(selection);
+      }
+      closeQuickCreate();
+    } catch (err) {
+      setQuickCreateError(err instanceof Error ? err.message : "Failed to create profile.");
+    }
+  };
+
+  function renderQuickCreateForm() {
+    if (quickCreateTarget === null) return null;
+    return (
+      <div className="mt-2 rounded-md border border-outline-muted bg-surface-muted p-3">
+        <div className="flex items-center justify-between text-sm font-semibold text-ink-primary">
+          <span>
+            Create {quickCreateTarget === "assignee" ? "assignee" : "attendee"} profile
+          </span>
+          <button
+            type="button"
+            onClick={closeQuickCreate}
+            className="text-xs font-medium text-ink-muted transition hover:text-ink-primary"
+          >
+            Cancel
+          </button>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <input
+              placeholder="First name"
+              value={quickCreateDraft.firstName}
+              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, firstName: e.target.value }))}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+            />
+            <input
+              placeholder="Last name"
+              value={quickCreateDraft.lastName}
+              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, lastName: e.target.value }))}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+            />
+          </div>
+          <div className="space-y-2">
+            <input
+              placeholder="Email"
+              value={quickCreateDraft.email}
+              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, email: e.target.value }))}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+            />
+            <input
+              placeholder="Phone (optional)"
+              value={quickCreateDraft.phoneNumber}
+              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+            />
+          </div>
+        </div>
+        {quickCreateError && <div className="mt-2 text-xs text-status-danger">{quickCreateError}</div>}
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            className="text-xs font-medium text-ink-muted transition hover:text-ink-primary"
+            onClick={closeQuickCreate}
+          >
+            Dismiss
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
+            disabled={createProfile.isPending}
+            onClick={handleQuickCreateSubmit}
+          >
+            {createProfile.isPending
+              ? "Saving..."
+              : quickCreateTarget === "assignee"
+                ? "Save & assign"
+                : "Save & add"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const handleSave = async () => {
     setError(null);
     try {
@@ -758,6 +984,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       const zendeskTicketValueRaw = zendeskTicket.replace(/[^a-zA-Z0-9]/g, "");
       const zendeskTicketPayload =
         zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
+      const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -778,6 +1005,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
           assigneeProfileId: assignee ? assignee.profileId : null,
           hourLogs: payloadHourLogs,
+          attendeeProfileIds,
           participantCount: participantCountValue,
           technicianNeeded,
           requestCategory: requestCategoryValue,
@@ -802,6 +1030,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             recurrenceRule: recurring ? "FREQ=DAILY" : null,
             assigneeProfileId: assignee?.profileId ?? undefined,
             hourLogs: payloadHourLogs,
+            attendeeProfileIds,
             participantCount: participantCountValue,
             technicianNeeded,
             requestCategory: requestCategoryValue,
@@ -858,12 +1087,79 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
 
           <div>
             <div className="mb-1 text-xs text-ink-muted">Invite attendees</div>
-            <input
-              placeholder="Emails, comma separated"
-              value={attendees}
-              onChange={(e) => setAttendees(e.target.value)}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-            />
+            <div className="flex flex-wrap gap-2">
+              {selectedAttendees.length === 0 ? (
+                <span className="text-xs text-ink-muted">No attendees selected.</span>
+              ) : (
+                selectedAttendees.map((attendee) => (
+                  <span
+                    key={attendee.profileId}
+                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-sm text-ink-primary"
+                  >
+                    <span className="font-medium">{attendee.displayName}</span>
+                    <span className="text-xs text-ink-muted">{attendee.email}</span>
+                    <button
+                      type="button"
+                      className="text-ink-faint transition hover:text-status-danger"
+                      onClick={() => handleRemoveAttendee(attendee.profileId)}
+                      aria-label="Remove attendee"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <div className="relative mt-2">
+              <input
+                placeholder="Search by name, email, or phone"
+                value={attendeeSearch}
+                onChange={(e) => setAttendeeSearch(e.target.value)}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+              />
+              {shouldShowAttendeeResults && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                  {attendeeResults.isFetching ? (
+                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                  ) : attendeeMatches.length > 0 ? (
+                    <>
+                      {attendeeMatches.map((match) => (
+                        <button
+                          key={match.profileId}
+                          type="button"
+                          className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
+                          onClick={() => handleAddAttendee(match)}
+                        >
+                          <span className="font-medium">{match.displayName}</span>
+                          <span className="text-xs text-ink-muted">{match.email}</span>
+                        </button>
+                      ))}
+                      <div className="px-3 py-2 text-sm text-ink-muted">
+                        <button
+                          type="button"
+                          className="text-accent-soft hover:text-accent-strong"
+                          onClick={() => openQuickCreate("attendee")}
+                        >
+                          Create new profile for "{attendeeSearch.trim() || "attendee"}"
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                      <div>No profiles found</div>
+                      <button
+                        type="button"
+                        className="text-accent-soft hover:text-accent-strong"
+                        onClick={() => openQuickCreate("attendee")}
+                      >
+                        Create profile for "{attendeeSearch.trim() || "attendee"}"
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {quickCreateTarget === "attendee" ? renderQuickCreateForm() : null}
           </div>
 
           <div>
@@ -896,23 +1192,44 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     {assigneeResults.isFetching ? (
                       <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
                     ) : assigneeMatches.length > 0 ? (
-                      assigneeMatches.map((match) => (
-                        <button
-                          key={match.profileId}
-                          type="button"
-                          className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
-                          onClick={() => handleSelectAssignee(match)}
-                        >
-                          <span className="font-medium">{match.displayName}</span>
-                          <span className="text-xs text-ink-muted">{match.email}</span>
-                        </button>
-                      ))
+                      <>
+                        {assigneeMatches.map((match) => (
+                          <button
+                            key={match.profileId}
+                            type="button"
+                            className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
+                            onClick={() => handleSelectAssignee(match)}
+                          >
+                            <span className="font-medium">{match.displayName}</span>
+                            <span className="text-xs text-ink-muted">{match.email}</span>
+                          </button>
+                        ))}
+                        <div className="px-3 py-2 text-sm text-ink-muted">
+                          <button
+                            type="button"
+                            className="text-accent-soft hover:text-accent-strong"
+                            onClick={() => openQuickCreate("assignee")}
+                          >
+                            Create new profile for "{assigneeSearch.trim() || "assignee"}"
+                          </button>
+                        </div>
+                      </>
                     ) : (
-                      <div className="px-3 py-2 text-sm text-ink-muted">No profiles found</div>
+                      <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                        <div>No profiles found</div>
+                        <button
+                          type="button"
+                          className="text-accent-soft hover:text-accent-strong"
+                          onClick={() => openQuickCreate("assignee")}
+                        >
+                          Create profile for "{assigneeSearch.trim() || "assignee"}"
+                        </button>
+                      </div>
                     )}
                   </div>
               )}
             </div>
+            {quickCreateTarget === "assignee" ? renderQuickCreateForm() : null}
           </div>
           </div>
 
