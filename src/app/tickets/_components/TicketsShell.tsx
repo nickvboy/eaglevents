@@ -8,9 +8,8 @@ type TicketView = "unassigned" | "assigned" | "all";
 
 type Row = ReturnType<typeof useTicketsData>[number];
 
-function useTicketsData(view: TicketView, search: string) {
-  const assigned = view === "all" ? undefined : view === "assigned";
-  const { data } = api.event.tickets.useQuery({ assigned, search, limit: 200 });
+function useTicketsData(search: string) {
+  const { data } = api.event.tickets.useQuery({ search, limit: 200 });
   return data ?? [];
 }
 
@@ -18,9 +17,20 @@ export function TicketsShell() {
   const [view, setView] = useState<TicketView>("unassigned");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const rows = useTicketsData(view, search);
+  const allRows = useTicketsData(search);
+  const unassignedRows = useMemo(() => allRows.filter((r) => !r.assigneeProfile), [allRows]);
+  const assignedRows = useMemo(() => allRows.filter((r) => !!r.assigneeProfile), [allRows]);
+  const rows =
+    view === "unassigned" ? unassignedRows : view === "assigned" ? assignedRows : allRows;
+  const counts = {
+    unassigned: unassignedRows.length,
+    assigned: assignedRows.length,
+    all: allRows.length,
+  };
 
   const selected = useMemo(() => rows.find((r) => r.id === selectedId) ?? null, [rows, selectedId]);
+  const currentLabel = view === "unassigned" ? "Unassigned Tickets" : view === "assigned" ? "Assigned Tickets" : "All Tickets";
+  const currentCount = view === "unassigned" ? counts.unassigned : view === "assigned" ? counts.assigned : counts.all;
 
   return (
     <div className="flex min-h-screen">
@@ -30,9 +40,9 @@ export function TicketsShell() {
           Tickets
         </div>
         <nav className="space-y-1 text-sm">
-          <NavButton active={view === "unassigned"} onClick={() => setView("unassigned")}>Unassigned tickets</NavButton>
-          <NavButton active={view === "assigned"} onClick={() => setView("assigned")}>Assigned to agents</NavButton>
-          <NavButton active={view === "all"} onClick={() => setView("all")}>All tickets</NavButton>
+          <NavButton active={view === "unassigned"} count={counts.unassigned} onClick={() => setView("unassigned")} label="Unassigned tickets" />
+          <NavButton active={view === "assigned"} count={counts.assigned} onClick={() => setView("assigned")} label="Assigned to agents" />
+          <NavButton active={view === "all"} count={counts.all} onClick={() => setView("all")} label="All tickets" />
         </nav>
       </aside>
 
@@ -40,15 +50,18 @@ export function TicketsShell() {
         <header className="border-b border-outline-muted bg-surface-overlay/60 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             {/* Desktop title */}
-            <div className="hidden text-sm font-semibold text-ink-primary md:block">
-              {view === "unassigned" ? "Unassigned Tickets Open" : view === "assigned" ? "Assigned Tickets" : "All Tickets"}
+            <div className="hidden items-center gap-2 text-sm font-semibold text-ink-primary md:flex">
+              <span>{currentLabel}</span>
+              <span className="font-bold text-ink-primary">{currentCount}</span>
             </div>
             {/* Mobile title dropdown */}
             <div className="md:hidden">
               <MobileViewSwitcher
                 value={view}
                 onChange={setView}
-                label={view === "unassigned" ? "Unassigned Tickets" : view === "assigned" ? "Assigned Tickets" : "All Tickets"}
+                label={currentLabel}
+                currentCount={currentCount}
+                counts={counts}
               />
             </div>
             <div className="hidden items-center gap-2 md:flex">
@@ -95,7 +108,17 @@ export function TicketsShell() {
   );
 }
 
-function NavButton({ active, children, onClick }: { active?: boolean; children: React.ReactNode; onClick?: () => void }) {
+function NavButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active?: boolean;
+  label: string;
+  count: number;
+  onClick?: () => void;
+}) {
   return (
     <button
       type="button"
@@ -105,7 +128,8 @@ function NavButton({ active, children, onClick }: { active?: boolean; children: 
       }
       onClick={onClick}
     >
-      <span>{children}</span>
+      <span>{label}</span>
+      <span className="font-bold text-ink-primary">{count}</span>
     </button>
   );
 }
@@ -127,6 +151,7 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
         {rows.map((row, idx) => {
           const isSelected = row.id === selectedId;
           const updatedAt = row.updatedAt ?? row.createdAt;
+          const ticketCode = row.eventCode ?? String(row.id).padStart(7, "0");
           const zebra = idx % 2 === 0 ? "bg-surface-sunken/40" : "bg-surface-muted/40";
           return (
             <tr
@@ -138,7 +163,7 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
                 <StatusPill row={row} />
               </Td>
               <Td className="hidden md:table-cell">{formatDate(row.startDatetime)}</Td>
-              <Td>#{row.id}</Td>
+              <Td>#{ticketCode}</Td>
               <Td className="max-w-[16rem] truncate text-ink-primary md:max-w-[24rem] lg:max-w-[28rem]">{row.title}</Td>
               <Td className="hidden text-ink-subtle lg:table-cell">{row.assigneeProfile ? formatName(row.assigneeProfile) : "—"}</Td>
               <Td className="hidden text-ink-subtle md:table-cell">{formatRelative(updatedAt)}</Td>
@@ -174,6 +199,7 @@ function SidePreview({ row }: { row: any | null }) {
   }
   const start = new Date(row.startDatetime);
   const end = new Date(row.endDatetime);
+  const ticketCode = row.eventCode ?? String(row.id).padStart(7, "0");
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-outline-muted bg-surface-overlay px-4 py-3">
@@ -182,6 +208,7 @@ function SidePreview({ row }: { row: any | null }) {
       </div>
       <div className="space-y-3 p-4 text-sm">
         <div className="rounded-lg border border-outline-muted bg-surface-muted p-3 text-ink-subtle">
+          <div className="text-[11px] uppercase tracking-wide text-ink-faint">Ticket ID #{ticketCode}</div>
           <div>{formatDate(start)}</div>
           <div>{formatTimeRange(start, end)}</div>
           {row.location && <div className="mt-1 text-xs uppercase tracking-wide">{row.location}</div>}
@@ -203,7 +230,19 @@ function SidePreview({ row }: { row: any | null }) {
   );
 }
 
-function MobileViewSwitcher({ value, onChange, label }: { value: TicketView; onChange: (v: TicketView) => void; label: string }) {
+function MobileViewSwitcher({
+  value,
+  onChange,
+  label,
+  currentCount,
+  counts,
+}: {
+  value: TicketView;
+  onChange: (v: TicketView) => void;
+  label: string;
+  currentCount: number;
+  counts: { unassigned: number; assigned: number; all: number };
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -216,20 +255,21 @@ function MobileViewSwitcher({ value, onChange, label }: { value: TicketView; onC
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const options: { value: TicketView; label: string }[] = [
-    { value: "unassigned", label: "Unassigned Tickets" },
-    { value: "assigned", label: "Assigned Tickets" },
-    { value: "all", label: "All Tickets" },
+  const options: { value: TicketView; label: string; count: number }[] = [
+    { value: "unassigned", label: "Unassigned Tickets", count: counts.unassigned },
+    { value: "assigned", label: "Assigned Tickets", count: counts.assigned },
+    { value: "all", label: "All Tickets", count: counts.all },
   ];
 
   return (
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-primary hover:text-accent-soft"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-primary hover:text-accent-soft"
         onClick={() => setOpen((p) => !p)}
       >
-        {label}
+        <span>{label}</span>
+        <span className="font-bold text-ink-primary">{currentCount}</span>
         <ChevronDownIcon className="h-4 w-4 text-ink-muted" />
       </button>
       {open && (
@@ -246,7 +286,10 @@ function MobileViewSwitcher({ value, onChange, label }: { value: TicketView; onC
                 setOpen(false);
               }}
             >
-              {opt.label}
+              <div className="flex items-center justify-between">
+                <span>{opt.label}</span>
+                <span className="font-bold text-ink-primary">{opt.count}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -263,6 +306,7 @@ function MobileTicketList({ rows, onOpen }: { rows: any[]; onOpen: (id: number) 
         const date = new Date(row.startDatetime);
         const dateLabel = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}`;
         const snippet = row.description ? String(row.description).slice(0, 120) : row.location ?? "";
+        const ticketCode = row.eventCode ?? String(row.id).padStart(7, "0");
         return (
           <li
             key={row.id}
@@ -276,7 +320,7 @@ function MobileTicketList({ rows, onOpen }: { rows: any[]; onOpen: (id: number) 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between text-xs text-ink-subtle">
                   <div>
-                    <span className="font-medium text-ink-muted">#{row.id}</span>
+                    <span className="font-medium text-ink-muted">#{ticketCode}</span>
                     {row.assigneeProfile && (
                       <span> · {formatName(row.assigneeProfile)}</span>
                     )}

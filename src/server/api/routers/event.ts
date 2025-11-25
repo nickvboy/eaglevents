@@ -246,6 +246,23 @@ function normalizeHourLogs(
   return normalized;
 }
 
+function generateEventCode() {
+  return String(Math.floor(1000000 + Math.random() * 9000000));
+}
+
+async function getUniqueEventCode(db: DbClient) {
+  for (let i = 0; i < 5; i++) {
+    const candidate = generateEventCode();
+    const existing = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.eventCode, candidate))
+      .limit(1);
+    if (!existing[0]) return candidate;
+  }
+  throw new Error("Failed to generate a unique event code");
+}
+
 export const eventRouter = createTRPCRouter({
   tickets: publicProcedure
     .input(
@@ -271,7 +288,14 @@ export const eventRouter = createTRPCRouter({
 
       if (input?.search && input.search.trim().length > 0) {
         const like = `%${input.search.trim().replace(/[%_]/g, (m) => `\\${m}`)}%`;
-        conditions.push(or(ilike(events.title, like), ilike(events.description, like), ilike(events.location, like)));
+        conditions.push(
+          or(
+            ilike(events.title, like),
+            ilike(events.description, like),
+            ilike(events.location, like),
+            eq(events.eventCode, input.search.trim()),
+          ),
+        );
       }
 
       let query = ctx.db.select().from(events);
@@ -339,6 +363,7 @@ export const eventRouter = createTRPCRouter({
         calendarId = primary.id;
       }
 
+      const eventCode = await getUniqueEventCode(ctx.db);
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
       let sessionProfileId: number | null = null;
       if (hourLogs.length > 0) {
@@ -374,6 +399,7 @@ export const eventRouter = createTRPCRouter({
           .values({
             calendarId: calendarId!,
             assigneeProfileId: assignee ?? null,
+            eventCode,
             title: input.title,
             description: input.description,
             location: input.location,

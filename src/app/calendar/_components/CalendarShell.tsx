@@ -22,31 +22,56 @@ type CalendarShellProps = {
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
+const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
+
+function getStoredView(key: string, fallback: View) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (VALID_VIEWS.includes(saved as View)) return saved as View;
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
+
+function getStoredDate(key: string, fallback: Date) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const saved = window.localStorage.getItem(key);
+    const parsed = saved ? new Date(saved) : null;
+    if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
+      return startOfDay(parsed);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
   const initialDate = startOfDay(new Date());
-  const [desktopView, setDesktopView] = useState<View>("workweek");
-  const [mobileView, setMobileView] = useState<View>("day");
+  const [desktopView, setDesktopView] = useState<View>(() => getStoredView("calendar.view.desktop", "workweek"));
+  const [mobileView, setMobileView] = useState<View>(() => getStoredView("calendar.view.mobile", "day"));
+  const [selectedDate, setSelectedDate] = useState(() => getStoredDate("calendar.selectedDate", initialDate));
   const desktopViewHydrated = useRef(false);
   const mobileViewHydrated = useRef(false);
-  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [openNew, setOpenNew] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [previewEventId, setPreviewEventId] = useState<number | null>(null);
   const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
-    const today = new Date();
-    return startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
+    return startOfDay(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   });
   const [monthOverlayText, setMonthOverlayText] = useState(() =>
-    initialDate.toLocaleString(undefined, { month: "long", year: "numeric" }),
+    selectedDate.toLocaleString(undefined, { month: "long", year: "numeric" }),
   );
   const [monthOverlayVisible, setMonthOverlayVisible] = useState(true);
   const monthOverlayTimeoutRef = useRef<number | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
-  const [mobileMonthDate, setMobileMonthDate] = useState(() => startOfDay(new Date()));
+  const [mobileMonthDate, setMobileMonthDate] = useState(() => selectedDate);
   const activeView = isMobile ? mobileView : desktopView;
   const setActiveView = (next: View) => {
     if (isMobile) setMobileView(next);
@@ -101,6 +126,15 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
       // ignore storage errors
     }
   }, [mobileView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("calendar.selectedDate", selectedDate.toISOString());
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

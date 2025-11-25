@@ -169,6 +169,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
     ? [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
       event.assigneeProfile.email
     : null;
+  const eventCode = event.eventCode ?? String(event.id).padStart(7, "0");
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface-raised text-ink-primary">
@@ -191,6 +192,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
               <div>{dateLabel}</div>
               <div>{timeLabel}</div>
               {event.location && <div className="mt-1 text-ink-muted">{event.location}</div>}
+              <div className="mt-1 text-[11px] uppercase tracking-wide text-ink-faint">Event ID #{eventCode}</div>
               {calendar && (
                 <div className="mt-2 inline-flex items-center gap-2 text-xs uppercase tracking-wide text-ink-subtle">
                   <span className={`inline-block h-2.5 w-2.5 rounded-full ${calendar.swatchClass}`} />

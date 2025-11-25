@@ -453,6 +453,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [selectedAttendees, setSelectedAttendees] = useState<AssigneeSelection[]>([]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [attendeeQuery, setAttendeeQuery] = useState("");
+  const [assigneeHighlight, setAssigneeHighlight] = useState(-1);
+  const [attendeeHighlight, setAttendeeHighlight] = useState(-1);
   const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | null>(null);
   const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
@@ -741,6 +743,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const fallbackEventInfoStartIsCustom = Boolean(fallbackEventInfoStartValue && !timeOptionValues.has(fallbackEventInfoStartValue));
   const fallbackEventInfoEndIsCustom = Boolean(fallbackEventInfoEndValue && !timeOptionValues.has(fallbackEventInfoEndValue));
   const fallbackSetupInfoIsCustom = Boolean(fallbackSetupInfoValue && !timeOptionValues.has(fallbackSetupInfoValue));
+
+  useEffect(() => {
+    setAssigneeHighlight(-1);
+  }, [assigneeSearch, assigneeMatches.length]);
+
+  useEffect(() => {
+    setAttendeeHighlight(-1);
+  }, [attendeeSearch, attendeeMatches.length]);
 
   const handleBackdropMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
@@ -1115,6 +1125,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                 placeholder="Search by name, email, or phone"
                 value={attendeeSearch}
                 onChange={(e) => setAttendeeSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setAttendeeHighlight((prev) => Math.min(prev + 1, attendeeMatches.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setAttendeeHighlight((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (attendeeMatches.length === 1) {
+                      handleAddAttendee(attendeeMatches[0]!);
+                    } else if (attendeeHighlight >= 0 && attendeeHighlight < attendeeMatches.length) {
+                      handleAddAttendee(attendeeMatches[attendeeHighlight]!);
+                    }
+                  }
+                }}
                 className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
               />
               {shouldShowAttendeeResults && (
@@ -1123,17 +1149,24 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                     <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
                   ) : attendeeMatches.length > 0 ? (
                     <>
-                      {attendeeMatches.map((match) => (
+                      {attendeeMatches.map((match, index) => {
+                        const isActive = index === attendeeHighlight;
+                        return (
                         <button
                           key={match.profileId}
                           type="button"
-                          className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
+                          className={
+                            "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                            (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                          }
                           onClick={() => handleAddAttendee(match)}
+                          onMouseEnter={() => setAttendeeHighlight(index)}
                         >
                           <span className="font-medium">{match.displayName}</span>
                           <span className="text-xs text-ink-muted">{match.email}</span>
                         </button>
-                      ))}
+                        );
+                      })}
                       <div className="px-3 py-2 text-sm text-ink-muted">
                         <button
                           type="button"
@@ -1181,29 +1214,52 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                 </div>
               )}
               <div className="relative">
-                <input
-                  placeholder={assignee ? "Search to reassign" : "Search by name, username, or email"}
-                  value={assigneeSearch}
-                  onChange={(e) => setAssigneeSearch(e.target.value)}
-                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-                />
+              <input
+                placeholder={assignee ? "Search to reassign" : "Search by name, username, or email"}
+                value={assigneeSearch}
+                onChange={(e) => setAssigneeSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setAssigneeHighlight((prev) => Math.min(prev + 1, assigneeMatches.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (assigneeMatches.length === 1) {
+                      handleSelectAssignee(assigneeMatches[0]!);
+                    } else if (assigneeHighlight >= 0 && assigneeHighlight < assigneeMatches.length) {
+                      handleSelectAssignee(assigneeMatches[assigneeHighlight]!);
+                    }
+                  }
+                }}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+              />
                 {shouldShowAssigneeResults && (
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
                     {assigneeResults.isFetching ? (
                       <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
                     ) : assigneeMatches.length > 0 ? (
                       <>
-                        {assigneeMatches.map((match) => (
-                          <button
-                            key={match.profileId}
-                            type="button"
-                            className="flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary hover:bg-surface-muted last:border-b-0"
-                            onClick={() => handleSelectAssignee(match)}
-                          >
-                            <span className="font-medium">{match.displayName}</span>
-                            <span className="text-xs text-ink-muted">{match.email}</span>
-                          </button>
-                        ))}
+                        {assigneeMatches.map((match, index) => {
+                          const isActive = index === assigneeHighlight;
+                          return (
+                            <button
+                              key={match.profileId}
+                              type="button"
+                              className={
+                                "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                              }
+                              onClick={() => handleSelectAssignee(match)}
+                              onMouseEnter={() => setAssigneeHighlight(index)}
+                            >
+                              <span className="font-medium">{match.displayName}</span>
+                              <span className="text-xs text-ink-muted">{match.email}</span>
+                            </button>
+                          );
+                        })}
                         <div className="px-3 py-2 text-sm text-ink-muted">
                           <button
                             type="button"

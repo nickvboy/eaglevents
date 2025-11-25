@@ -255,6 +255,7 @@ export const events = createTable(
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     calendarId: d.integer().notNull().references(() => calendars.id, { onDelete: "cascade" }),
     assigneeProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    eventCode: d.varchar({ length: 7 }).notNull(),
     title: d.varchar({ length: 255 }).notNull(),
     description: text(),
     location: d.varchar({ length: 255 }),
@@ -280,6 +281,7 @@ export const events = createTable(
     index("event_calendar_idx").on(t.calendarId),
     index("event_start_idx").on(t.startDatetime),
     index("event_assignee_idx").on(t.assigneeProfileId),
+    uniqueIndex("event_event_code_unique").on(t.eventCode),
   ],
 );
 
