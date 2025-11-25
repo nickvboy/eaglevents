@@ -321,5 +321,23 @@ export const eventHourLogs = createTable(
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
   }),
-  (t) => [index("event_hour_log_event_idx").on(t.eventId)],
+  (t) => [index("event_hour_log_event_idx").on(t.eventId), index("event_hour_log_profile_idx").on(t.loggedByProfileId)],
+);
+
+export const eventZendeskConfirmations = createTable(
+  "event_zendesk_confirmation",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    confirmedAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("zendesk_confirmation_event_idx").on(t.eventId),
+    index("zendesk_confirmation_profile_idx").on(t.profileId),
+    uniqueIndex("zendesk_confirmation_event_profile_idx").on(t.eventId, t.profileId),
+  ],
 );

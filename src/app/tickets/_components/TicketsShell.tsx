@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "~/trpc/react";
 import { ChevronDownIcon, ReportIcon, SearchIcon } from "~/app/_components/icons";
+import { ZendeskModal } from "./ZendeskModal";
 
 type TicketView = "unassigned" | "assigned" | "all";
 
@@ -17,6 +18,7 @@ export function TicketsShell() {
   const [view, setView] = useState<TicketView>("unassigned");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [zendeskOpen, setZendeskOpen] = useState(false);
   const allRows = useTicketsData(search);
   const unassignedRows = useMemo(() => allRows.filter((r) => !r.assigneeProfile), [allRows]);
   const assignedRows = useMemo(() => allRows.filter((r) => !!r.assigneeProfile), [allRows]);
@@ -74,6 +76,13 @@ export function TicketsShell() {
                 />
                 <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               </div>
+              <button
+                type="button"
+                className="rounded-lg bg-accent-soft px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                onClick={() => setZendeskOpen(true)}
+              >
+                Zendesk
+              </button>
             </div>
           </div>
           {/* Mobile search row */}
@@ -87,6 +96,13 @@ export function TicketsShell() {
               />
               <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             </div>
+            <button
+              type="button"
+              className="rounded-full bg-accent-soft px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+              onClick={() => setZendeskOpen(true)}
+            >
+              Zendesk
+            </button>
           </div>
         </header>
 
@@ -104,6 +120,7 @@ export function TicketsShell() {
           </aside>
         </div>
       </section>
+      <ZendeskModal open={zendeskOpen} onClose={() => setZendeskOpen(false)} />
     </div>
   );
 }
@@ -165,7 +182,7 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
               <Td className="hidden md:table-cell">{formatDate(row.startDatetime)}</Td>
               <Td>#{ticketCode}</Td>
               <Td className="max-w-[16rem] truncate text-ink-primary md:max-w-[24rem] lg:max-w-[28rem]">{row.title}</Td>
-              <Td className="hidden text-ink-subtle lg:table-cell">{row.assigneeProfile ? formatName(row.assigneeProfile) : "—"}</Td>
+              <Td className="hidden text-ink-subtle lg:table-cell">{row.assigneeProfile ? formatName(row.assigneeProfile) : "Unassigned"}</Td>
               <Td className="hidden text-ink-subtle md:table-cell">{formatRelative(updatedAt)}</Td>
             </tr>
           );
@@ -322,7 +339,7 @@ function MobileTicketList({ rows, onOpen }: { rows: any[]; onOpen: (id: number) 
                   <div>
                     <span className="font-medium text-ink-muted">#{ticketCode}</span>
                     {row.assigneeProfile && (
-                      <span> · {formatName(row.assigneeProfile)}</span>
+                      <span> - {formatName(row.assigneeProfile)}</span>
                     )}
                   </div>
                   <div className="ml-2 whitespace-nowrap">{dateLabel}</div>

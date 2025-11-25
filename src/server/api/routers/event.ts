@@ -3,7 +3,15 @@ import { and, desc, eq, ilike, inArray, lt, gt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { calendars, eventAttendees, eventHourLogs, events, profiles, users } from "~/server/db/schema";
+import {
+  calendars,
+  eventAttendees,
+  eventHourLogs,
+  eventZendeskConfirmations,
+  events,
+  profiles,
+  users,
+} from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import type { Session } from "next-auth";
@@ -43,6 +51,20 @@ type EventResponse = EventRow & {
   totalLoggedMinutes: number;
   attendees: AttendeeSummary[];
 };
+type ZendeskQueueItem = {
+  eventId: number;
+  title: string;
+  zendeskTicketNumber: string | null;
+  startDatetime: Date;
+  endDatetime: Date;
+  startTimeHms: string;
+  endTimeHms: string;
+  totalLoggedMinutesForUser: number;
+  totalLoggedHoursForUser: number;
+  totalLoggedDurationHms: string;
+  eventCode: string | null;
+  confirmed: boolean;
+};
 
 const requestCategoryValues = [
   "university_affiliated_request_to_university_business",
@@ -77,6 +99,14 @@ async function getSessionProfileId(ctx: { session: Session | null; db: DbClient 
     .where(eq(profiles.userId, userId))
     .limit(1);
   return rows[0]?.id ?? null;
+}
+
+async function requireSessionProfileId(ctx: { session: Session | null; db: DbClient }) {
+  const profileId = await getSessionProfileId(ctx);
+  if (profileId === null) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to access your tickets." });
+  }
+  return profileId;
 }
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
@@ -250,6 +280,23 @@ function generateEventCode() {
   return String(Math.floor(1000000 + Math.random() * 9000000));
 }
 
+function formatTimeHms(date: Date) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function formatMinutesToHms(totalMinutes: number) {
+  const totalSeconds = Math.round(totalMinutes * 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
 async function getUniqueEventCode(db: DbClient) {
   for (let i = 0; i < 5; i++) {
     const candidate = generateEventCode();
@@ -307,6 +354,134 @@ export const eventRouter = createTRPCRouter({
 
       const rows = await query.orderBy(desc(events.updatedAt), desc(events.id)).limit(limit).offset(offset);
       return buildEventResponses(ctx.db, rows as EventRow[]);
+    }),
+  zendeskQueue: publicProcedure.query(async ({ ctx }) => {
+    const profileId = await requireSessionProfileId(ctx);
+
+    const hourLogs = await ctx.db
+      .select({
+        eventId: eventHourLogs.eventId,
+        durationMinutes: eventHourLogs.durationMinutes,
+      })
+      .from(eventHourLogs)
+      .where(eq(eventHourLogs.loggedByProfileId, profileId));
+
+    const totals = new Map<number, number>();
+    for (const log of hourLogs) {
+      const existing = totals.get(log.eventId) ?? 0;
+      totals.set(log.eventId, existing + log.durationMinutes);
+    }
+
+    const hourEventIds = Array.from(totals.keys());
+    let condition: any = eq(events.assigneeProfileId, profileId);
+    if (hourEventIds.length > 0) {
+      condition = or(condition, inArray(events.id, hourEventIds));
+    }
+
+    const eventRows = await ctx.db
+      .select({
+        id: events.id,
+        title: events.title,
+        startDatetime: events.startDatetime,
+        endDatetime: events.endDatetime,
+        zendeskTicketNumber: events.zendeskTicketNumber,
+        assigneeProfileId: events.assigneeProfileId,
+        eventCode: events.eventCode,
+      })
+      .from(events)
+      .where(condition)
+      .orderBy(desc(events.startDatetime));
+
+    const confirmationRows = await ctx.db
+      .select({
+        eventId: eventZendeskConfirmations.eventId,
+      })
+      .from(eventZendeskConfirmations)
+      .where(eq(eventZendeskConfirmations.profileId, profileId));
+    const confirmedSet = new Set<number>(confirmationRows.map((row) => row.eventId));
+
+    const ready: ZendeskQueueItem[] = [];
+    const needsLogging: Array<ZendeskQueueItem & { status: "no_hours_logged" | "hours_not_confirmed" }> = [];
+
+    for (const row of eventRows) {
+      const totalMinutes = totals.get(row.id) ?? 0;
+      const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
+      const confirmed = confirmedSet.has(row.id);
+      const item: ZendeskQueueItem = {
+        eventId: row.id,
+        title: row.title,
+        zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+        startDatetime: row.startDatetime,
+        endDatetime: row.endDatetime,
+        startTimeHms: formatTimeHms(row.startDatetime),
+        endTimeHms: formatTimeHms(row.endDatetime),
+        totalLoggedMinutesForUser: totalMinutes,
+        totalLoggedHoursForUser: totalHours,
+        totalLoggedDurationHms: formatMinutesToHms(totalMinutes),
+        eventCode: row.eventCode ?? null,
+        confirmed,
+      };
+      const hasHours = totalMinutes > 0;
+      if (!confirmed && hasHours) {
+        ready.push(item);
+      }
+      if (!confirmed || !hasHours) {
+        needsLogging.push({
+          ...item,
+          status: hasHours ? "hours_not_confirmed" : "no_hours_logged",
+        });
+      }
+    }
+
+    ready.sort((a, b) => b.startDatetime.getTime() - a.startDatetime.getTime());
+    needsLogging.sort((a, b) => b.startDatetime.getTime() - a.startDatetime.getTime());
+
+    return { ready, needsLogging };
+  }),
+  confirmZendesk: publicProcedure
+    .input(z.object({ eventId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const profileId = await requireSessionProfileId(ctx);
+
+      const eventRows = await ctx.db
+        .select({
+          id: events.id,
+          assigneeProfileId: events.assigneeProfileId,
+        })
+        .from(events)
+        .where(eq(events.id, input.eventId))
+        .limit(1);
+      const eventRow = eventRows[0];
+      if (!eventRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
+      }
+
+      const logCountRows = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(eventHourLogs)
+        .where(and(eq(eventHourLogs.eventId, input.eventId), eq(eventHourLogs.loggedByProfileId, profileId)))
+        .limit(1);
+      const logCount = logCountRows[0]?.count ?? 0;
+
+      const canConfirm = eventRow.assigneeProfileId === profileId || logCount > 0;
+      if (!canConfirm) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only confirm tickets you have logged or that are assigned to you." });
+      }
+
+      const now = new Date();
+      await ctx.db
+        .insert(eventZendeskConfirmations)
+        .values({
+          eventId: input.eventId,
+          profileId,
+          confirmedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [eventZendeskConfirmations.eventId, eventZendeskConfirmations.profileId],
+          set: { confirmedAt: sql`CURRENT_TIMESTAMP` },
+        });
+
+      return { success: true, confirmedAt: now };
     }),
   list: publicProcedure
     .input(
