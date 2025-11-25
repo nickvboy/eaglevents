@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import { and, desc, eq, ilike, inArray, lt, gt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
@@ -64,6 +64,7 @@ type ZendeskQueueItem = {
   totalLoggedDurationHms: string;
   eventCode: string | null;
   confirmed: boolean;
+  needsReconfirm: boolean;
 };
 
 const requestCategoryValues = [
@@ -362,14 +363,23 @@ export const eventRouter = createTRPCRouter({
       .select({
         eventId: eventHourLogs.eventId,
         durationMinutes: eventHourLogs.durationMinutes,
+        endTime: eventHourLogs.endTime,
+        createdAt: eventHourLogs.createdAt,
       })
       .from(eventHourLogs)
       .where(eq(eventHourLogs.loggedByProfileId, profileId));
 
     const totals = new Map<number, number>();
+    const latestLogTime = new Map<number, Date>();
     for (const log of hourLogs) {
       const existing = totals.get(log.eventId) ?? 0;
       totals.set(log.eventId, existing + log.durationMinutes);
+      const newestInstant = log.createdAt ?? log.endTime;
+      if (newestInstant) {
+        const prev = latestLogTime.get(log.eventId)?.getTime() ?? -Infinity;
+        const next = newestInstant.getTime();
+        if (next > prev) latestLogTime.set(log.eventId, newestInstant);
+      }
     }
 
     const hourEventIds = Array.from(totals.keys());
@@ -395,18 +405,27 @@ export const eventRouter = createTRPCRouter({
     const confirmationRows = await ctx.db
       .select({
         eventId: eventZendeskConfirmations.eventId,
+        confirmedAt: eventZendeskConfirmations.confirmedAt,
       })
       .from(eventZendeskConfirmations)
       .where(eq(eventZendeskConfirmations.profileId, profileId));
-    const confirmedSet = new Set<number>(confirmationRows.map((row) => row.eventId));
+    const confirmedAtMap = new Map<number, Date>();
+    for (const row of confirmationRows) {
+      if (row.confirmedAt) confirmedAtMap.set(row.eventId, row.confirmedAt);
+    }
 
     const ready: ZendeskQueueItem[] = [];
-    const needsLogging: Array<ZendeskQueueItem & { status: "no_hours_logged" | "hours_not_confirmed" }> = [];
+    const needsLogging: Array<
+      ZendeskQueueItem & { status: "no_hours_logged" | "hours_not_confirmed" | "new_hours_unconfirmed" }
+    > = [];
 
     for (const row of eventRows) {
       const totalMinutes = totals.get(row.id) ?? 0;
       const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
-      const confirmed = confirmedSet.has(row.id);
+      const confirmationAt = confirmedAtMap.get(row.id) ?? null;
+      const latestLog = latestLogTime.get(row.id) ?? null;
+      const needsReconfirm = confirmationAt && latestLog ? latestLog.getTime() > confirmationAt.getTime() : false;
+      const confirmed = confirmationAt !== null && !needsReconfirm;
       const item: ZendeskQueueItem = {
         eventId: row.id,
         title: row.title,
@@ -420,6 +439,7 @@ export const eventRouter = createTRPCRouter({
         totalLoggedDurationHms: formatMinutesToHms(totalMinutes),
         eventCode: row.eventCode ?? null,
         confirmed,
+        needsReconfirm,
       };
       const hasHours = totalMinutes > 0;
       if (!confirmed && hasHours) {
@@ -428,7 +448,7 @@ export const eventRouter = createTRPCRouter({
       if (!confirmed || !hasHours) {
         needsLogging.push({
           ...item,
-          status: hasHours ? "hours_not_confirmed" : "no_hours_logged",
+          status: !hasHours ? "no_hours_logged" : needsReconfirm ? "new_hours_unconfirmed" : "hours_not_confirmed",
         });
       }
     }
@@ -796,3 +816,4 @@ export const eventRouter = createTRPCRouter({
       return { success: true };
     }),
 });
+

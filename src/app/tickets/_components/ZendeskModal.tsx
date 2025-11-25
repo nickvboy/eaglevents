@@ -268,12 +268,17 @@ function QueueList({
       {items.map((item, idx) => {
         const isActive = idx === activeIndex;
         const durationHms = formatDurationHms(item.totalLoggedMinutesForUser);
+        const needsReconfirm = "needsReconfirm" in item ? item.needsReconfirm : false;
         const status =
           isNeedsTab && "status" in item
             ? item.status === "no_hours_logged"
               ? "No hours logged"
-              : "Hours not confirmed"
-            : "Ready to send";
+              : item.status === "new_hours_unconfirmed"
+                ? "New hours added"
+                : "Hours not confirmed"
+            : needsReconfirm
+              ? "New hours added"
+              : "Ready to send";
         return (
           <li key={item.eventId}>
             <button
@@ -408,7 +413,11 @@ function TicketDetail({
           <span>Status</span>
           {needsStatus && (
             <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-primary">
-              {needsStatus === "no_hours_logged" ? "No hours logged" : "Hours not confirmed"}
+              {needsStatus === "no_hours_logged"
+                ? "No hours logged"
+                : needsStatus === "new_hours_unconfirmed"
+                  ? "New hours added"
+                  : "Hours not confirmed"}
             </span>
           )}
         </div>
