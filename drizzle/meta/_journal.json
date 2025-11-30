@@ -82,5 +82,49 @@
       "tag": "0010_theme_palette_camel",
       "breakpoints": true
     }
+    ,
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1764028800000,
+      "tag": "0011_event_form_fields",
+      "breakpoints": true
+    }
+    ,
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1764028801000,
+      "tag": "0012_add_zendesk_ticket",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1764028802000,
+      "tag": "0013_hour_log_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1764028803000,
+      "tag": "0014_event_attendee_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1764201600000,
+      "tag": "0015_event_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1769440000000,
+      "tag": "0016_zendesk_confirmations",
+      "breakpoints": true
+    }
   ]
 }

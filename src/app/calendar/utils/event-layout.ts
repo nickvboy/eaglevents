@@ -20,8 +20,16 @@ export type CalendarEvent = {
     endTime: string | Date;
     durationMinutes: number;
     durationHours: number;
+    loggedByProfileId?: number | null;
+    loggedByProfile?: {
+      id: number;
+      firstName: string;
+      lastName: string;
+      email: string;
+    } | null;
   }[];
   totalLoggedMinutes?: number;
+  zendeskTicketNumber?: string | null;
 };
 
 export type PositionedEvent = {

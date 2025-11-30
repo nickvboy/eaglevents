@@ -21,6 +21,12 @@ export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofi
 export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "manager", "employee"]);
 export const organizationScopeTypeEnum = pgEnum("organization_scope_type", ["business", "department", "division"]);
 export const themeProfileScopeEnum = pgEnum("theme_profile_scope", ["business", "department"]);
+export const eventRequestCategoryEnum = pgEnum("event_request_category", [
+  "university_affiliated_request_to_university_business",
+  "university_affiliated_nonrequest_to_university_business",
+  "fgcu_student_affiliated_event",
+  "non_affiliated_or_revenue_generating_event",
+]);
 
 export const users = createTable(
   "user",
@@ -249,6 +255,7 @@ export const events = createTable(
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     calendarId: d.integer().notNull().references(() => calendars.id, { onDelete: "cascade" }),
     assigneeProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    eventCode: d.varchar({ length: 7 }).notNull(),
     title: d.varchar({ length: 255 }).notNull(),
     description: text(),
     location: d.varchar({ length: 255 }),
@@ -256,6 +263,14 @@ export const events = createTable(
     startDatetime: d.timestamp({ withTimezone: true }).notNull(),
     endDatetime: d.timestamp({ withTimezone: true }).notNull(),
     recurrenceRule: text(),
+    participantCount: d.integer(),
+    technicianNeeded: d.boolean().default(false).notNull(),
+    requestCategory: eventRequestCategoryEnum(),
+    equipmentNeeded: text(),
+    eventStartTime: d.timestamp({ withTimezone: true }),
+    eventEndTime: d.timestamp({ withTimezone: true }),
+    setupTime: d.timestamp({ withTimezone: true }),
+    zendeskTicketNumber: d.varchar({ length: 64 }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -266,6 +281,7 @@ export const events = createTable(
     index("event_calendar_idx").on(t.calendarId),
     index("event_start_idx").on(t.startDatetime),
     index("event_assignee_idx").on(t.assigneeProfileId),
+    uniqueIndex("event_event_code_unique").on(t.eventCode),
   ],
 );
 
@@ -274,10 +290,11 @@ export const eventAttendees = createTable(
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    profileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
     email: d.varchar({ length: 255 }).notNull(),
     responseStatus: d.varchar({ length: 32 }).default("needsAction").notNull(),
   }),
-  (t) => [index("attendee_event_idx").on(t.eventId)],
+  (t) => [index("attendee_event_idx").on(t.eventId), index("attendee_profile_idx").on(t.profileId)],
 );
 
 export const eventReminders = createTable(
@@ -295,6 +312,7 @@ export const eventHourLogs = createTable(
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    loggedByProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
     startTime: d.timestamp({ withTimezone: true }).notNull(),
     endTime: d.timestamp({ withTimezone: true }).notNull(),
     durationMinutes: integer().notNull(),
@@ -303,5 +321,23 @@ export const eventHourLogs = createTable(
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
   }),
-  (t) => [index("event_hour_log_event_idx").on(t.eventId)],
+  (t) => [index("event_hour_log_event_idx").on(t.eventId), index("event_hour_log_profile_idx").on(t.loggedByProfileId)],
+);
+
+export const eventZendeskConfirmations = createTable(
+  "event_zendesk_confirmation",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    confirmedAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("zendesk_confirmation_event_idx").on(t.eventId),
+    index("zendesk_confirmation_profile_idx").on(t.profileId),
+    uniqueIndex("zendesk_confirmation_event_profile_idx").on(t.eventId, t.profileId),
+  ],
 );

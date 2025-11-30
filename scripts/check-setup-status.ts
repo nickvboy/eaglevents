@@ -4,7 +4,7 @@ import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 
 async function main() {
-  const ctx = await createTRPCContext({ headers: new Headers() });
+  const ctx = await createTRPCContext({ headers: new Headers(), session: null });
   const caller = createCaller(ctx);
   const status = await caller.setup.status();
   console.dir(status, { depth: null });

@@ -22,41 +22,56 @@ type CalendarShellProps = {
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
+const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
+
+function getStoredView(key: string, fallback: View) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (VALID_VIEWS.includes(saved as View)) return saved as View;
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
+
+function getStoredDate(key: string, fallback: Date) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const saved = window.localStorage.getItem(key);
+    const parsed = saved ? new Date(saved) : null;
+    if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
+      return startOfDay(parsed);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
   const initialDate = startOfDay(new Date());
-  const [desktopView, setDesktopView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.desktop");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "workweek";
-});
-  const [mobileView, setMobileView] = useState<View>(() => {
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem("calendar.view.mobile");
-    if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") return saved as View;
-  }
-  return "day";
-});
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [desktopView, setDesktopView] = useState<View>(() => getStoredView("calendar.view.desktop", "workweek"));
+  const [mobileView, setMobileView] = useState<View>(() => getStoredView("calendar.view.mobile", "day"));
+  const [selectedDate, setSelectedDate] = useState(() => getStoredDate("calendar.selectedDate", initialDate));
+  const desktopViewHydrated = useRef(false);
+  const mobileViewHydrated = useRef(false);
   const [openNew, setOpenNew] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [previewEventId, setPreviewEventId] = useState<number | null>(null);
   const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
-    const today = new Date();
-    return startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
+    return startOfDay(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   });
   const [monthOverlayText, setMonthOverlayText] = useState(() =>
-    initialDate.toLocaleString(undefined, { month: "long", year: "numeric" }),
+    selectedDate.toLocaleString(undefined, { month: "long", year: "numeric" }),
   );
   const [monthOverlayVisible, setMonthOverlayVisible] = useState(true);
   const monthOverlayTimeoutRef = useRef<number | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
-  const [mobileMonthDate, setMobileMonthDate] = useState(() => startOfDay(new Date()));
+  const [mobileMonthDate, setMobileMonthDate] = useState(() => selectedDate);
   const activeView = isMobile ? mobileView : desktopView;
   const setActiveView = (next: View) => {
     if (isMobile) setMobileView(next);
@@ -67,6 +82,21 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const saved = window.localStorage.getItem("calendar.view.desktop");
+      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
+        setDesktopView(saved as View);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      desktopViewHydrated.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!desktopViewHydrated.current) return;
+    try {
       window.localStorage.setItem("calendar.view.desktop", desktopView);
     } catch {
       // ignore storage errors
@@ -76,11 +106,35 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const saved = window.localStorage.getItem("calendar.view.mobile");
+      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
+        setMobileView(saved as View);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      mobileViewHydrated.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!mobileViewHydrated.current) return;
+    try {
       window.localStorage.setItem("calendar.view.mobile", mobileView);
     } catch {
       // ignore storage errors
     }
   }, [mobileView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("calendar.selectedDate", selectedDate.toISOString());
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -116,6 +170,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
+  const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
   const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
   const calendarLookup = useMemo(() => {
     const map = new Map<number, { name: string; swatchClass: string }>();
@@ -129,12 +184,13 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   // Persist visible calendars selection
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!visibleCalendarsLoaded) return;
     try {
       window.localStorage.setItem("calendar.visibleCalendars", JSON.stringify(visibleCalendarIds));
     } catch {
       // ignore storage errors
     }
-  }, [visibleCalendarIds]);
+  }, [visibleCalendarIds, visibleCalendarsLoaded]);
 
   // Restore visible calendars when calendars load
   useEffect(() => {
@@ -142,14 +198,17 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (!calendars) return;
     try {
       const raw = window.localStorage.getItem("calendar.visibleCalendars");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const valid = parsed.filter((id: unknown) => typeof id === 'number' && calendars.some((c) => c.id === id));
-        setVisibleCalendarIds(valid as number[]);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((id: unknown) => typeof id === "number" && calendars.some((c) => c.id === id));
+          setVisibleCalendarIds(valid as number[]);
+        }
       }
     } catch {
       // ignore storage errors
+    } finally {
+      setVisibleCalendarsLoaded(true);
     }
   }, [calendars]);
 
@@ -332,7 +391,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   return (
     <>
-      <div className="flex min-h-screen flex-col bg-surface-raised lg:flex-row">
+      <div className="flex h-screen flex-col overflow-hidden bg-surface-raised lg:flex-row">
         <div className="hidden lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
@@ -360,7 +419,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {business?.name && (
             <div className="border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
               <h1 className="text-xl font-semibold text-ink-primary lg:text-2xl">{business.name}</h1>
@@ -383,7 +442,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
-                <div className="relative flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
                   {monthOverlay}
                   {activeView === "month" ? (
                     <MonthGrid
@@ -424,7 +483,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 currentUser={currentUser}
               />
 
-                <div className="relative flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
                   {monthOverlay}
                   {activeView === "month" ? (
                     <MonthGrid

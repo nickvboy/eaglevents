@@ -12,6 +12,7 @@ export type ProfileSearchResult = {
   lastName: string;
   email: string;
   username: string | null;
+  phoneNumber: string | null;
 };
 
 type ProfileDocument = {
@@ -20,16 +21,23 @@ type ProfileDocument = {
   lastName: string;
   email: string;
   username?: string;
+  phoneNumber?: string | null;
 };
 
+// Opt-in flag so local environments default to DB-backed search without ES timeouts.
+const useElastic = env.ENABLE_ELASTICSEARCH === "true";
 const elasticNode = env.ELASTICSEARCH_NODE;
 const profileIndex = env.ELASTICSEARCH_PROFILE_INDEX ?? "profiles";
 
 let elasticClient: Client | null | undefined;
 
 function getClient() {
+  if (!useElastic) {
+    elasticClient = null;
+    return elasticClient;
+  }
   if (elasticClient !== undefined) return elasticClient;
-  if (!elasticNode) {
+  if (!elasticNode || elasticNode.trim().length === 0) {
     elasticClient = null;
     return elasticClient;
   }
@@ -61,7 +69,7 @@ export async function searchProfiles(query: string, limit: number, dbClient: DbC
           multi_match: {
             query: term,
             type: "bool_prefix",
-            fields: ["firstName^3", "lastName^3", "username^2", "email"],
+            fields: ["firstName^3", "lastName^3", "username^2", "email", "phoneNumber"],
           },
         },
       });
@@ -77,6 +85,7 @@ export async function searchProfiles(query: string, limit: number, dbClient: DbC
               lastName: source.lastName,
               email: source.email,
               username: source.username ?? null,
+              phoneNumber: source.phoneNumber ?? null,
             } satisfies ProfileSearchResult;
           })
           .filter((entry): entry is ProfileSearchResult => Boolean(entry))
@@ -84,6 +93,8 @@ export async function searchProfiles(query: string, limit: number, dbClient: DbC
       }
     } catch (error) {
       console.error("[profile-search] Elasticsearch search failed, falling back to DB:", error);
+      // Disable the client for this process so subsequent calls go straight to the DB.
+      elasticClient = null;
     }
   }
 
@@ -99,6 +110,7 @@ async function fallbackDbSearch(term: string, limit: number, dbClient: DbClient)
       lastName: profiles.lastName,
       email: profiles.email,
       username: users.username,
+      phoneNumber: profiles.phoneNumber,
     })
     .from(profiles)
     .leftJoin(users, eq(users.id, profiles.userId))
@@ -107,6 +119,7 @@ async function fallbackDbSearch(term: string, limit: number, dbClient: DbClient)
         ilike(profiles.firstName, likeTerm),
         ilike(profiles.lastName, likeTerm),
         ilike(profiles.email, likeTerm),
+        ilike(profiles.phoneNumber, likeTerm),
         ilike(users.username, likeTerm),
       ),
     )
@@ -118,9 +131,40 @@ async function fallbackDbSearch(term: string, limit: number, dbClient: DbClient)
     lastName: row.lastName,
     email: row.email,
     username: row.username ?? null,
+    phoneNumber: row.phoneNumber ?? null,
   }));
 }
 
 function escapeLike(input: string) {
   return input.replace(/[%_]/g, (match) => `\\${match}`);
+}
+
+type IndexableProfile = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  username: string | null;
+  phoneNumber: string | null;
+};
+
+export async function indexProfile(profile: IndexableProfile) {
+  const client = getClient();
+  if (!client) return;
+  try {
+    await client.index({
+      index: profileIndex,
+      id: String(profile.id),
+      document: {
+        id: profile.id,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        username: profile.username ?? undefined,
+        phoneNumber: profile.phoneNumber ?? undefined,
+      },
+    });
+  } catch (error) {
+    console.error("[profile-search] Failed to index profile", error);
+  }
 }

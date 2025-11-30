@@ -33,7 +33,7 @@ export function WeekGrid({
   }
 
   return (
-    <div className={"flex min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-surface-muted" : "")}>
+    <div className={"flex h-full min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-surface-muted" : "")}>
       {/* Time gutter */}
       <TimeGutter />
       {/* Day columns */}
