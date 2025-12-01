@@ -20,7 +20,12 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\"",
-    "user:create": "dotenv -e .env -- node scripts/create-user.mjs"
+    "user:create": "dotenv -e .env -- node scripts/create-user.mjs",
+    "seed": "tsx scripts/seed.ts",
+    "seed:workspace": "pnpm seed -- --mode workspace",
+    "seed:events": "pnpm seed -- --mode events",
+    "seed:full": "pnpm seed -- --mode full",
+    "seed:revert": "pnpm seed -- --mode revert"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.19.1",
@@ -40,6 +45,7 @@
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
     "superjson": "^2.2.1",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -57,6 +63,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4.0.15",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.27.0"

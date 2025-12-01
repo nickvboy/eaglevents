@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import { BarChartIcon, ReportIcon, UsersIcon } from "~/app/_components/icons";
 
 import { DashboardView } from "./DashboardView";
+import { ReportsView } from "./ReportsView";
 import { UsersView } from "./UsersView";
-import { ReportsPlaceholder } from "./ReportsPlaceholder";
 
 type TabKey = "dashboard" | "users" | "reports";
 
@@ -92,7 +92,7 @@ export function AdminShell() {
           {activeTab === "users" ? <UsersView /> : null}
         </div>
         <div id="reports-panel" role="tabpanel" hidden={activeTab !== "reports"}>
-          {activeTab === "reports" ? <ReportsPlaceholder /> : null}
+          {activeTab === "reports" ? <ReportsView /> : null}
         </div>
       </section>
     </section>

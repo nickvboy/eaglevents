@@ -16,14 +16,19 @@ type Props = {
   onNext: () => void;
   onNewEvent: () => void;
   currentUser: Session["user"] | null;
+  ticketSearchValue: string;
+  ticketSearchPending: boolean;
+  ticketSearchError: string | null;
+  onTicketSearchChange: (value: string) => void;
+  onTicketSearchSubmit: () => void;
 };
 
 const views: Props["view"][] = ["day", "threeday", "workweek", "week", "month"];
 
 export function CalendarToolbar(props: Props) {
   return (
-    <div className="flex items-center justify-between border-b border-outline-muted bg-surface-muted px-4 py-2 text-ink-primary">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-muted bg-surface-muted px-4 py-2 text-ink-primary">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted hover:bg-accent-default"
           onClick={props.onNewEvent}
@@ -59,8 +64,36 @@ export function CalendarToolbar(props: Props) {
         >
           {formatRangeLabel(props.rangeStart, props.rangeEnd)}
         </button>
-     </div>
-      <div className="flex items-center gap-2">
+      </div>
+      <div className="flex flex-1 flex-wrap items-end justify-end gap-3">
+        <div className="flex min-w-[220px] flex-1 flex-col gap-1 sm:flex-none">
+          <div className="flex h-9 w-full min-w-[220px] items-center rounded-md border border-outline-muted bg-surface-base shadow-inner">
+            <input
+              type="text"
+              className="h-full flex-1 rounded-l-md bg-transparent px-3 text-sm outline-none"
+              placeholder="Jump to ticket ID or code"
+              value={props.ticketSearchValue}
+              onChange={(e) => props.onTicketSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  props.onTicketSearchSubmit();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="rounded-r-md bg-accent-strong px-3 py-1 text-sm font-medium text-ink-inverted hover:bg-accent-default disabled:opacity-60"
+              onClick={props.onTicketSearchSubmit}
+              disabled={props.ticketSearchPending}
+            >
+              Go
+            </button>
+          </div>
+          <p className={"text-xs " + (props.ticketSearchError ? "text-status-danger" : "text-ink-subtle")}>
+            {props.ticketSearchError ?? "Enter ticket ID, event code, or Zendesk #"}
+          </p>
+        </div>
         {views.map((v) => (
           <button
             key={v}

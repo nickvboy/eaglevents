@@ -7,7 +7,7 @@ import { sql as psql } from "drizzle-orm";
 
 // Drizzle column builders
 import { varchar, integer, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
-import { ThemePaletteTokens } from "~/types/theme";
+import type { ThemePaletteTokens } from "~/types/theme";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same

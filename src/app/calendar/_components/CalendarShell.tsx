@@ -168,6 +168,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
 
   // calendars
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
+  const utils = api.useUtils();
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
@@ -211,6 +212,51 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
       setVisibleCalendarsLoaded(true);
     }
   }, [calendars]);
+
+  const [ticketSearchValue, setTicketSearchValue] = useState("");
+  const [ticketSearchError, setTicketSearchError] = useState<string | null>(null);
+  const [ticketSearchPending, setTicketSearchPending] = useState(false);
+
+  const handleTicketSearchSubmit = async () => {
+    const query = ticketSearchValue.trim();
+    if (query.length === 0) {
+      setTicketSearchError("Enter a ticket identifier");
+      return;
+    }
+
+    setTicketSearchPending(true);
+    setTicketSearchError(null);
+    try {
+      const result = await utils.client.event.findByIdentifier.query({ identifier: query });
+      if (!result) {
+        setTicketSearchError("Ticket not found");
+        return;
+      }
+      const eventDate = startOfDay(new Date(result.startDatetime));
+      setTicketSearchValue("");
+      setSelectedDate(eventDate);
+      setSidebarMonthDate(startOfDay(new Date(eventDate.getFullYear(), eventDate.getMonth(), 1)));
+      setMobileMonthDate(eventDate);
+      setPreviewEventId(null);
+      setEditingEventId(null);
+      setOpenNew(false);
+      setSelectedEventId(result.id);
+      setVisibleCalendarIds((prev) => {
+        if (prev.length === 0 || prev.includes(result.calendarId)) return prev;
+        return [...prev, result.calendarId];
+      });
+    } catch (error) {
+      console.error(error);
+      setTicketSearchError("Search failed");
+    } finally {
+      setTicketSearchPending(false);
+    }
+  };
+
+  const handleTicketSearchChange = (value: string) => {
+    setTicketSearchValue(value);
+    if (ticketSearchError) setTicketSearchError(null);
+  };
 
   // visible range
   const range = useMemo(() => {
@@ -481,6 +527,11 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onNext={onNext}
                 onNewEvent={handleNewEventRequest}
                 currentUser={currentUser}
+                ticketSearchValue={ticketSearchValue}
+                ticketSearchPending={ticketSearchPending}
+                ticketSearchError={ticketSearchError}
+                onTicketSearchChange={handleTicketSearchChange}
+                onTicketSearchSubmit={handleTicketSearchSubmit}
               />
 
                 <div className="relative flex min-h-0 flex-1 overflow-hidden">

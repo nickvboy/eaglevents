@@ -312,6 +312,59 @@ async function getUniqueEventCode(db: DbClient) {
 }
 
 export const eventRouter = createTRPCRouter({
+  findByIdentifier: publicProcedure
+    .input(z.object({ identifier: z.string().trim().min(1).max(64) }))
+    .query(async ({ ctx, input }) => {
+      const trimmed = input.identifier.trim();
+      const possibilities: Array<Promise<EventRow | undefined>> = [];
+      const numericId = Number(trimmed);
+      if (Number.isInteger(numericId) && numericId > 0) {
+        possibilities.push(
+          ctx.db
+            .select()
+            .from(events)
+            .where(eq(events.id, numericId))
+            .limit(1)
+            .then((rows) => rows[0]),
+        );
+      }
+
+      possibilities.push(
+        ctx.db
+          .select()
+          .from(events)
+          .where(eq(events.eventCode, trimmed))
+          .limit(1)
+          .then((rows) => rows[0]),
+      );
+
+      const zendesk = cleanZendeskTicketNumber(trimmed);
+      if (zendesk) {
+        possibilities.push(
+          ctx.db
+            .select()
+            .from(events)
+            .where(eq(events.zendeskTicketNumber, zendesk))
+            .limit(1)
+            .then((rows) => rows[0]),
+        );
+      }
+
+      let resolved: EventRow | undefined;
+      for (const attempt of possibilities) {
+        // eslint-disable-next-line no-await-in-loop
+        const candidate = await attempt;
+        if (candidate) {
+          resolved = candidate;
+          break;
+        }
+      }
+
+      if (!resolved) return null;
+      const [response] = await buildEventResponses(ctx.db, [resolved]);
+      return response ?? null;
+    }),
+
   tickets: publicProcedure
     .input(
       z
