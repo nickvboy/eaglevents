@@ -127,6 +127,32 @@ function normalizeTimeInput(value: string) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+function parseLocationInput(raw: string) {
+  const value = (raw ?? "").trim();
+  if (!value) return { acronym: null as string | null, room: null as string | null };
+  const upper = value.toUpperCase();
+  const compact = upper.replace(/\s+|-/g, "");
+  let acronym: string | null = null;
+  let room: string | null = null;
+  const m1 = compact.match(/^([A-Z]{1,16})([0-9][A-Z0-9]*)$/);
+  if (m1) {
+    acronym = m1[1] ?? null;
+    room = m1[2] ?? null;
+  } else {
+    const m2 = upper.match(/^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/);
+    if (m2) {
+      acronym = m2[1] ?? null;
+      room = m2[2] ?? null;
+    } else {
+      const onlyAcr = upper.match(/^\s*([A-Z]{1,16})\s*$/);
+      const onlyRoom = upper.match(/^\s*([0-9][A-Z0-9]*)\s*$/);
+      if (onlyAcr) acronym = onlyAcr[1] ?? null;
+      if (onlyRoom) room = onlyRoom[1] ?? null;
+    }
+  }
+  return { acronym, room };
+}
+
 function parseHourLogTime(value: string, baseDate: Date) {
   if (!value) return null;
   const normalized = normalizeTimeInput(value);
@@ -436,6 +462,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [allDay, setAllDay] = useState(false);
   const [inPerson, setInPerson] = useState(false);
   const [location, setLocation] = useState("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
+  const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
+  const [roomNumber, setRoomNumber] = useState<string>("");
   const [description, setDescription] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [participantCount, setParticipantCount] = useState("");
@@ -489,6 +518,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setAllDay(event.isAllDay);
       setInPerson(false);
       setLocation(event.location ?? "");
+      setSelectedBuildingId(((event as unknown) as { buildingId?: number | null }).buildingId ?? null);
+      const parsed = parseLocationInput(event.location ?? "");
+      if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
+      if (parsed.room) setRoomNumber(parsed.room);
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
       setParticipantCount(typeof event.participantCount === "number" ? String(event.participantCount) : "");
@@ -549,6 +582,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setAllDay(false);
     setInPerson(false);
     setLocation("");
+    setSelectedBuildingId(null);
+    setSelectedBuildingAcronym("");
+    setRoomNumber("");
     setDescription("");
     setRecurring(false);
     setParticipantCount("");
@@ -585,6 +621,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     }, 250);
     return () => window.clearTimeout(handle);
   }, [attendeeSearch]);
+
+  // Location search + sync effects are defined after facility hooks
 
   const updateSegment = (id: string, updater: (current: Segment) => Segment) => {
     setSegments((prev) => prev.map((segment) => (segment.id === id ? updater(segment) : segment)));
@@ -727,6 +765,49 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const attendeeMatches = attendeeResults.data ?? [];
   const shouldShowAttendeeResults = attendeeQuery.length > 1;
   const createProfile = api.profile.create.useMutation();
+  // Facilities data
+  const buildingList = api.facility.listBuildings.useQuery(undefined, { enabled: open });
+  const [locationQuery, setLocationQuery] = useState("");
+  const locationResults = api.facility.searchRooms.useQuery(
+    { query: locationQuery, limit: 7 },
+    { enabled: open && locationQuery.length > 0 },
+  );
+  const locationMatches = locationResults.data ?? [];
+  const [locationHighlight, setLocationHighlight] = useState(-1);
+
+  useEffect(() => {
+    if (!selectedBuildingId) return;
+    const list = buildingList.data ?? [];
+    const found = list.find((b) => b.id === selectedBuildingId);
+    if (found) setSelectedBuildingAcronym(found.acronym);
+  }, [selectedBuildingId, buildingList.data]);
+
+  // Location search + sync effects
+  useEffect(() => {
+    setLocationHighlight(-1);
+  }, [location, locationMatches.length]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const trimmed = location.trim();
+      if (trimmed.length === 0) {
+        setLocationQuery("");
+        return;
+      }
+      setLocationQuery(trimmed);
+      const { acronym, room } = parseLocationInput(trimmed);
+      if (acronym) setSelectedBuildingAcronym(acronym);
+      if (room) setRoomNumber(room);
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [location]);
+
+  useEffect(() => {
+    if (selectedBuildingAcronym) {
+      const next = roomNumber ? `${selectedBuildingAcronym} ${roomNumber}` : `${selectedBuildingAcronym}`;
+      setLocation(next);
+    }
+  }, [selectedBuildingAcronym, roomNumber]);
   const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
   const hourLogsValidationMessage = hourLogsInvalid
     ? "Each log's end time must be after its start time."
@@ -756,6 +837,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     if (event.target === event.currentTarget) {
       onClose();
     }
+  };
+
+  const handleLocationSelect = (match: { buildingId: number; acronym: string; roomNumber: string; buildingName: string }) => {
+    setSelectedBuildingId(match.buildingId);
+    setSelectedBuildingAcronym(match.acronym);
+    setRoomNumber(match.roomNumber);
+    setLocation(`${match.acronym} ${match.roomNumber}`);
+    setLocationQuery("");
   };
 
   const addHourLogRow = () => {
@@ -1009,6 +1098,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           title,
           description,
           location,
+          buildingId: selectedBuildingId,
           isAllDay: allDay,
           startDatetime: dayStart,
           endDatetime: dayEnd,
@@ -1034,6 +1124,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             title,
             description,
             location,
+            buildingId: selectedBuildingId ?? undefined,
             isAllDay: allDay,
             startDatetime: dayStart,
             endDatetime: dayEnd,
@@ -1667,12 +1758,94 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
 
           <div>
             <div className="mb-1 text-xs text-ink-muted">Add a room or location</div>
+            <div className="mb-2 grid gap-2 sm:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs text-ink-muted">Building</div>
+                <div className="relative">
+                  <select
+                    value={selectedBuildingAcronym}
+                    onChange={(e) => {
+                      const acr = e.target.value;
+                      setSelectedBuildingAcronym(acr);
+                      const b = (buildingList.data ?? []).find((x) => x.acronym === acr) ?? null;
+                      setSelectedBuildingId(b ? b.id : null);
+                    }}
+                    className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none"
+                  >
+                    <option value="">Select building</option>
+                    {(buildingList.data ?? []).map((b) => (
+                      <option key={b.id} value={b.acronym}>
+                        {b.acronym} — {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 text-xs text-ink-muted">Room</div>
+                <input
+                  placeholder="e.g., 210 or 210A"
+                  value={roomNumber}
+                  onChange={(e) => setRoomNumber(e.target.value.toUpperCase())}
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                />
+              </div>
+            </div>
             <input
-              placeholder="Location"
+              placeholder="Location (try: BHG 210 or just 210)"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setLocationHighlight((prev) => Math.max(prev - 1, 0));
+                } else if (e.key === "Enter") {
+                  if (locationMatches.length > 0 && locationHighlight >= 0) {
+                    e.preventDefault();
+                    const match = locationMatches[locationHighlight]!;
+                    handleLocationSelect(match as any);
+                  }
+                }
+              }}
               className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
             />
+            {locationQuery.length > 0 && (
+              <div className="relative">
+                <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                  {locationResults.isFetching ? (
+                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                  ) : locationMatches.length > 0 ? (
+                    <>
+                      {locationMatches.map((match, index) => {
+                        const isActive = index === locationHighlight;
+                        return (
+                          <button
+                            key={`${match.acronym}:${match.roomNumber}:${match.buildingId}`}
+                            type="button"
+                            className={
+                              "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                              (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                            }
+                            onMouseEnter={() => setLocationHighlight(index)}
+                            onClick={() => handleLocationSelect(match as any)}
+                          >
+                            <span>
+                              <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
+                            </span>
+                            <span className="text-xs text-ink-subtle">{match.buildingName}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-ink-muted">No rooms found</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

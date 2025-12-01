@@ -29,24 +29,21 @@
       "when": 1762137601000,
       "tag": "0003_add_display_name",
       "breakpoints": true
-    }
-    ,
+    },
     {
       "idx": 4,
       "version": "7",
       "when": 1762387050612,
       "tag": "0004_create_profiles",
       "breakpoints": true
-    }
-    ,
+    },
     {
       "idx": 5,
       "version": "7",
       "when": 1762387730000,
       "tag": "0005_add_profile_names",
       "breakpoints": true
-    }
-    ,
+    },
     {
       "idx": 6,
       "version": "7",
@@ -81,16 +78,14 @@
       "when": 1763500001000,
       "tag": "0010_theme_palette_camel",
       "breakpoints": true
-    }
-    ,
+    },
     {
       "idx": 11,
       "version": "7",
       "when": 1764028800000,
       "tag": "0011_event_form_fields",
       "breakpoints": true
-    }
-    ,
+    },
     {
       "idx": 12,
       "version": "7",
@@ -124,6 +119,13 @@
       "version": "7",
       "when": 1769440000000,
       "tag": "0016_zendesk_confirmations",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1764546851846,
+      "tag": "0017_harsh_blade",
       "breakpoints": true
     }
   ]

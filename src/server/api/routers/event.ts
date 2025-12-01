@@ -531,6 +531,7 @@ export const eventRouter = createTRPCRouter({
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
+        buildingId: z.number().int().positive().nullable().optional(),
         isAllDay: z.boolean().default(false),
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
@@ -570,23 +571,13 @@ export const eventRouter = createTRPCRouter({
       const zendeskTicketNumber = cleanZendeskTicketNumber(input.zendeskTicketNumber);
 
       const created = await ctx.db.transaction(async (tx) => {
-        // Auto-assign to calendar owner's profile when logs are present and no explicit assignee provided
+        // Assign to the first user who logs hours (on create),
+        // but do not override an explicit assignee provided by the client.
         let assignee: number | null | undefined = input.assigneeProfileId;
         if ((assignee ?? null) === null && hourLogs.length > 0) {
-          const [cal] = await tx
-            .select({ userId: calendars.userId })
-            .from(calendars)
-            .where(eq(calendars.id, calendarId!))
-            .limit(1);
-          const userId = cal?.userId ?? null;
-          if (userId !== null) {
-            const [profile] = await tx
-              .select({ id: profiles.id })
-              .from(profiles)
-              .where(eq(profiles.userId, userId))
-              .limit(1);
-            if (profile?.id) assignee = profile.id;
-          }
+          // When creating with hour logs and no explicit assignee, the event belongs
+          // to the user logging these first hours.
+          assignee = sessionProfileId;
         }
 
         const [row] = await tx
@@ -598,6 +589,7 @@ export const eventRouter = createTRPCRouter({
             title: input.title,
             description: input.description,
             location: input.location,
+            buildingId: input.buildingId ?? null,
             isAllDay: input.isAllDay,
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
@@ -684,6 +676,7 @@ export const eventRouter = createTRPCRouter({
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
+        buildingId: z.number().int().positive().nullable().optional(),
         isAllDay: z.boolean(),
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
@@ -719,29 +712,23 @@ export const eventRouter = createTRPCRouter({
         input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
       );
 
-      const updated = await ctx.db.transaction(async (tx) => {
+  const updated = await ctx.db.transaction(async (tx) => {
         // Determine next assignee
         let nextAssignee: number | null | undefined =
           input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId;
-        const hasAnyLogs = (hourLogs?.length ?? 0) > 0;
-        const timesChanged =
-          input.startDatetime.getTime() !== new Date(current.startDatetime).getTime() ||
-          input.endDatetime.getTime() !== new Date(current.endDatetime).getTime();
-        if ((nextAssignee ?? null) === null && (hasAnyLogs || timesChanged)) {
-          const effectiveCalendarId = input.calendarId ?? current.calendarId;
-          const [cal] = await tx
-            .select({ userId: calendars.userId })
-            .from(calendars)
-            .where(eq(calendars.id, effectiveCalendarId))
+
+        // If there are no prior hour logs and this update is introducing
+        // the first logs, assign the event to the logging user. Once set,
+        // never auto-overwrite the assignee.
+        if ((nextAssignee ?? null) === null && (hourLogs?.some((l) => l.id === undefined) ?? false)) {
+          const existingLogCountRows = await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(eventHourLogs)
+            .where(eq(eventHourLogs.eventId, current.id))
             .limit(1);
-          const userId = cal?.userId ?? null;
-          if (userId !== null) {
-            const [profile] = await tx
-              .select({ id: profiles.id })
-              .from(profiles)
-              .where(eq(profiles.userId, userId))
-              .limit(1);
-            if (profile?.id) nextAssignee = profile.id;
+          const existingLogCount = existingLogCountRows[0]?.count ?? 0;
+          if (existingLogCount === 0 && sessionProfileIdForNewLogs !== null) {
+            nextAssignee = sessionProfileIdForNewLogs;
           }
         }
 
@@ -753,6 +740,7 @@ export const eventRouter = createTRPCRouter({
             title: input.title,
             description: input.description ?? null,
             location: input.location ?? null,
+            buildingId: input.buildingId === undefined ? current.buildingId : input.buildingId,
             isAllDay: input.isAllDay,
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
