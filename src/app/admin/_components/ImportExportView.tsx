@@ -312,7 +312,7 @@ export function ImportExportView() {
               <input
                 value={confirmText}
                 onChange={(event) => setConfirmText(event.target.value)}
-                className="rounded-lg border border-status-danger bg-white px-3 py-2 text-sm text-ink-primary focus:outline-none"
+                className="rounded-lg border border-status-danger bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
                 placeholder="RESTORE"
               />
             </label>
