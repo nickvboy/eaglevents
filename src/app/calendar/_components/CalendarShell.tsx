@@ -312,7 +312,6 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const eventsQuery = api.event.list.useQuery({
     start: range.start,
     end: addDays(range.end, 1),
-    calendarIds: effectiveVisible,
   });
   const events = useMemo<RouterOutputs["event"]["list"]>(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const previewEvent = useMemo(
