@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 
-import { BarChartIcon, ReportIcon, UsersIcon } from "~/app/_components/icons";
+import { BarChartIcon, CopyIcon, ReportIcon, UsersIcon } from "~/app/_components/icons";
 
 import { DashboardView } from "./DashboardView";
+import { ImportExportView } from "./ImportExportView";
 import { ReportsView } from "./ReportsView";
 import { UsersView } from "./UsersView";
 
-type TabKey = "dashboard" | "users" | "reports";
+type TabKey = "dashboard" | "users" | "reports" | "importExport";
 
 type TabDefinition = {
   id: TabKey;
@@ -35,6 +36,12 @@ const tabs: TabDefinition[] = [
     label: "Reports",
     description: "Build executive-ready reports for leadership review.",
     icon: ReportIcon,
+  },
+  {
+    id: "importExport",
+    label: "Import/Export",
+    description: "Capture snapshots of the full system state or restore prior backups.",
+    icon: CopyIcon,
   },
 ];
 
@@ -93,6 +100,9 @@ export function AdminShell() {
         </div>
         <div id="reports-panel" role="tabpanel" hidden={activeTab !== "reports"}>
           {activeTab === "reports" ? <ReportsView /> : null}
+        </div>
+        <div id="importExport-panel" role="tabpanel" hidden={activeTab !== "importExport"}>
+          {activeTab === "importExport" ? <ImportExportView /> : null}
         </div>
       </section>
     </section>

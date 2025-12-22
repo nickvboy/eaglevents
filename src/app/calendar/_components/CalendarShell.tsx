@@ -24,17 +24,6 @@ const MOBILE_QUERY = "(max-width: 768px)";
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
 const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
 
-function getStoredView(key: string, fallback: View) {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const saved = window.localStorage.getItem(key);
-    if (VALID_VIEWS.includes(saved as View)) return saved as View;
-  } catch {
-    // ignore storage errors
-  }
-  return fallback;
-}
-
 function getStoredDate(key: string, fallback: Date) {
   if (typeof window === "undefined") return fallback;
   try {
@@ -50,10 +39,10 @@ function getStoredDate(key: string, fallback: Date) {
 }
 
 export function CalendarShell({ currentUser }: CalendarShellProps) {
-  const initialDate = startOfDay(new Date());
-  const [desktopView, setDesktopView] = useState<View>(() => getStoredView("calendar.view.desktop", "workweek"));
-  const [mobileView, setMobileView] = useState<View>(() => getStoredView("calendar.view.mobile", "day"));
-  const [selectedDate, setSelectedDate] = useState(() => getStoredDate("calendar.selectedDate", initialDate));
+  const initialDate = useMemo(() => startOfDay(new Date()), []);
+  const [desktopView, setDesktopView] = useState<View>("workweek");
+  const [mobileView, setMobileView] = useState<View>("day");
+  const [selectedDate, setSelectedDate] = useState(() => initialDate);
   const desktopViewHydrated = useRef(false);
   const mobileViewHydrated = useRef(false);
   const [openNew, setOpenNew] = useState(false);
@@ -126,6 +115,15 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
       // ignore storage errors
     }
   }, [mobileView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = getStoredDate("calendar.selectedDate", initialDate);
+    if (stored.getTime() === initialDate.getTime()) return;
+    setSelectedDate(stored);
+    setSidebarMonthDate(startOfDay(new Date(stored.getFullYear(), stored.getMonth(), 1)));
+    setMobileMonthDate(stored);
+  }, [initialDate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

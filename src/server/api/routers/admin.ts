@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import type { Session } from "next-auth";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
@@ -7,11 +9,17 @@ import {
   businesses,
   calendars,
   departments,
+  eventAttendees,
   eventHourLogs,
+  eventReminders,
   eventZendeskConfirmations,
   events,
   organizationRoles,
+  posts,
   profiles,
+  rooms,
+  themePalettes,
+  themeProfiles,
   users,
 } from "~/server/db/schema";
 import {
@@ -22,6 +30,216 @@ import {
 } from "~/server/services/admin";
 
 type DbClient = typeof import("~/server/db").db;
+
+const SNAPSHOT_VERSION = 1;
+
+const timestampSchema = z.string().datetime();
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const nullableTimestampSchema = timestampSchema.nullable();
+const nullableDateOnlySchema = dateOnlySchema.nullable();
+
+const snapshotSchema = z.object({
+  version: z.literal(SNAPSHOT_VERSION),
+  exportedAt: timestampSchema,
+  metadata: z
+    .object({
+      app: z.string().min(1),
+      note: z.string().max(500).optional(),
+    })
+    .optional(),
+  exportedBy: z
+    .object({
+      userId: z.number().int().positive().nullable(),
+      email: z.string().email().nullable(),
+      displayName: z.string().nullable(),
+    })
+    .optional(),
+  data: z.object({
+    users: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        username: z.string(),
+        email: z.string().min(1),
+        displayName: z.string(),
+        passwordHash: z.string(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    posts: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        name: z.string().nullable(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    profiles: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        userId: z.number().int().positive().nullable(),
+        firstName: z.string(),
+        lastName: z.string(),
+        email: z.string().min(1),
+        phoneNumber: z.string(),
+        dateOfBirth: nullableDateOnlySchema,
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    businesses: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        name: z.string(),
+        type: z.string(),
+        setupCompletedAt: nullableTimestampSchema,
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    buildings: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        businessId: z.number().int().positive(),
+        name: z.string(),
+        acronym: z.string(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    rooms: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        buildingId: z.number().int().positive(),
+        roomNumber: z.string(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    departments: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        businessId: z.number().int().positive(),
+        parentDepartmentId: z.number().int().positive().nullable(),
+        name: z.string(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    themePalettes: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        businessId: z.number().int().positive(),
+        name: z.string(),
+        description: z.string(),
+        tokens: z.record(z.unknown()),
+        isDefault: z.boolean(),
+        createdByUserId: z.number().int().positive().nullable(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    themeProfiles: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        businessId: z.number().int().positive(),
+        scopeType: z.string(),
+        scopeId: z.number().int().positive(),
+        label: z.string(),
+        description: z.string(),
+        paletteId: z.number().int().positive(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    organizationRoles: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        userId: z.number().int().positive(),
+        profileId: z.number().int().positive(),
+        roleType: z.string(),
+        scopeType: z.string(),
+        scopeId: z.number().int().positive(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    calendars: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        userId: z.number().int().positive(),
+        name: z.string(),
+        color: z.string(),
+        isPrimary: z.boolean(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    events: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        calendarId: z.number().int().positive(),
+        buildingId: z.number().int().positive().nullable(),
+        assigneeProfileId: z.number().int().positive().nullable(),
+        eventCode: z.string(),
+        title: z.string(),
+        description: z.string().nullable(),
+        location: z.string().nullable(),
+        isAllDay: z.boolean(),
+        startDatetime: timestampSchema,
+        endDatetime: timestampSchema,
+        recurrenceRule: z.string().nullable(),
+        participantCount: z.number().int().nullable(),
+        technicianNeeded: z.boolean(),
+        requestCategory: z.string().nullable(),
+        equipmentNeeded: z.string().nullable(),
+        eventStartTime: nullableTimestampSchema,
+        eventEndTime: nullableTimestampSchema,
+        setupTime: nullableTimestampSchema,
+        zendeskTicketNumber: z.string().nullable(),
+        createdAt: timestampSchema,
+        updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    eventAttendees: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        profileId: z.number().int().positive().nullable(),
+        email: z.string().min(1),
+        responseStatus: z.string(),
+      }),
+    ),
+    eventReminders: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        reminderMinutes: z.number().int(),
+      }),
+    ),
+    eventHourLogs: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        loggedByProfileId: z.number().int().positive().nullable(),
+        startTime: timestampSchema,
+        endTime: timestampSchema,
+        durationMinutes: z.number().int(),
+        createdAt: timestampSchema,
+      }),
+    ),
+    eventZendeskConfirmations: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        profileId: z.number().int().positive(),
+        confirmedAt: timestampSchema,
+      }),
+    ),
+  }),
+});
+
+type SnapshotPayload = z.infer<typeof snapshotSchema>;
 
 const MONTHS_IN_TREND = 6;
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
@@ -122,6 +340,92 @@ function formatRequestCategory(code: string | null) {
     .split("_")
     .map((segment) => (segment ? segment[0]!.toUpperCase() + segment.slice(1) : segment))
     .join(" ");
+}
+
+function coerceTimestampValue(value: Date | string) {
+  if (value instanceof Date) return value;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot timestamp is invalid." });
+}
+
+function serializeTimestamp(value: Date | string | null | undefined) {
+  if (!value) return null;
+  return coerceTimestampValue(value).toISOString();
+}
+
+function serializeRequiredTimestamp(value: Date | string | null | undefined) {
+  if (!value) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot timestamp is missing." });
+  }
+  return coerceTimestampValue(value).toISOString();
+}
+
+function serializeDateOnly(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot date is invalid." });
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function parseTimestamp(value: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot timestamp is invalid." });
+  }
+  return parsed;
+}
+
+function parseRequiredTimestamp(value: string) {
+  const parsed = parseTimestamp(value);
+  if (!parsed) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot timestamp is missing." });
+  }
+  return parsed;
+}
+
+function parseDateOnly(value: string | Date | null) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot date is invalid." });
+    }
+    return value.toISOString().slice(0, 10);
+  }
+  return value;
+}
+
+async function requireAdminSession(ctx: { session: Session | null; db: DbClient }) {
+  const userIdRaw = ctx.session?.user?.id;
+  if (!userIdRaw) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to access admin tools." });
+  }
+  const userId = Number(userIdRaw);
+  if (!Number.isFinite(userId)) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid user session." });
+  }
+
+  const [role] = await ctx.db
+    .select({ id: organizationRoles.id })
+    .from(organizationRoles)
+    .where(
+      and(
+        eq(organizationRoles.userId, userId),
+        eq(organizationRoles.roleType, "admin"),
+        eq(organizationRoles.scopeType, "business"),
+      ),
+    );
+
+  if (!role) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access is required for this operation." });
+  }
+
+  return userId;
 }
 
 async function findBusinessId(db: DbClient): Promise<number | null> {
@@ -237,6 +541,226 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
       totalEvents: activity?.totalEvents ?? 0,
     };
   });
+}
+
+async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> {
+  const [
+    userRows,
+    postRows,
+    profileRows,
+    businessRows,
+    buildingRows,
+    roomRows,
+    departmentRows,
+    paletteRows,
+    themeProfileRows,
+    organizationRoleRows,
+    calendarRows,
+    eventRows,
+    attendeeRows,
+    reminderRows,
+    hourLogRows,
+    confirmationRows,
+  ] = await Promise.all([
+    db.select().from(users).orderBy(users.id),
+    db.select().from(posts).orderBy(posts.id),
+    db.select().from(profiles).orderBy(profiles.id),
+    db.select().from(businesses).orderBy(businesses.id),
+    db.select().from(buildings).orderBy(buildings.id),
+    db.select().from(rooms).orderBy(rooms.id),
+    db.select().from(departments).orderBy(departments.id),
+    db.select().from(themePalettes).orderBy(themePalettes.id),
+    db.select().from(themeProfiles).orderBy(themeProfiles.id),
+    db.select().from(organizationRoles).orderBy(organizationRoles.id),
+    db.select().from(calendars).orderBy(calendars.id),
+    db.select().from(events).orderBy(events.id),
+    db.select().from(eventAttendees).orderBy(eventAttendees.id),
+    db.select().from(eventReminders).orderBy(eventReminders.id),
+    db.select().from(eventHourLogs).orderBy(eventHourLogs.id),
+    db.select().from(eventZendeskConfirmations).orderBy(eventZendeskConfirmations.id),
+  ]);
+
+  return {
+    users: userRows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      displayName: row.displayName,
+      passwordHash: row.passwordHash,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    posts: postRows.map((row) => ({
+      id: row.id,
+      name: row.name ?? null,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    profiles: profileRows.map((row) => ({
+      id: row.id,
+      userId: row.userId ?? null,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      phoneNumber: row.phoneNumber,
+      dateOfBirth: serializeDateOnly(row.dateOfBirth ?? null),
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    businesses: businessRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      setupCompletedAt: serializeTimestamp(row.setupCompletedAt),
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    buildings: buildingRows.map((row) => ({
+      id: row.id,
+      businessId: row.businessId,
+      name: row.name,
+      acronym: row.acronym,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    rooms: roomRows.map((row) => ({
+      id: row.id,
+      buildingId: row.buildingId,
+      roomNumber: row.roomNumber,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    departments: departmentRows.map((row) => ({
+      id: row.id,
+      businessId: row.businessId,
+      parentDepartmentId: row.parentDepartmentId ?? null,
+      name: row.name,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    themePalettes: paletteRows.map((row) => ({
+      id: row.id,
+      businessId: row.businessId,
+      name: row.name,
+      description: row.description,
+      tokens: row.tokens,
+      isDefault: row.isDefault,
+      createdByUserId: row.createdByUserId ?? null,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    themeProfiles: themeProfileRows.map((row) => ({
+      id: row.id,
+      businessId: row.businessId,
+      scopeType: row.scopeType,
+      scopeId: row.scopeId,
+      label: row.label,
+      description: row.description,
+      paletteId: row.paletteId,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    organizationRoles: organizationRoleRows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      profileId: row.profileId,
+      roleType: row.roleType,
+      scopeType: row.scopeType,
+      scopeId: row.scopeId,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    calendars: calendarRows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      name: row.name,
+      color: row.color,
+      isPrimary: row.isPrimary,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    events: eventRows.map((row) => ({
+      id: row.id,
+      calendarId: row.calendarId,
+      buildingId: row.buildingId ?? null,
+      assigneeProfileId: row.assigneeProfileId ?? null,
+      eventCode: row.eventCode,
+      title: row.title,
+      description: row.description ?? null,
+      location: row.location ?? null,
+      isAllDay: row.isAllDay,
+      startDatetime: serializeRequiredTimestamp(row.startDatetime),
+      endDatetime: serializeRequiredTimestamp(row.endDatetime),
+      recurrenceRule: row.recurrenceRule ?? null,
+      participantCount: row.participantCount ?? null,
+      technicianNeeded: row.technicianNeeded,
+      requestCategory: row.requestCategory ?? null,
+      equipmentNeeded: row.equipmentNeeded ?? null,
+      eventStartTime: serializeTimestamp(row.eventStartTime),
+      eventEndTime: serializeTimestamp(row.eventEndTime),
+      setupTime: serializeTimestamp(row.setupTime),
+      zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+      updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    eventAttendees: attendeeRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      profileId: row.profileId ?? null,
+      email: row.email,
+      responseStatus: row.responseStatus,
+    })),
+    eventReminders: reminderRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      reminderMinutes: row.reminderMinutes,
+    })),
+    eventHourLogs: hourLogRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      loggedByProfileId: row.loggedByProfileId ?? null,
+      startTime: serializeRequiredTimestamp(row.startTime),
+      endTime: serializeRequiredTimestamp(row.endTime),
+      durationMinutes: row.durationMinutes,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+    })),
+    eventZendeskConfirmations: confirmationRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      profileId: row.profileId,
+      confirmedAt: serializeRequiredTimestamp(row.confirmedAt),
+    })),
+  };
+}
+
+async function resetIdentitySequences(db: DbClient) {
+  const tableNames = [
+    "t3-app-template_user",
+    "t3-app-template_post",
+    "t3-app-template_profile",
+    "t3-app-template_business",
+    "t3-app-template_building",
+    "t3-app-template_room",
+    "t3-app-template_department",
+    "t3-app-template_theme_palette",
+    "t3-app-template_theme_profile",
+    "t3-app-template_organization_role",
+    "t3-app-template_calendar",
+    "t3-app-template_event",
+    "t3-app-template_event_attendee",
+    "t3-app-template_event_reminder",
+    "t3-app-template_event_hour_log",
+    "t3-app-template_event_zendesk_confirmation",
+  ];
+
+  for (const tableName of tableNames) {
+    const quoted = `"${tableName}"`;
+    await db.execute(
+      sql.raw(
+        `SELECT setval(pg_get_serial_sequence('${quoted}', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM ${quoted}`,
+      ),
+    );
+  }
 }
 
 export const adminRouter = createTRPCRouter({
@@ -933,6 +1457,331 @@ export const adminRouter = createTRPCRouter({
       exportReports,
     };
   }),
+
+  exportSnapshot: publicProcedure
+    .input(z.object({ note: z.string().max(500).optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+    const adminUserId = await requireAdminSession(ctx);
+    const [user] = await ctx.db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .where(eq(users.id, adminUserId))
+      .limit(1);
+
+    const data = await loadSnapshotData(ctx.db);
+    const note = input?.note?.trim() ? input.note.trim() : undefined;
+    return {
+      version: SNAPSHOT_VERSION,
+      exportedAt: new Date().toISOString(),
+      metadata: {
+        app: "eaglevents",
+        note,
+      },
+      exportedBy: {
+        userId: user?.id ?? adminUserId,
+        email: user?.email ?? null,
+        displayName: user?.displayName ?? null,
+      },
+      data,
+    };
+  }),
+
+  importSnapshot: publicProcedure
+    .input(snapshotSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminSession(ctx);
+
+      if (input.version !== SNAPSHOT_VERSION) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported snapshot version." });
+      }
+
+      const data = input.data;
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(eventZendeskConfirmations);
+        await tx.delete(eventHourLogs);
+        await tx.delete(eventReminders);
+        await tx.delete(eventAttendees);
+        await tx.delete(events);
+        await tx.delete(calendars);
+        await tx.delete(organizationRoles);
+        await tx.delete(themeProfiles);
+        await tx.delete(themePalettes);
+        await tx.delete(rooms);
+        await tx.delete(buildings);
+        await tx.delete(departments);
+        await tx.delete(businesses);
+        await tx.delete(profiles);
+        await tx.delete(posts);
+        await tx.delete(users);
+
+        if (data.users.length > 0) {
+          await tx.insert(users).values(
+            data.users.map((row) => ({
+              id: row.id,
+                username: row.username,
+                email: row.email,
+                displayName: row.displayName,
+                passwordHash: row.passwordHash,
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.posts.length > 0) {
+          await tx.insert(posts).values(
+            data.posts.map((row) => ({
+                id: row.id,
+                name: row.name ?? null,
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.profiles.length > 0) {
+          await tx.insert(profiles).values(
+            data.profiles.map((row) => ({
+              id: row.id,
+              userId: row.userId ?? null,
+              firstName: row.firstName,
+              lastName: row.lastName,
+                email: row.email,
+                phoneNumber: row.phoneNumber,
+                dateOfBirth: parseDateOnly(row.dateOfBirth),
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.businesses.length > 0) {
+          await tx.insert(businesses).values(
+            data.businesses.map((row) => ({
+              id: row.id,
+                name: row.name,
+                type: row.type,
+                setupCompletedAt: parseTimestamp(row.setupCompletedAt),
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.buildings.length > 0) {
+          await tx.insert(buildings).values(
+            data.buildings.map((row) => ({
+              id: row.id,
+                businessId: row.businessId,
+                name: row.name,
+                acronym: row.acronym,
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.rooms.length > 0) {
+          await tx.insert(rooms).values(
+            data.rooms.map((row) => ({
+              id: row.id,
+                buildingId: row.buildingId,
+                roomNumber: row.roomNumber,
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.departments.length > 0) {
+          const departmentParents = new Map<number, number | null>();
+          const insertRows = data.departments.map((row) => {
+            departmentParents.set(row.id, row.parentDepartmentId ?? null);
+            return {
+              id: row.id,
+              businessId: row.businessId,
+                parentDepartmentId: null,
+                name: row.name,
+                createdAt: parseRequiredTimestamp(row.createdAt),
+                updatedAt: parseTimestamp(row.updatedAt),
+            };
+          });
+
+          await tx.insert(departments).values(insertRows);
+
+          for (const [id, parentId] of departmentParents.entries()) {
+            if (parentId === null) continue;
+            await tx.update(departments).set({ parentDepartmentId: parentId }).where(eq(departments.id, id));
+          }
+        }
+
+        if (data.themePalettes.length > 0) {
+          await tx.insert(themePalettes).values(
+            data.themePalettes.map((row) => ({
+              id: row.id,
+              businessId: row.businessId,
+              name: row.name,
+              description: row.description,
+              tokens: row.tokens as typeof themePalettes.$inferInsert["tokens"],
+              isDefault: row.isDefault,
+              createdByUserId: row.createdByUserId ?? null,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.themeProfiles.length > 0) {
+          await tx.insert(themeProfiles).values(
+            data.themeProfiles.map((row) => ({
+              id: row.id,
+              businessId: row.businessId,
+              scopeType: row.scopeType,
+              scopeId: row.scopeId,
+              label: row.label,
+              description: row.description,
+              paletteId: row.paletteId,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.calendars.length > 0) {
+          await tx.insert(calendars).values(
+            data.calendars.map((row) => ({
+              id: row.id,
+              userId: row.userId,
+              name: row.name,
+              color: row.color,
+              isPrimary: row.isPrimary,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.events.length > 0) {
+          await tx.insert(events).values(
+            data.events.map((row) => ({
+              id: row.id,
+              calendarId: row.calendarId,
+              buildingId: row.buildingId ?? null,
+              assigneeProfileId: row.assigneeProfileId ?? null,
+              eventCode: row.eventCode,
+              title: row.title,
+              description: row.description ?? null,
+              location: row.location ?? null,
+              isAllDay: row.isAllDay,
+              startDatetime: parseRequiredTimestamp(row.startDatetime),
+              endDatetime: parseRequiredTimestamp(row.endDatetime),
+              recurrenceRule: row.recurrenceRule ?? null,
+              participantCount: row.participantCount ?? null,
+              technicianNeeded: row.technicianNeeded,
+              requestCategory: row.requestCategory ?? null,
+              equipmentNeeded: row.equipmentNeeded ?? null,
+              eventStartTime: parseTimestamp(row.eventStartTime),
+              eventEndTime: parseTimestamp(row.eventEndTime),
+              setupTime: parseTimestamp(row.setupTime),
+              zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.eventAttendees.length > 0) {
+          await tx.insert(eventAttendees).values(
+            data.eventAttendees.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              profileId: row.profileId ?? null,
+              email: row.email,
+              responseStatus: row.responseStatus,
+            })),
+          );
+        }
+
+        if (data.eventReminders.length > 0) {
+          await tx.insert(eventReminders).values(
+            data.eventReminders.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              reminderMinutes: row.reminderMinutes,
+            })),
+          );
+        }
+
+        if (data.eventHourLogs.length > 0) {
+          await tx.insert(eventHourLogs).values(
+            data.eventHourLogs.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              loggedByProfileId: row.loggedByProfileId ?? null,
+              startTime: parseRequiredTimestamp(row.startTime),
+              endTime: parseRequiredTimestamp(row.endTime),
+              durationMinutes: row.durationMinutes,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+            })),
+          );
+        }
+
+        if (data.eventZendeskConfirmations.length > 0) {
+          await tx.insert(eventZendeskConfirmations).values(
+            data.eventZendeskConfirmations.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              profileId: row.profileId,
+              confirmedAt: parseRequiredTimestamp(row.confirmedAt),
+            })),
+          );
+        }
+
+        if (data.organizationRoles.length > 0) {
+          await tx.insert(organizationRoles).values(
+            data.organizationRoles.map((row) => ({
+              id: row.id,
+              userId: row.userId,
+              profileId: row.profileId,
+              roleType: row.roleType,
+              scopeType: row.scopeType,
+              scopeId: row.scopeId,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        await resetIdentitySequences(tx);
+      });
+
+      return {
+        success: true,
+        counts: {
+          users: data.users.length,
+          posts: data.posts.length,
+          profiles: data.profiles.length,
+          businesses: data.businesses.length,
+          buildings: data.buildings.length,
+          rooms: data.rooms.length,
+          departments: data.departments.length,
+          themePalettes: data.themePalettes.length,
+          themeProfiles: data.themeProfiles.length,
+          organizationRoles: data.organizationRoles.length,
+          calendars: data.calendars.length,
+          events: data.events.length,
+          eventAttendees: data.eventAttendees.length,
+          eventReminders: data.eventReminders.length,
+          eventHourLogs: data.eventHourLogs.length,
+          eventZendeskConfirmations: data.eventZendeskConfirmations.length,
+        },
+      };
+    }),
 
   users: publicProcedure.query(async ({ ctx }) => {
     return {

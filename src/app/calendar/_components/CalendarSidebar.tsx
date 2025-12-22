@@ -171,9 +171,13 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                       (inMonth ? "text-ink-primary" : "text-ink-faint")
                     }
                   >
-                    {isInFocusWeek && (
-                      <span className="absolute inset-x-1/2 top-0 h-full w-9 -translate-x-1/2 rounded-full bg-surface-muted" />
-                    )}
+                    <span
+                      aria-hidden
+                      className={
+                        "absolute inset-x-1/2 top-0 h-full w-9 -translate-x-1/2 rounded-full bg-surface-muted transition-opacity " +
+                        (isInFocusWeek ? "opacity-100" : "opacity-0")
+                      }
+                    />
                     <span
                       className={
                         "relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full " +
