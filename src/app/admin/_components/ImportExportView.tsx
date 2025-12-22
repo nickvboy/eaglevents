@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
+import { parseIcsEvents } from "~/app/calendar/utils/ics";
 
 type ExportSnapshotPayload = RouterOutputs["admin"]["exportSnapshot"];
 type ImportSnapshotInput = RouterInputs["admin"]["importSnapshot"];
@@ -118,6 +119,8 @@ function downloadJson(filename: string, payload: ExportSnapshotPayload) {
 export function ImportExportView() {
   const exportMutation = api.admin.exportSnapshot.useMutation();
   const importMutation = api.admin.importSnapshot.useMutation();
+  const importIcsMutation = api.admin.importIcsEvents.useMutation();
+  const { data: calendars } = api.calendar.listMine.useQuery(undefined);
 
   const [exportNote, setExportNote] = useState("");
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -130,8 +133,17 @@ export function ImportExportView() {
   const [confirmText, setConfirmText] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [icsImportMessage, setIcsImportMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [icsImportPending, setIcsImportPending] = useState(false);
+  const [icsFileName, setIcsFileName] = useState<string | null>(null);
+  const [icsFilterStart, setIcsFilterStart] = useState("");
+  const [icsFilterEnd, setIcsFilterEnd] = useState("");
+  const [icsPreviewEvents, setIcsPreviewEvents] = useState<
+    Array<{ id: string; title: string; start: Date; end: Date; isAllDay: boolean; selected: boolean }>
+  >([]);
 
   const canRestore = Boolean(snapshotPayload) && acknowledged && confirmText.trim().toUpperCase() === "RESTORE";
+  const defaultCalendarId = calendars?.find((calendar) => calendar.isPrimary)?.id ?? calendars?.[0]?.id;
 
   const handleExport = async () => {
     setExportMessage(null);
@@ -190,7 +202,98 @@ export function ImportExportView() {
     }
   };
 
+  const handleIcsImport = async () => {
+    if (!defaultCalendarId) {
+      setIcsImportMessage({ type: "error", text: "No calendar available for import." });
+      return;
+    }
+    if (icsPreviewEvents.length === 0) {
+      setIcsImportMessage({ type: "error", text: "No events ready to import." });
+      return;
+    }
+    setIcsImportMessage(null);
+    setIcsImportPending(true);
+    try {
+      const toImport = icsPreviewEvents.filter((event) => event.selected);
+      if (toImport.length === 0) {
+        setIcsImportMessage({ type: "error", text: "Select at least one event to import." });
+        return;
+      }
+
+      const result = await importIcsMutation.mutateAsync({
+        calendarId: defaultCalendarId,
+        events: toImport.map((item) => ({
+          title: item.title,
+          start: item.start,
+          end: item.end,
+          isAllDay: item.isAllDay,
+        })),
+      });
+      setIcsImportMessage({
+        type: "success",
+        text: `Imported ${result.inserted} event${result.inserted === 1 ? "" : "s"} from ${icsFileName ?? "file"}.`,
+      });
+      setIcsPreviewEvents([]);
+      setIcsFileName(null);
+      setIcsFilterStart("");
+      setIcsFilterEnd("");
+    } catch (error) {
+      setIcsImportMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to import .ics file.",
+      });
+    } finally {
+      setIcsImportPending(false);
+    }
+  };
+
+  const handleIcsFileSelect = async (file: File | null) => {
+    setIcsImportMessage(null);
+    setIcsPreviewEvents([]);
+    setIcsFileName(null);
+    setIcsFilterStart("");
+    setIcsFilterEnd("");
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseIcsEvents(text);
+      if (parsed.length === 0) {
+        setIcsImportMessage({ type: "error", text: "No events found in this .ics file." });
+        return;
+      }
+      setIcsFileName(file.name);
+      setIcsPreviewEvents(
+        parsed.map((event, index) => ({
+          id: `${event.title}-${event.start.toISOString()}-${index}`,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          isAllDay: event.isAllDay,
+          selected: true,
+        })),
+      );
+    } catch (error) {
+      setIcsImportMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to read .ics file.",
+      });
+    }
+  };
+
   const previewCounts = useMemo(() => snapshotSummary?.counts ?? [], [snapshotSummary]);
+  const filteredIcsEvents = useMemo(() => {
+    const startValue = icsFilterStart ? new Date(`${icsFilterStart}T00:00:00`) : null;
+    const endValue = icsFilterEnd ? new Date(`${icsFilterEnd}T23:59:59.999`) : null;
+    return icsPreviewEvents.filter((event) => {
+      if (startValue && event.start < startValue) return false;
+      if (endValue && event.start > endValue) return false;
+      return true;
+    });
+  }, [icsFilterEnd, icsFilterStart, icsPreviewEvents]);
+  const selectedIcsCount = useMemo(
+    () => icsPreviewEvents.filter((event) => event.selected).length,
+    [icsPreviewEvents],
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -234,6 +337,147 @@ export function ImportExportView() {
             {exportMessage}
           </div>
         ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-ink-primary">Import events from .ics</h2>
+          <p className="text-sm text-ink-muted">
+            This import only uses titles and start/end times. Edit each event after import to fill in details.
+          </p>
+        </header>
+        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-outline-muted bg-surface-muted p-4">
+          <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+            Choose .ics file
+            <input
+              type="file"
+              accept=".ics,text/calendar"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                void handleIcsFileSelect(file);
+                event.currentTarget.value = "";
+              }}
+              className="text-sm text-ink-primary"
+              disabled={icsImportPending}
+            />
+          </label>
+          {icsFileName ? <div className="text-xs text-ink-subtle">Selected: {icsFileName}</div> : null}
+          {icsPreviewEvents.length > 0 ? (
+            <>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-ink-subtle">
+                <span>{icsPreviewEvents.length} total</span>
+                <span>{selectedIcsCount} selected</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIcsPreviewEvents((prev) =>
+                      prev.map((event) =>
+                        filteredIcsEvents.some((item) => item.id === event.id)
+                          ? { ...event, selected: true }
+                          : event,
+                      ),
+                    )
+                  }
+                  className="rounded-full border border-outline-muted px-3 py-1 text-[11px] font-semibold text-ink-primary transition hover:bg-surface-overlay"
+                >
+                  Select filtered
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIcsPreviewEvents((prev) =>
+                      prev.map((event) =>
+                        filteredIcsEvents.some((item) => item.id === event.id)
+                          ? { ...event, selected: false }
+                          : event,
+                      ),
+                    )
+                  }
+                  className="rounded-full border border-outline-muted px-3 py-1 text-[11px] font-semibold text-ink-primary transition hover:bg-surface-overlay"
+                >
+                  Clear filtered
+                </button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+                  Filter start date
+                  <input
+                    type="date"
+                    value={icsFilterStart}
+                    onChange={(event) => setIcsFilterStart(event.target.value)}
+                    className="rounded-lg border border-outline-muted bg-surface-base px-3 py-2 text-sm text-ink-primary focus:outline-none"
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+                  Filter end date
+                  <input
+                    type="date"
+                    value={icsFilterEnd}
+                    onChange={(event) => setIcsFilterEnd(event.target.value)}
+                    className="rounded-lg border border-outline-muted bg-surface-base px-3 py-2 text-sm text-ink-primary focus:outline-none"
+                  />
+                </label>
+              </div>
+              <div className="rounded-lg border border-outline-muted bg-surface-raised px-3 py-2 text-xs text-ink-subtle">
+                <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                  <span>Preview</span>
+                  <span>{filteredIcsEvents.length} shown</span>
+                </div>
+                {filteredIcsEvents.length === 0 ? (
+                  <div className="py-4 text-center text-ink-muted">No events match this filter.</div>
+                ) : (
+                  <div className="max-h-56 overflow-auto">
+                    {filteredIcsEvents.map((event) => (
+                      <label
+                        key={event.id}
+                        className="flex items-start gap-2 border-t border-outline-muted py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={event.selected}
+                          onChange={(itemEvent) =>
+                            setIcsPreviewEvents((prev) =>
+                              prev.map((item) =>
+                                item.id === event.id ? { ...item, selected: itemEvent.target.checked } : item,
+                              ),
+                            )
+                          }
+                          className="mt-1 h-4 w-4 accent-accent-strong"
+                        />
+                        <span className="flex-1">
+                          <div className="font-semibold text-ink-primary">{event.title}</div>
+                          <div>
+                            {formatTimestamp(event.start.toISOString())} → {formatTimestamp(event.end.toISOString())}
+                          </div>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleIcsImport()}
+                disabled={icsImportPending || selectedIcsCount === 0}
+                className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {icsImportPending ? "Importing..." : "Import selected events"}
+              </button>
+            </>
+          ) : null}
+          {icsImportMessage ? (
+            <div
+              className={
+                "rounded-lg border px-3 py-2 text-xs " +
+                (icsImportMessage.type === "success"
+                  ? "border-outline-accent bg-accent-muted text-accent-soft"
+                  : "border-status-danger bg-status-danger-surface text-status-danger")
+              }
+            >
+              {icsImportMessage.text}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-2xl border border-status-danger bg-status-danger-surface p-6 shadow-[var(--shadow-pane)]">

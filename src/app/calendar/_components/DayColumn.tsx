@@ -62,7 +62,7 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
       {positioned.map((p, idx) => (
         <div
           key={idx}
-          className="absolute z-10 p-0.5"
+          className={"absolute p-0.5 " + (p.event.id === previewEventId ? "z-30" : "z-10")}
           style={{
             top: p.top * MINUTE_PX,
             height: p.height * MINUTE_PX,

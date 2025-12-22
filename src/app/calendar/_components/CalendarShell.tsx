@@ -256,6 +256,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
     if (ticketSearchError) setTicketSearchError(null);
   };
 
+
   // visible range
   const range = useMemo(() => {
     if (activeView === "day") {

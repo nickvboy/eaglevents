@@ -254,6 +254,35 @@ const REQUEST_CATEGORY_LABELS = {
   non_affiliated_or_revenue_generating_event: "External or revenue events",
 } as const;
 
+const EVENT_CODE_MIN = 1000000;
+const EVENT_CODE_RANGE = 9000000;
+const EVENT_CODE_RETRY_LIMIT = 10;
+
+function generateEventCode() {
+  return String(Math.floor(EVENT_CODE_MIN + Math.random() * EVENT_CODE_RANGE));
+}
+
+async function generateUniqueEventCodes(db: DbClient, count: number) {
+  const codes = new Set<string>();
+  while (codes.size < count) codes.add(generateEventCode());
+
+  for (let attempt = 0; attempt < EVENT_CODE_RETRY_LIMIT; attempt += 1) {
+    const candidates = Array.from(codes);
+    const existingRows =
+      candidates.length === 0
+        ? []
+        : await db.select({ code: events.eventCode }).from(events).where(inArray(events.eventCode, candidates));
+    if (existingRows.length === 0) return candidates;
+
+    for (const row of existingRows) {
+      codes.delete(row.code);
+    }
+    while (codes.size < count) codes.add(generateEventCode());
+  }
+
+  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to reserve unique event codes." });
+}
+
 type UserSummary = {
   id: number;
   username: string;
@@ -1489,6 +1518,56 @@ export const adminRouter = createTRPCRouter({
       data,
     };
   }),
+
+  importIcsEvents: publicProcedure
+    .input(
+      z.object({
+        calendarId: z.number().int().positive(),
+        events: z
+          .array(
+            z.object({
+              title: z.string().trim().min(1).max(255),
+              start: z.coerce.date(),
+              end: z.coerce.date(),
+              isAllDay: z.boolean(),
+            }),
+          )
+          .min(1)
+          .max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminSession(ctx);
+      const [calendar] = await ctx.db.select({ id: calendars.id }).from(calendars).where(eq(calendars.id, input.calendarId)).limit(1);
+      if (!calendar) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Calendar not found." });
+      }
+
+      const codes = await generateUniqueEventCodes(ctx.db, input.events.length);
+      const now = new Date();
+      const values = input.events.map((event, index) => {
+        const start = event.start;
+        let end = event.end;
+        if (!(end instanceof Date) || Number.isNaN(end.getTime()) || end <= start) {
+          end = event.isAllDay
+            ? new Date(start.getTime() + MS_IN_DAY)
+            : new Date(start.getTime() + 60 * 60 * 1000);
+        }
+        return {
+          calendarId: input.calendarId,
+          eventCode: codes[index] ?? generateEventCode(),
+          title: event.title,
+          isAllDay: event.isAllDay,
+          startDatetime: start,
+          endDatetime: end,
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+
+      await ctx.db.insert(events).values(values);
+      return { inserted: values.length };
+    }),
 
   importSnapshot: publicProcedure
     .input(snapshotSchema)
