@@ -8361,3 +8361,54 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  ✓ Compiled in 101ms (598 modules)
  ✓ Compiled in 92ms (598 modules)
  ✓ Compiled in 113ms (598 modules)
+ ✓ Compiled in 141ms (598 modules)
+ ✓ Compiled in 612ms (2397 modules)
+ ✓ Compiled /api/setup/status in 260ms (1784 modules)
+ ✓ Compiled (1798 modules)
+ GET /api/auth/session 200 in 671ms
+ GET /api/setup/status 200 in 627ms
+ ✓ Compiled /api/trpc/[trpc] in 304ms (1801 modules)
+[TRPC] calendar.getBusiness took 201ms to execute
+[TRPC] event.list took 268ms to execute
+[TRPC] calendar.listMine took 340ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 919ms
+ ✓ Compiled in 141ms (598 modules)
+ ✓ Compiled in 117ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 147ms (598 modules)
+ GET /api/auth/session 200 in 46ms
+ ✓ Compiled in 181ms (598 modules)
+ ✓ Compiled in 163ms (598 modules)
+ GET /api/auth/session 200 in 25ms
+ GET /api/setup/status 200 in 23ms
+[TRPC] event.list took 128ms to execute
+[TRPC] calendar.listMine took 202ms to execute
+[TRPC] calendar.getBusiness took 340ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 387ms
+ ✓ Compiled in 208ms (598 modules)
+ ✓ Compiled in 142ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 113ms (598 modules)
+ ✓ Compiled in 111ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 110ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 144ms (598 modules)
