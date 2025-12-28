@@ -3,6 +3,7 @@ type ParsedIcsEvent = {
   start: Date;
   end: Date;
   isAllDay: boolean;
+  zendeskTicketNumber: string | null;
 };
 
 type ParsedIcsDate = {
@@ -25,6 +26,12 @@ function extractEventNameFromDescription(value: string | null) {
   if (!match) return null;
   const name = match[1]?.trim();
   return name && name.length > 0 ? name : null;
+}
+
+function extractZendeskTicketNumber(value: string | null) {
+  if (!value) return null;
+  const match = /#(\d{4,})/.exec(value);
+  return match ? match[1] : null;
 }
 
 function unfoldLines(text: string) {
@@ -99,7 +106,13 @@ export function parseIcsEvents(text: string): ParsedIcsEvent[] {
             ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
             : new Date(start.getTime() + 60 * 60 * 1000);
         }
-        events.push({ title, start, end, isAllDay });
+        events.push({
+          title,
+          start,
+          end,
+          isAllDay,
+          zendeskTicketNumber: extractZendeskTicketNumber(title),
+        });
       }
       current = null;
       continue;

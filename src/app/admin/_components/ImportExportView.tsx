@@ -139,7 +139,15 @@ export function ImportExportView() {
   const [icsFilterStart, setIcsFilterStart] = useState("");
   const [icsFilterEnd, setIcsFilterEnd] = useState("");
   const [icsPreviewEvents, setIcsPreviewEvents] = useState<
-    Array<{ id: string; title: string; start: Date; end: Date; isAllDay: boolean; selected: boolean }>
+    Array<{
+      id: string;
+      title: string;
+      start: Date;
+      end: Date;
+      isAllDay: boolean;
+      zendeskTicketNumber: string | null;
+      selected: boolean;
+    }>
   >([]);
 
   const canRestore = Boolean(snapshotPayload) && acknowledged && confirmText.trim().toUpperCase() === "RESTORE";
@@ -227,6 +235,7 @@ export function ImportExportView() {
           start: item.start,
           end: item.end,
           isAllDay: item.isAllDay,
+          zendeskTicketNumber: item.zendeskTicketNumber ?? null,
         })),
       });
       setIcsImportMessage({
@@ -269,6 +278,7 @@ export function ImportExportView() {
           start: event.start,
           end: event.end,
           isAllDay: event.isAllDay,
+          zendeskTicketNumber: event.zendeskTicketNumber ?? null,
           selected: true,
         })),
       );

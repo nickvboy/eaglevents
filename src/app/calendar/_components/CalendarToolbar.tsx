@@ -83,7 +83,7 @@ export function CalendarToolbar(props: Props) {
             />
             <button
               type="button"
-              className="rounded-r-md bg-accent-strong px-3 py-1 text-sm font-medium text-ink-inverted hover:bg-accent-default disabled:opacity-60"
+              className="h-full rounded-r-md bg-accent-strong px-3 text-sm font-medium leading-none text-ink-inverted hover:bg-accent-default disabled:opacity-60"
               onClick={props.onTicketSearchSubmit}
               disabled={props.ticketSearchPending}
             >

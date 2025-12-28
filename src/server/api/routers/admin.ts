@@ -1530,6 +1530,7 @@ export const adminRouter = createTRPCRouter({
               start: z.coerce.date(),
               end: z.coerce.date(),
               isAllDay: z.boolean(),
+              zendeskTicketNumber: z.string().trim().max(64).nullable().optional(),
             }),
           )
           .min(1)
@@ -1560,6 +1561,7 @@ export const adminRouter = createTRPCRouter({
           isAllDay: event.isAllDay,
           startDatetime: start,
           endDatetime: end,
+          zendeskTicketNumber: event.zendeskTicketNumber ?? null,
           createdAt: now,
           updatedAt: now,
         };

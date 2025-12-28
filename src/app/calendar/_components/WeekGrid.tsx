@@ -40,7 +40,7 @@ export function WeekGrid({
       {days.map((d) => (
         <div key={d.toISOString()} className="min-w-0 flex-1">
           {variant === "default" ? (
-            <div className="sticky top-0 z-10 border-b border-l border-outline-muted bg-surface-overlay px-2 py-1 text-xs text-ink-primary">
+            <div className="sticky top-0 z-40 border-b border-l border-outline-muted bg-surface-overlay px-2 py-1 text-xs text-ink-primary">
               <div className="font-medium">
                 {d.toLocaleDateString(undefined, { weekday: "long" })}
               </div>
