@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from "react";
 
-import { BarChartIcon, CopyIcon, ReportIcon, SettingsIcon, UsersIcon } from "~/app/_components/icons";
+import { BarChartIcon, CopyIcon, HomeIcon, ReportIcon, SettingsIcon, UsersIcon } from "~/app/_components/icons";
 
+import { CompanyView } from "./CompanyView";
 import { DashboardView } from "./DashboardView";
 import { DatabaseView } from "./DatabaseView";
 import { ImportExportView } from "./ImportExportView";
 import { ReportsView } from "./ReportsView";
 import { UsersView } from "./UsersView";
 
-type TabKey = "dashboard" | "users" | "reports" | "importExport" | "database";
+type TabKey = "dashboard" | "company" | "users" | "reports" | "importExport" | "database";
 
 type TabDefinition = {
   id: TabKey;
@@ -25,6 +26,12 @@ const tabs: TabDefinition[] = [
     label: "Dashboard",
     description: "Monitor the health of the platform with live metrics.",
     icon: BarChartIcon,
+  },
+  {
+    id: "company",
+    label: "Company",
+    description: "Manage organization structure, locations, and departments.",
+    icon: HomeIcon,
   },
   {
     id: "users",
@@ -101,6 +108,9 @@ export function AdminShell() {
       <section className="flex-1" role="presentation">
         <div id="dashboard-panel" role="tabpanel" hidden={activeTab !== "dashboard"}>
           {activeTab === "dashboard" ? <DashboardView /> : null}
+        </div>
+        <div id="company-panel" role="tabpanel" hidden={activeTab !== "company"}>
+          {activeTab === "company" ? <CompanyView /> : null}
         </div>
         <div id="users-panel" role="tabpanel" hidden={activeTab !== "users"}>
           {activeTab === "users" ? <UsersView /> : null}

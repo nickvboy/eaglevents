@@ -38,10 +38,12 @@ import {
   refreshHourLogExport,
 } from "~/server/services/hour-log-export";
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
+import { getSetupStatus } from "~/server/services/setup";
 
 type DbClient = typeof import("~/server/db").db;
 
 const SNAPSHOT_VERSION = 1;
+const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 
 const timestampSchema = z.string().datetime();
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -480,6 +482,19 @@ function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?
 async function findBusinessId(db: DbClient): Promise<number | null> {
   const [business] = await db.select({ id: businesses.id }).from(businesses).orderBy(businesses.id).limit(1);
   return business?.id ?? null;
+}
+
+function wouldCreateDepartmentCycle(
+  targetId: number,
+  newParentId: number | null,
+  parentMap: Map<number, number | null>,
+) {
+  let current = newParentId;
+  while (current !== null && current !== undefined) {
+    if (current === targetId) return true;
+    current = parentMap.get(current) ?? null;
+  }
+  return false;
 }
 
 async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> {
@@ -2247,6 +2262,313 @@ export const adminRouter = createTRPCRouter({
 
     return { deleted: total };
   }),
+
+  companyOverview: publicProcedure.query(async ({ ctx }) => {
+    const status = await getSetupStatus(ctx.db);
+    return {
+      business: status.business,
+      buildings: status.buildings,
+      departments: status.departments,
+    };
+  }),
+
+  updateBusiness: publicProcedure
+    .input(z.object({ name: z.string().min(2).max(255), type: z.enum(businessTypeValues) }))
+    .mutation(async ({ ctx, input }) => {
+      const status = await getSetupStatus(ctx.db);
+      if (!status.business) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const name = input.name.trim();
+      await ctx.db
+        .update(businesses)
+        .set({ name, type: input.type, updatedAt: new Date() })
+        .where(eq(businesses.id, status.business.id));
+      return { id: status.business.id };
+    }),
+
+  createBuilding: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(2).max(255),
+        acronym: z.string().min(2).max(16),
+        rooms: z.array(z.string().min(1).max(64)).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const dedupedRooms = Array.from(new Set(input.rooms.map((room) => room.trim()).filter(Boolean)));
+      if (dedupedRooms.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Add at least one valid room number." });
+      }
+      const [buildingRow] = await ctx.db
+        .insert(buildings)
+        .values({
+          businessId,
+          name: input.name.trim(),
+          acronym: input.acronym.trim(),
+        })
+        .returning({ id: buildings.id });
+      if (!buildingRow) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create building." });
+      }
+      if (dedupedRooms.length > 0) {
+        await ctx.db.insert(rooms).values(
+          dedupedRooms.map((roomNumber) => ({
+            buildingId: buildingRow.id,
+            roomNumber,
+          })),
+        );
+      }
+      return { id: buildingRow.id };
+    }),
+
+  updateBuilding: publicProcedure
+    .input(
+      z
+        .object({
+          buildingId: z.number().int().positive(),
+          name: z.string().min(2).max(255).optional(),
+          acronym: z.string().min(2).max(16).optional(),
+        })
+        .refine((value) => value.name !== undefined || value.acronym !== undefined, { message: "No updates provided" }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [buildingRow] = await ctx.db
+        .select({ id: buildings.id, businessId: buildings.businessId })
+        .from(buildings)
+        .where(eq(buildings.id, input.buildingId))
+        .limit(1);
+      if (!buildingRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+      }
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId && buildingRow.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+      }
+      await ctx.db
+        .update(buildings)
+        .set({
+          name: input.name?.trim(),
+          acronym: input.acronym?.trim(),
+          updatedAt: new Date(),
+        })
+        .where(eq(buildings.id, input.buildingId));
+      return { id: input.buildingId };
+    }),
+
+  deleteBuilding: publicProcedure
+    .input(z.object({ buildingId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [buildingRow] = await ctx.db
+        .select({ id: buildings.id, businessId: buildings.businessId })
+        .from(buildings)
+        .where(eq(buildings.id, input.buildingId))
+        .limit(1);
+      if (!buildingRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+      }
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId && buildingRow.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+      }
+      await ctx.db.delete(buildings).where(eq(buildings.id, input.buildingId));
+      return { deleted: input.buildingId };
+    }),
+
+  createRoom: publicProcedure
+    .input(z.object({ buildingId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
+    .mutation(async ({ ctx, input }) => {
+      const roomNumber = input.roomNumber.trim();
+      if (!roomNumber) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
+      }
+      const [buildingRow] = await ctx.db
+        .select({ id: buildings.id, businessId: buildings.businessId })
+        .from(buildings)
+        .where(eq(buildings.id, input.buildingId))
+        .limit(1);
+      if (!buildingRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+      }
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId && buildingRow.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+      }
+      const [roomRow] = await ctx.db
+        .insert(rooms)
+        .values({ buildingId: input.buildingId, roomNumber })
+        .returning({ id: rooms.id });
+      if (!roomRow) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create room." });
+      }
+      return { id: roomRow.id };
+    }),
+
+  updateRoom: publicProcedure
+    .input(z.object({ roomId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
+    .mutation(async ({ ctx, input }) => {
+      const roomNumber = input.roomNumber.trim();
+      if (!roomNumber) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
+      }
+      const [roomRow] = await ctx.db
+        .select({
+          id: rooms.id,
+          buildingId: rooms.buildingId,
+          businessId: buildings.businessId,
+        })
+        .from(rooms)
+        .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+        .where(eq(rooms.id, input.roomId))
+        .limit(1);
+      if (!roomRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Room not found." });
+      }
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId && roomRow.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Room does not belong to this business." });
+      }
+      await ctx.db
+        .update(rooms)
+        .set({ roomNumber, updatedAt: new Date() })
+        .where(eq(rooms.id, input.roomId));
+      return { id: input.roomId };
+    }),
+
+  deleteRoom: publicProcedure
+    .input(z.object({ roomId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [roomRow] = await ctx.db
+        .select({
+          id: rooms.id,
+          buildingId: rooms.buildingId,
+          businessId: buildings.businessId,
+        })
+        .from(rooms)
+        .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+        .where(eq(rooms.id, input.roomId))
+        .limit(1);
+      if (!roomRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Room not found." });
+      }
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId && roomRow.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Room does not belong to this business." });
+      }
+      await ctx.db.delete(rooms).where(eq(rooms.id, input.roomId));
+      return { deleted: input.roomId };
+    }),
+
+  createDepartment: publicProcedure
+    .input(z.object({ name: z.string().min(2).max(255), parentDepartmentId: z.number().int().positive().nullable().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const parentId = input.parentDepartmentId ?? null;
+      if (parentId !== null) {
+        const [parentRow] = await ctx.db
+          .select({ id: departments.id, businessId: departments.businessId })
+          .from(departments)
+          .where(eq(departments.id, parentId))
+          .limit(1);
+        if (!parentRow || parentRow.businessId !== businessId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
+        }
+      }
+      const [departmentRow] = await ctx.db
+        .insert(departments)
+        .values({ businessId, name: input.name.trim(), parentDepartmentId: parentId })
+        .returning({ id: departments.id });
+      if (!departmentRow) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create department." });
+      }
+      return { id: departmentRow.id };
+    }),
+
+  updateDepartment: publicProcedure
+    .input(
+      z
+        .object({
+          departmentId: z.number().int().positive(),
+          name: z.string().min(2).max(255).optional(),
+          parentDepartmentId: z.number().int().positive().nullable().optional(),
+        })
+        .refine((value) => value.name !== undefined || value.parentDepartmentId !== undefined, { message: "No updates provided" }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const [departmentRow] = await ctx.db
+        .select({ id: departments.id, businessId: departments.businessId })
+        .from(departments)
+        .where(eq(departments.id, input.departmentId))
+        .limit(1);
+      if (!departmentRow || departmentRow.businessId !== businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
+      }
+
+      const updates: Partial<typeof departments.$inferInsert> = {};
+      if (input.name !== undefined) {
+        updates.name = input.name.trim();
+      }
+
+      if (input.parentDepartmentId !== undefined) {
+        if (input.parentDepartmentId === input.departmentId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Department cannot be its own parent." });
+        }
+        const parentId = input.parentDepartmentId;
+        if (parentId !== null) {
+          const [parentRow] = await ctx.db
+            .select({ id: departments.id, businessId: departments.businessId })
+            .from(departments)
+            .where(eq(departments.id, parentId))
+            .limit(1);
+          if (!parentRow || parentRow.businessId !== businessId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
+          }
+        }
+
+        const departmentRows = await ctx.db
+          .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId })
+          .from(departments)
+          .where(eq(departments.businessId, businessId));
+        const parentMap = new Map(departmentRows.map((row) => [row.id, row.parentDepartmentId ?? null]));
+        if (wouldCreateDepartmentCycle(input.departmentId, parentId, parentMap)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Department hierarchy cannot contain cycles." });
+        }
+        updates.parentDepartmentId = parentId;
+      }
+
+      await ctx.db.update(departments).set({ ...updates, updatedAt: new Date() }).where(eq(departments.id, input.departmentId));
+      return { id: input.departmentId };
+    }),
+
+  deleteDepartment: publicProcedure
+    .input(z.object({ departmentId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const [departmentRow] = await ctx.db
+        .select({ id: departments.id, businessId: departments.businessId })
+        .from(departments)
+        .where(eq(departments.id, input.departmentId))
+        .limit(1);
+      if (!departmentRow || departmentRow.businessId !== businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
+      }
+      await ctx.db.delete(departments).where(eq(departments.id, input.departmentId));
+      return { deleted: input.departmentId };
+    }),
 
   users: publicProcedure.query(async ({ ctx }) => {
     return {
