@@ -37,7 +37,7 @@ export function EventCard(p: Props) {
       }}
     >
       <div className="space-y-0.5 pr-5">
-        <div className="truncate font-medium">{p.title}</div>
+        <div className="truncate font-semibold">{p.title}</div>
         {p.location && <div className="truncate text-ink-primary">{p.location}</div>}
         <div className="text-[10px] text-ink-subtle">{timeLabel}</div>
       </div>

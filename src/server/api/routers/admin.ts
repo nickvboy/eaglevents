@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
@@ -427,6 +427,40 @@ function parseDateOnly(value: string | Date | null) {
     return value.toISOString().slice(0, 10);
   }
   return value;
+}
+
+function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?: Date }) {
+  const conditions: Array<ReturnType<typeof and>> = [];
+  if (input?.start) {
+    conditions.push(gte(events.startDatetime, input.start));
+  }
+  if (input?.end) {
+    conditions.push(lt(events.startDatetime, input.end));
+  }
+  if (input?.search) {
+    const trimmed = input.search.trim();
+    if (trimmed.length > 0) {
+      const like = `%${trimmed.replace(/[%_]/g, (match) => `\\${match}`)}%`;
+      const numericId = Number(trimmed);
+      const idCondition = Number.isInteger(numericId) && numericId > 0 ? eq(events.id, numericId) : null;
+      conditions.push(
+        or(
+          ilike(events.title, like),
+          ilike(events.location, like),
+          eq(events.eventCode, trimmed),
+          eq(events.zendeskTicketNumber, trimmed),
+          ...(idCondition ? [idCondition] : []),
+        ),
+      );
+    }
+  }
+
+  if (conditions.length === 0) return null;
+  let combined = conditions[0]!;
+  for (let index = 1; index < conditions.length; index += 1) {
+    combined = and(combined, conditions[index]!);
+  }
+  return combined;
 }
 
 async function requireAdminSession(ctx: { session: Session | null; db: DbClient }) {
@@ -1863,6 +1897,222 @@ export const adminRouter = createTRPCRouter({
         },
       };
     }),
+
+  databaseSummary: publicProcedure.query(async ({ ctx }) => {
+    const [
+      eventsCount,
+      attendeeCount,
+      reminderCount,
+      hourLogCount,
+      confirmationCount,
+      calendarCount,
+      businessCount,
+      buildingCount,
+      roomCount,
+      departmentCount,
+      paletteCount,
+      themeProfileCount,
+      postCount,
+    ] = await Promise.all([
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(events),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventAttendees),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventReminders),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventHourLogs),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventZendeskConfirmations),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(calendars),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(businesses),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(buildings),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(rooms),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(departments),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(themePalettes),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(themeProfiles),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(posts),
+    ]);
+
+    return {
+      updatedAt: new Date(),
+      counts: {
+        events: eventsCount[0]?.count ?? 0,
+        eventAttendees: attendeeCount[0]?.count ?? 0,
+        eventReminders: reminderCount[0]?.count ?? 0,
+        eventHourLogs: hourLogCount[0]?.count ?? 0,
+        eventZendeskConfirmations: confirmationCount[0]?.count ?? 0,
+        calendars: calendarCount[0]?.count ?? 0,
+        businesses: businessCount[0]?.count ?? 0,
+        buildings: buildingCount[0]?.count ?? 0,
+        rooms: roomCount[0]?.count ?? 0,
+        departments: departmentCount[0]?.count ?? 0,
+        themePalettes: paletteCount[0]?.count ?? 0,
+        themeProfiles: themeProfileCount[0]?.count ?? 0,
+        posts: postCount[0]?.count ?? 0,
+      },
+    };
+  }),
+
+  databaseEvents: publicProcedure
+    .input(
+      z
+        .object({
+          search: z.string().trim().min(1).optional(),
+          start: z.coerce.date().optional(),
+          end: z.coerce.date().optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 50;
+      const whereClause = buildDatabaseEventFilters(input);
+
+      let query = ctx.db
+        .select({
+          id: events.id,
+          title: events.title,
+          eventCode: events.eventCode,
+          startDatetime: events.startDatetime,
+          endDatetime: events.endDatetime,
+          calendarId: events.calendarId,
+          buildingId: events.buildingId,
+          assigneeProfileId: events.assigneeProfileId,
+          zendeskTicketNumber: events.zendeskTicketNumber,
+          updatedAt: events.updatedAt,
+        })
+        .from(events);
+
+      if (whereClause) {
+        query = query.where(whereClause);
+      }
+
+      const eventRows = await query.orderBy(desc(events.startDatetime), desc(events.id)).limit(limit);
+
+      const totalRowsQuery = ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
+      const totalRows = whereClause ? await totalRowsQuery.where(whereClause) : await totalRowsQuery;
+      const total = totalRows[0]?.count ?? 0;
+
+      const eventIds = eventRows.map((row) => row.id);
+      if (eventIds.length === 0) {
+        return { events: [], total };
+      }
+
+      const [attendeeRows, reminderRows, hourLogRows, confirmationRows] = await Promise.all([
+        ctx.db
+          .select({ eventId: eventAttendees.eventId, count: sql<number>`count(*)::int` })
+          .from(eventAttendees)
+          .where(inArray(eventAttendees.eventId, eventIds))
+          .groupBy(eventAttendees.eventId),
+        ctx.db
+          .select({ eventId: eventReminders.eventId, count: sql<number>`count(*)::int` })
+          .from(eventReminders)
+          .where(inArray(eventReminders.eventId, eventIds))
+          .groupBy(eventReminders.eventId),
+        ctx.db
+          .select({ eventId: eventHourLogs.eventId, count: sql<number>`count(*)::int` })
+          .from(eventHourLogs)
+          .where(inArray(eventHourLogs.eventId, eventIds))
+          .groupBy(eventHourLogs.eventId),
+        ctx.db
+          .select({ eventId: eventZendeskConfirmations.eventId, count: sql<number>`count(*)::int` })
+          .from(eventZendeskConfirmations)
+          .where(inArray(eventZendeskConfirmations.eventId, eventIds))
+          .groupBy(eventZendeskConfirmations.eventId),
+      ]);
+
+      const attendeeMap = new Map(attendeeRows.map((row) => [row.eventId, row.count]));
+      const reminderMap = new Map(reminderRows.map((row) => [row.eventId, row.count]));
+      const hourLogMap = new Map(hourLogRows.map((row) => [row.eventId, row.count]));
+      const confirmationMap = new Map(confirmationRows.map((row) => [row.eventId, row.count]));
+
+      return {
+        total,
+        events: eventRows.map((row) => ({
+          ...row,
+          counts: {
+            attendees: attendeeMap.get(row.id) ?? 0,
+            reminders: reminderMap.get(row.id) ?? 0,
+            hourLogs: hourLogMap.get(row.id) ?? 0,
+            confirmations: confirmationMap.get(row.id) ?? 0,
+          },
+        })),
+      };
+    }),
+
+  databaseEventCount: publicProcedure
+    .input(
+      z.object({
+        start: z.coerce.date(),
+        end: z.coerce.date(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(events)
+        .where(and(gte(events.startDatetime, input.start), lt(events.startDatetime, input.end)));
+      return { count: row?.count ?? 0 };
+    }),
+
+  deleteEvent: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db.select({ id: events.id }).from(events).where(eq(events.id, input.id)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(eventZendeskConfirmations).where(eq(eventZendeskConfirmations.eventId, input.id));
+        await tx.delete(eventHourLogs).where(eq(eventHourLogs.eventId, input.id));
+        await tx.delete(eventReminders).where(eq(eventReminders.eventId, input.id));
+        await tx.delete(eventAttendees).where(eq(eventAttendees.eventId, input.id));
+        await tx.delete(events).where(eq(events.id, input.id));
+      });
+
+      return { deleted: input.id };
+    }),
+
+  deleteEventsByRange: publicProcedure
+    .input(
+      z
+        .object({
+          start: z.coerce.date(),
+          end: z.coerce.date(),
+        })
+        .refine((value) => value.end > value.start, { message: "End date must be after the start date." }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const eventRows = await ctx.db
+        .select({ id: events.id })
+        .from(events)
+        .where(and(gte(events.startDatetime, input.start), lt(events.startDatetime, input.end)));
+      const eventIds = eventRows.map((row) => row.id);
+      if (eventIds.length === 0) return { deleted: 0 };
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(eventZendeskConfirmations).where(inArray(eventZendeskConfirmations.eventId, eventIds));
+        await tx.delete(eventHourLogs).where(inArray(eventHourLogs.eventId, eventIds));
+        await tx.delete(eventReminders).where(inArray(eventReminders.eventId, eventIds));
+        await tx.delete(eventAttendees).where(inArray(eventAttendees.eventId, eventIds));
+        await tx.delete(events).where(inArray(events.id, eventIds));
+      });
+
+      return { deleted: eventIds.length };
+    }),
+
+  deleteAllEvents: publicProcedure.mutation(async ({ ctx }) => {
+    const [countRow] = await ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
+    const total = countRow?.count ?? 0;
+    if (total === 0) return { deleted: 0 };
+
+    await ctx.db.transaction(async (tx) => {
+      await tx.delete(eventZendeskConfirmations);
+      await tx.delete(eventHourLogs);
+      await tx.delete(eventReminders);
+      await tx.delete(eventAttendees);
+      await tx.delete(events);
+    });
+
+    return { deleted: total };
+  }),
 
   users: publicProcedure.query(async ({ ctx }) => {
     return {

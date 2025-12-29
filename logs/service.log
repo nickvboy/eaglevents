@@ -8412,3 +8412,1148 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  ✓ Compiled in 99ms (598 modules)
  ✓ Compiled in 101ms (598 modules)
  ✓ Compiled in 144ms (598 modules)
+ ✓ Compiled in 113ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 116ms (598 modules)
+ ✓ Compiled in 179ms (598 modules)
+ GET /api/auth/session 200 in 33ms
+ GET /api/setup/status 200 in 15ms
+[TRPC] event.list took 160ms to execute
+[TRPC] calendar.listMine took 218ms to execute
+[TRPC] calendar.getBusiness took 312ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 347ms
+ GET /api/setup/status 200 in 19ms
+ GET /admin 200 in 57ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 34ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 16ms
+ GET /api/setup/status 200 in 19ms
+ GET /admin 200 in 41ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 34ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 41ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] admin.dashboard took 381ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 406ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 42ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 36ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 36ms
+ GET /api/setup/status 200 in 19ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 9ms
+ GET /settings 200 in 30ms
+ GET /api/setup/status 200 in 12ms
+ GET /api/setup/status 200 in 30ms
+ GET /settings 200 in 38ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 30ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 32ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] theme.settings took 109ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 126ms
+ GET /settings 200 in 37ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 34ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 22ms
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 28ms
+ GET /api/setup/status 200 in 12ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 28ms
+ GET /api/setup/status 200 in 9ms
+ GET /settings 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 29ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 32ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 26ms
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 21ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 26ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 22ms
+ GET /api/setup/status 200 in 6ms
+ GET /settings 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 22ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 28ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 21ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 22ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 26ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 21ms
+ GET /api/setup/status 200 in 7ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 8ms
+ GET /settings 200 in 19ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 13ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 15ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 22ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] calendar.listMine took 295ms to execute
+[TRPC] calendar.getBusiness took 388ms to execute
+[TRPC] event.list took 405ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 453ms
+ ✓ Compiled in 159ms (598 modules)
+ ✓ Compiled in 114ms (598 modules)
+ GET /api/setup/status 200 in 44ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 23ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 14ms
+ GET /api/setup/status 200 in 9ms
+ GET /settings 200 in 15ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 19ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] event.list took 313ms to execute
+[TRPC] calendar.listMine took 373ms to execute
+[TRPC] calendar.getBusiness took 418ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 459ms
+ ✓ Compiled in 121ms (598 modules)
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 23ms
+ ✓ Compiled in 105ms (598 modules)
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 24ms
+ GET /api/setup/status 200 in 13ms
+ GET /settings 200 in 16ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] theme.settings took 328ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 370ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] theme.update took 113ms to execute
+ POST /api/trpc/theme.update?batch=1 200 in 146ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] theme.settings took 281ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 306ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] theme.current took 126ms to execute
+ GET /api/trpc/theme.current?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 137ms
+ GET /api/setup/status 200 in 9ms
+ GET /tickets 200 in 25ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] event.tickets took 321ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 360ms
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] calendar.getBusiness took 171ms to execute
+[TRPC] event.list took 250ms to execute
+[TRPC] calendar.listMine took 263ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 291ms
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] theme.update took 408ms to execute
+ POST /api/trpc/theme.update?batch=1 200 in 429ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] theme.settings took 498ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 535ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.current took 497ms to execute
+ GET /api/trpc/theme.current?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 532ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 20ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] calendar.getBusiness took 374ms to execute
+[TRPC] event.list took 379ms to execute
+[TRPC] calendar.listMine took 420ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 449ms
+ ✓ Compiled in 185ms (598 modules)
+ GET /api/setup/status 200 in 18ms
+ GET /calendar 200 in 40ms
+ GET /api/setup/status 200 in 9ms
+ GET /tickets 200 in 15ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] event.tickets took 381ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 450ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] calendar.getBusiness took 367ms to execute
+[TRPC] calendar.listMine took 445ms to execute
+[TRPC] event.list took 509ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 526ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 17ms
+ GET /api/setup/status 200 in 9ms
+ GET /tickets 200 in 14ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 17ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 15ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.dashboard took 238ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 257ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 15ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.settings took 126ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 158ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] calendar.listMine took 172ms to execute
+[TRPC] event.list took 174ms to execute
+[TRPC] calendar.getBusiness took 279ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 306ms
+ ✓ Compiled in 198ms (598 modules)
+ GET /api/setup/status 200 in 23ms
+ GET /calendar 200 in 32ms
+ ✓ Compiled in 114ms (598 modules)
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 119ms
+ ✓ Compiled in 120ms (598 modules)
+ GET /api/setup/status 200 in 62ms
+ ✓ Compiled in 105ms (598 modules)
+ GET /calendar 200 in 61ms
+ GET /api/setup/status 200 in 63ms
+ ✓ Compiled in 103ms (598 modules)
+ GET /calendar 200 in 62ms
+ GET /api/setup/status 200 in 68ms
+ ✓ Compiled in 111ms (598 modules)
+ GET /calendar 200 in 58ms
+ GET /api/setup/status 200 in 86ms
+ ✓ Compiled in 109ms (598 modules)
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 94ms
+ ✓ Compiled in 110ms (598 modules)
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 89ms
+ ✓ Compiled in 105ms (598 modules)
+ GET /calendar 200 in 39ms
+ GET /api/setup/status 200 in 90ms
+ ✓ Compiled in 107ms (598 modules)
+ GET /calendar 200 in 30ms
+ GET /api/setup/status 200 in 102ms
+ ✓ Compiled in 118ms (598 modules)
+ GET /calendar 200 in 39ms
+ ✓ Compiled in 102ms (598 modules)
+ GET /api/setup/status 200 in 42ms
+ GET /calendar 200 in 43ms
+ ✓ Compiled in 105ms (598 modules)
+ GET /api/setup/status 200 in 47ms
+ GET /calendar 200 in 38ms
+ GET /api/setup/status 200 in 80ms
+ ✓ Compiled in 104ms (598 modules)
+ GET /calendar 200 in 33ms
+ GET /api/setup/status 200 in 82ms
+ ✓ Compiled in 107ms (598 modules)
+ GET /calendar 200 in 116ms
+ ✓ Compiled in 121ms (598 modules)
+ GET /api/setup/status 200 in 92ms
+ ✓ Compiled in 107ms (598 modules)
+ GET /calendar 200 in 97ms
+ ✓ Compiled in 122ms (598 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 89ms
+ ✓ Compiled in 114ms (598 modules)
+ GET /api/setup/status 200 in 9ms
+ ✓ Compiled in 120ms (598 modules)
+ GET /calendar 200 in 113ms
+ ✓ Compiled in 111ms (598 modules)
+ ✓ Compiled in 142ms (598 modules)
+ ✓ Compiled in 176ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 98ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 108ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 142ms (598 modules)
+ GET /api/auth/session 200 in 24ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] event.list took 142ms to execute
+[TRPC] calendar.listMine took 437ms to execute
+[TRPC] calendar.getBusiness took 489ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 520ms
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 18ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 17ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 57ms
+ GET /api/setup/status 200 in 27ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 32ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 32ms
+ GET /api/setup/status 200 in 15ms
+[TRPC] admin.dashboard took 151ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 173ms
+ GET /admin 200 in 32ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 34ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 19ms
+ GET /api/setup/status 200 in 14ms
+ GET /tickets 200 in 17ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] event.tickets took 120ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 190ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 33ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.getBusiness took 124ms to execute
+[TRPC] calendar.listMine took 234ms to execute
+[TRPC] event.list took 454ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 494ms
+ ✓ Compiled in 202ms (598 modules)
+ GET /api/setup/status 200 in 18ms
+ GET /calendar 200 in 40ms
+ ✓ Compiled in 687ms (2397 modules)
+ GET /api/setup/status 200 in 99ms
+ GET /calendar 200 in 222ms
+ GET /api/setup/status 200 in 11ms
+ GET /tickets 200 in 25ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] event.tickets took 126ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 217ms
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 30ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.listMine took 202ms to execute
+[TRPC] calendar.getBusiness took 216ms to execute
+[TRPC] event.list took 282ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 311ms
+ ✓ Compiled in 127ms (598 modules)
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 26ms
+ ✓ Compiled in 216ms (598 modules)
+ GET /api/setup/status 200 in 26ms
+ GET /calendar 200 in 41ms
+ ✓ Compiled in 141ms (598 modules)
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 25ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.dashboard took 443ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 482ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.listMine took 203ms to execute
+ GET /api/trpc/calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 244ms
+ ✓ Compiled in 187ms (598 modules)
+ GET /api/setup/status 200 in 19ms
+ GET /admin 200 in 47ms
+ ✓ Compiled /api/auth/[...nextauth] in 399ms (1798 modules)
+ GET /api/auth/session 200 in 782ms
+ GET /api/setup/status 200 in 748ms
+ ✓ Compiled /api/trpc/[trpc] in 236ms (1801 modules)
+[TRPC] calendar.listMine took 410ms to execute
+ GET /api/trpc/calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 910ms
+ ✓ Compiled in 109ms (598 modules)
+ GET /api/setup/status 200 in 16ms
+ GET /admin 200 in 61ms
+ ✓ Compiled in 108ms (598 modules)
+ GET /api/setup/status 200 in 12ms
+ ✓ Compiled in 120ms (598 modules)
+ GET /admin 200 in 114ms
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 98ms (598 modules)
+ ✓ Compiled in 97ms (598 modules)
+ ✓ Compiled in 96ms (598 modules)
+ ✓ Compiled in 136ms (598 modules)
+ ✓ Compiled in 135ms (598 modules)
+ ✓ Compiled in 124ms (598 modules)
+ ✓ Compiled in 107ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 109ms (598 modules)
+ ✓ Compiled in 104ms (598 modules)
+ ✓ Compiled in 107ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 110ms (598 modules)
+ ✓ Compiled in 107ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 111ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 137ms (598 modules)
+ ✓ Compiled in 154ms (598 modules)
+ ✓ Compiled in 188ms (598 modules)
+ ✓ Compiled in 119ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 119ms (598 modules)
+ ✓ Compiled in 111ms (598 modules)
+ ✓ Compiled in 106ms (598 modules)
+ ✓ Compiled in 116ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 108ms (598 modules)
+ ✓ Compiled in 110ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 97ms (598 modules)
+ ✓ Compiled in 100ms (598 modules)
+ ✓ Compiled in 99ms (598 modules)
+ ✓ Compiled in 105ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 96ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 101ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 102ms (598 modules)
+ ✓ Compiled in 103ms (598 modules)
+ ✓ Compiled in 111ms (598 modules)
+ ✓ Compiled in 139ms (598 modules)
+ ⨯ ./src/app/admin/_components/AdminShell.tsx:8:1
+Module not found: Can't resolve './DatabaseView'
+   6 |
+   7 | import { DashboardView } from "./DashboardView";
+>  8 | import { DatabaseView } from "./DatabaseView";
+     | ^
+   9 | import { ImportExportView } from "./ImportExportView";
+  10 | import { ReportsView } from "./ReportsView";
+  11 | import { UsersView } from "./UsersView";
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ./src/app/admin/_components/AdminShell.tsx:8:1
+Module not found: Can't resolve './DatabaseView'
+   6 |
+   7 | import { DashboardView } from "./DashboardView";
+>  8 | import { DatabaseView } from "./DatabaseView";
+     | ^
+   9 | import { ImportExportView } from "./ImportExportView";
+  10 | import { ReportsView } from "./ReportsView";
+  11 | import { UsersView } from "./UsersView";
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ./src/app/admin/_components/AdminShell.tsx:8:1
+Module not found: Can't resolve './DatabaseView'
+   6 |
+   7 | import { DashboardView } from "./DashboardView";
+>  8 | import { DatabaseView } from "./DatabaseView";
+     | ^
+   9 | import { ImportExportView } from "./ImportExportView";
+  10 | import { ReportsView } from "./ReportsView";
+  11 | import { UsersView } from "./UsersView";
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ./src/app/admin/_components/AdminShell.tsx:8:1
+Module not found: Can't resolve './DatabaseView'
+   6 |
+   7 | import { DashboardView } from "./DashboardView";
+>  8 | import { DatabaseView } from "./DatabaseView";
+     | ^
+   9 | import { ImportExportView } from "./ImportExportView";
+  10 | import { ReportsView } from "./ReportsView";
+  11 | import { UsersView } from "./UsersView";
+
+https://nextjs.org/docs/messages/module-not-found
+ ✓ Compiled in 774ms (2377 modules)
+ ✓ Compiled /api/setup/status in 423ms (1797 modules)
+ GET /api/setup/status 200 in 554ms
+ ✓ Compiled /api/trpc/[trpc] in 350ms (1800 modules)
+[TRPC] admin.databaseSummary took 136ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+[TRPC] admin.databaseEvents took 245ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 874ms
+ GET /api/setup/status 200 in 16ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 156ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 195ms
+[TRPC] admin.databaseSummary took 341ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 373ms
+ GET /api/setup/status 200 in 12ms
+ GET /api/setup/status 200 in 15ms
+[TRPC] admin.databaseEvents took 480ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 523ms
+[TRPC] admin.databaseSummary took 450ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 478ms
+ GET /api/setup/status 200 in 12ms
+ GET /api/setup/status 200 in 14ms
+[TRPC] admin.databaseEvents took 188ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 207ms
+[TRPC] admin.databaseSummary took 404ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 431ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.users took 314ms to execute
+ GET /api/trpc/admin.users?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 348ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseSummary took 185ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+[TRPC] admin.databaseEvents took 496ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 533ms
+ GET /api/setup/status 200 in 13ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseSummary took 342ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 366ms
+[TRPC] admin.databaseEvents took 400ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 428ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.databaseSummary took 140ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 164ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.databaseEvents took 497ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 522ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.databaseSummary took 357ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 386ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.databaseEvents took 110ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 148ms
+ ✓ Compiled in 359ms (2399 modules)
+ GET /api/setup/status 200 in 34ms
+[TRPC] admin.databaseEvents took 401ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+[TRPC] admin.databaseSummary took 477ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 630ms
+ GET /api/setup/status 200 in 9ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 326ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 348ms
+[TRPC] admin.databaseSummary took 263ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 297ms
+ GET /api/setup/status 200 in 9ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.databaseEvents took 171ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 187ms
+[TRPC] admin.databaseSummary took 343ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 383ms
+ GET /api/setup/status 200 in 10ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 433ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 472ms
+[TRPC] admin.databaseSummary took 357ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 395ms
+ ✓ Compiled in 126ms (599 modules)
+ ✓ Compiled in 112ms (599 modules)
+ ✓ Compiled in 166ms (599 modules)
+ ✓ Compiled in 207ms (599 modules)
+ ✓ Compiled in 140ms (599 modules)
+ ✓ Compiled in 122ms (599 modules)
+ ✓ Compiled in 201ms (599 modules)
+ ✓ Compiled in 191ms (599 modules)
+ ✓ Compiled in 133ms (599 modules)
+ ✓ Compiled in 128ms (599 modules)
+ ✓ Compiled in 183ms (599 modules)
+ ✓ Compiled in 192ms (599 modules)
+ ✓ Compiled in 128ms (599 modules)
+ ✓ Compiled in 114ms (599 modules)
+ ✓ Compiled in 113ms (599 modules)
+ ✓ Compiled in 101ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 104ms (599 modules)
+ ✓ Compiled in 111ms (599 modules)
+ ✓ Compiled in 105ms (599 modules)
+ ✓ Compiled in 101ms (599 modules)
+ ✓ Compiled in 109ms (599 modules)
+ ✓ Compiled in 100ms (599 modules)
+ ✓ Compiled in 101ms (599 modules)
+ ✓ Compiled in 107ms (599 modules)
+ ✓ Compiled in 111ms (599 modules)
+ ✓ Compiled in 102ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 98ms (599 modules)
+ ✓ Compiled in 110ms (599 modules)
+ ✓ Compiled in 100ms (599 modules)
+ ✓ Compiled in 102ms (599 modules)
+ ✓ Compiled in 105ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 105ms (599 modules)
+ ✓ Compiled in 138ms (599 modules)
+ ✓ Compiled in 177ms (599 modules)
+ ✓ Compiled in 159ms (599 modules)
+ ✓ Compiled in 690ms (2377 modules)
+ ✓ Compiled /api/setup/status in 549ms (2377 modules)
+ ✓ Compiled (2396 modules)
+ GET /api/setup/status 200 in 536ms
+ ✓ Compiled /api/trpc/[trpc] in 203ms (1800 modules)
+[TRPC] admin.databaseSummary took 108ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+[TRPC] admin.databaseEvents took 402ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 836ms
+ GET /api/setup/status 200 in 17ms
+[TRPC] admin.databaseSummary took 155ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 172ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseEvents took 403ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 443ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.databaseSummary took 357ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 398ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] admin.databaseEvents took 326ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 361ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseSummary took 124ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 162ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseEvents took 202ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 239ms
+ ✓ Compiled in 187ms (599 modules)
+ ✓ Compiled in 148ms (599 modules)
+ ✓ Compiled in 170ms (599 modules)
+ ✓ Compiled in 219ms (599 modules)
+ ✓ Compiled in 134ms (599 modules)
+ GET /api/setup/status 200 in 16ms
+[TRPC] admin.deleteAllEvents took 463ms to execute
+❌ tRPC failed on admin.deleteAllEvents: Admin access is required for this operation.
+ POST /api/trpc/admin.deleteAllEvents?batch=1 200 in 512ms
+ ✓ Compiled in 181ms (599 modules)
+ ✓ Compiled in 152ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+[TRPC] admin.deleteAllEvents took 388ms to execute
+❌ tRPC failed on admin.deleteAllEvents: Admin access is required for this operation.
+ POST /api/trpc/admin.deleteAllEvents?batch=1 200 in 433ms
+ ✓ Compiled in 133ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 61ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 30ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 32ms
+ GET /api/setup/status 200 in 9ms
+ GET /api/setup/status 200 in 14ms
+ GET /calendar 200 in 37ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 36ms
+ GET /api/setup/status 200 in 13ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 34ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 30ms
+[TRPC] calendar.getBusiness took 319ms to execute
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 33ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 32ms
+[TRPC] event.list took 427ms to execute
+ GET /api/setup/status 200 in 15ms
+[TRPC] calendar.listMine took 466ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 502ms
+ GET /calendar 200 in 33ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 24ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 33ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 13ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 32ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /calendar 200 in 26ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 26ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 26ms
+ GET /api/setup/status 200 in 7ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 23ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 26ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 23ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 41ms
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 28ms
+ GET /api/setup/status 200 in 11ms
+ GET /calendar 200 in 38ms
+ GET /api/setup/status 200 in 18ms
+ GET /calendar 200 in 32ms
+ GET /api/setup/status 200 in 19ms
+ GET /calendar 200 in 119ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 30ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 30ms
+ GET /api/setup/status 200 in 8ms
+ GET /calendar 200 in 29ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 17ms
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 36ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 35ms
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.dashboard took 332ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 350ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 34ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 20ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 22ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 20ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 21ms
+ GET /api/setup/status 200 in 7ms
+ GET /admin 200 in 20ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 24ms
+ GET /api/setup/status 200 in 16ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 19ms
+ ✓ Compiled in 152ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 96ms
+ ✓ Compiled in 134ms (599 modules)
+ ✓ Compiled in 107ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 101ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 100ms (599 modules)
+ ✓ Compiled in 99ms (599 modules)
+ ✓ Compiled in 96ms (599 modules)
+ ✓ Compiled in 112ms (599 modules)
+ ✓ Compiled in 158ms (599 modules)
+ ✓ Compiled in 750ms (2399 modules)
+ GET /api/setup/status 200 in 81ms
+[TRPC] admin.databaseSummary took 433ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+[TRPC] admin.databaseEvents took 446ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 640ms
+ GET /api/setup/status 200 in 15ms
+ GET /api/setup/status 200 in 20ms
+[TRPC] admin.databaseEvents took 181ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 194ms
+[TRPC] admin.databaseSummary took 333ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 350ms
+ GET /api/setup/status 200 in 10ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 449ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 466ms
+[TRPC] admin.databaseSummary took 446ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 457ms
+ GET /api/setup/status 200 in 10ms
+ GET /api/setup/status 200 in 22ms
+[TRPC] admin.databaseEvents took 452ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 465ms
+[TRPC] admin.databaseSummary took 503ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 517ms
+ ✓ Compiled in 128ms (599 modules)
+ ✓ Compiled in 105ms (599 modules)
+ ✓ Compiled in 109ms (599 modules)
+ ✓ Compiled in 109ms (599 modules)
+ ✓ Compiled in 105ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 111ms (599 modules)
+ ✓ Compiled in 120ms (599 modules)
+ ✓ Compiled in 150ms (599 modules)
+ GET /api/setup/status 200 in 15ms
+[TRPC] admin.deleteAllEvents took 276ms to execute
+ POST /api/trpc/admin.deleteAllEvents?batch=1 200 in 313ms
+ GET /api/setup/status 200 in 14ms
+[TRPC] admin.databaseEvents took 217ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 250ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 389ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 410ms
+ GET /api/setup/status 200 in 14ms
+[TRPC] admin.databaseEvents took 481ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 497ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.databaseEvents took 217ms to execute
+❌ tRPC failed on admin.databaseEvents: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 250ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseSummary took 498ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 535ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseSummary took 326ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 368ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseSummary took 312ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 342ms
+ ✓ Compiled in 191ms (599 modules)
+ ✓ Compiled in 163ms (599 modules)
+ GET /api/setup/status 200 in 18ms
+[TRPC] admin.databaseSummary took 187ms to execute
+❌ tRPC failed on admin.databaseSummary: Admin access is required for this operation.
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 233ms
+ ✓ Compiled in 610ms (2399 modules)
+ ✓ Compiled /api/auth/[...nextauth] in 465ms (1802 modules)
+ GET /api/auth/session 200 in 884ms
+ GET /api/setup/status 200 in 805ms
+[TRPC] admin.databaseSummary took 172ms to execute
+[TRPC] admin.databaseEvents took 236ms to execute
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 455ms
+ GET /api/setup/status 200 in 20ms
+ GET /admin 200 in 248ms
+ GET /api/auth/session 200 in 16ms
+ GET /api/setup/status 200 in 16ms
+[TRPC] admin.dashboard took 279ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 308ms
+ GET /api/setup/status 200 in 19ms
+[TRPC] admin.databaseEvents took 281ms to execute
+[TRPC] admin.databaseSummary took 453ms to execute
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 488ms
+ ✓ Compiled in 115ms (599 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 30ms
+ ✓ Compiled in 116ms (599 modules)
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 33ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] admin.deleteAllEvents took 108ms to execute
+ POST /api/trpc/admin.deleteAllEvents?batch=1 200 in 147ms
+ GET /api/setup/status 200 in 15ms
+[TRPC] admin.databaseEvents took 459ms to execute
+ GET /api/trpc/admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 488ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.databaseSummary took 110ms to execute
+ GET /api/trpc/admin.databaseSummary?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 132ms
+ GET /api/setup/status 200 in 13ms
+ GET /tickets 200 in 25ms
+ GET /api/setup/status 200 in 14ms
+[TRPC] event.tickets took 343ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 371ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 31ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] calendar.listMine took 189ms to execute
+[TRPC] event.list took 281ms to execute
+[TRPC] calendar.getBusiness took 328ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 363ms
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 24ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.settings took 127ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 172ms
+ GET /api/setup/status 200 in 15ms
+ GET /calendar 200 in 15ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 18ms
+ ✓ Compiled in 115ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 61ms
+ GET /api/auth/session 200 in 21ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.dashboard took 132ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 164ms
+ ✓ Compiled in 199ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 32ms
