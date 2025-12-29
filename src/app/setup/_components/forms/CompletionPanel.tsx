@@ -7,11 +7,13 @@ export function CompletionPanel({
   onComplete,
   completing,
   completionError,
+  themeSelection,
 }: {
   status: SetupStatusData;
   onComplete: () => void;
   completing: boolean;
   completionError: string | null;
+  themeSelection: { paletteId: number | null; paletteName: string | null } | null;
 }) {
   const summaries = [
     { label: "Business", complete: !!status.business },
@@ -19,6 +21,9 @@ export function CompletionPanel({
     { label: "Departments", complete: status.stepCompletion.departments },
     { label: "Team accounts", complete: status.stepCompletion.users },
   ];
+  const themeLabel = themeSelection
+    ? themeSelection.paletteName ?? "Base palette"
+    : "Not selected";
 
   return (
     <div className="space-y-6">
@@ -36,6 +41,10 @@ export function CompletionPanel({
               <span className={item.complete ? "text-status-success" : "text-ink-subtle"}>{item.complete ? "Ready" : "Missing"}</span>
             </li>
           ))}
+          <li className="flex items-center justify-between">
+            <span className="text-ink-primary">Theme</span>
+            <span className={themeSelection ? "text-status-success" : "text-ink-subtle"}>{themeLabel}</span>
+          </li>
         </ul>
         {status.missingAdmins.length > 0 ? (
           <div className="mt-3 text-xs text-status-warning">

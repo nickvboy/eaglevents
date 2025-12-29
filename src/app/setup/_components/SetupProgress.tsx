@@ -2,45 +2,59 @@
 
 import type { SetupStatusData } from "~/types/setup";
 
-type StepKey = "business" | "buildings" | "departments" | "users" | "complete";
+type StepKey = "business" | "buildings" | "departments" | "users" | "theme" | "complete";
 
 const labels: Record<StepKey, { title: string; description: string }> = {
   business: { title: "Business", description: "Name and organization type" },
   buildings: { title: "Buildings", description: "Facilities and rooms" },
   departments: { title: "Departments", description: "Departments and divisions" },
   users: { title: "Team accounts", description: "Admins, managers, employees" },
+  theme: { title: "Theme", description: "Workspace palette" },
   complete: { title: "Finish", description: "Review and launch" },
 };
 
-const order: StepKey[] = ["business", "buildings", "departments", "users", "complete"];
+const order: StepKey[] = ["business", "buildings", "departments", "users", "theme", "complete"];
 
 export function SetupProgress({
   status,
   currentStep,
   onStepChange,
+  maxUnlockedIndex,
+  themeSelected,
 }: {
   status: SetupStatusData;
   currentStep: StepKey;
   onStepChange: (step: StepKey) => void;
+  maxUnlockedIndex: number;
+  themeSelected: boolean;
 }) {
   const completionMap: Record<StepKey, boolean> = {
     business: !!status.business,
     buildings: status.stepCompletion.buildings,
     departments: status.stepCompletion.departments,
     users: status.stepCompletion.users,
+    theme: themeSelected,
     complete: status.readyForCompletion,
   };
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/40 p-6 shadow-lg">
+    <div className="rounded-lg border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
       <h1 className="text-2xl font-semibold">Initial setup</h1>
-      <p className="mt-1 text-sm text-white/60">Complete each step to unlock the platform.</p>
+      <p className="mt-1 text-sm text-ink-muted">Complete each step to unlock the platform.</p>
       <div className="mt-6 space-y-4">
         {order.map((step) => {
           const meta = labels[step];
           const completed = completionMap[step];
           const active = currentStep === step;
-          const disabled = !completed && order.indexOf(step) > order.indexOf(currentStep);
+          const disabled = order.indexOf(step) > maxUnlockedIndex;
+          const statusLabel =
+            step === "theme" && !completed
+              ? "Optional"
+              : completed
+                ? "Done"
+                : active
+                  ? "In progress"
+                  : "Pending";
           return (
             <button
               key={step}
@@ -49,21 +63,21 @@ export function SetupProgress({
               disabled={disabled}
               className={`w-full rounded-md border px-4 py-3 text-left transition ${
                 active
-                  ? "border-emerald-400 bg-emerald-400/10"
-                  : "border-white/10 hover:border-white/30 disabled:border-white/5 disabled:opacity-40"
+                  ? "border-outline-accent bg-accent-muted/40"
+                  : "border-outline-muted hover:border-outline-strong disabled:border-outline-muted/40 disabled:opacity-40"
               }`}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold">{meta.title}</div>
-                  <div className="text-xs text-white/60">{meta.description}</div>
+                  <div className="text-xs text-ink-muted">{meta.description}</div>
                 </div>
                 <div
                   className={`text-xs font-semibold ${
-                    completed ? "text-emerald-400" : active ? "text-white" : "text-white/50"
+                    completed ? "text-status-success" : active ? "text-ink-primary" : "text-ink-subtle"
                   }`}
                 >
-                  {completed ? "Done" : active ? "In progress" : "Pending"}
+                  {statusLabel}
                 </div>
               </div>
             </button>

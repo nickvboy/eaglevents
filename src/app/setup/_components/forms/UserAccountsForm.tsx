@@ -231,7 +231,7 @@ export function UserAccountsForm({
   if (!status.business) {
     return (
       <div>
-        <p className="text-sm text-white/70">Complete the earlier steps before adding user accounts.</p>
+        <p className="text-sm text-ink-muted">Complete the earlier steps before adding user accounts.</p>
       </div>
     );
   }
@@ -240,20 +240,20 @@ export function UserAccountsForm({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Create team accounts</h2>
-        <p className="mt-1 text-sm text-white/60">
+        <p className="mt-1 text-sm text-ink-muted">
           Each scope needs an admin. Add optional manager/employee roles for scheduling workflows.
         </p>
       </div>
-      <div className="rounded-md border border-white/10 bg-black/60 p-4 text-sm">
+      <div className="rounded-md border border-outline-muted bg-surface-muted p-4 text-sm">
         <div className="flex items-center justify-between">
-          <div className="text-xs uppercase text-white/50">Current assignments</div>
+          <div className="text-xs uppercase text-ink-subtle">Current assignments</div>
           <div className="flex gap-2">
             {status.missingAdmins.length > 0 ? (
               <button
                 type="button"
                 onClick={() => createDefaultUsersMutation.mutate()}
                 disabled={createDefaultUsersMutation.isPending}
-                className="rounded-md border border-emerald-400/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-60"
+                className="rounded-md border border-outline-accent px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-primary transition hover:bg-accent-muted disabled:opacity-60"
               >
                 {createDefaultUsersMutation.isPending ? "Creating..." : "Create default accounts"}
               </button>
@@ -267,7 +267,7 @@ export function UserAccountsForm({
                   }
                 }}
                 disabled={clearAccountsMutation.isPending}
-                className="rounded-md border border-red-400/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-red-300 transition hover:bg-red-400/10 disabled:opacity-60"
+                className="rounded-md border border-status-danger px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-status-danger transition hover:bg-status-danger-surface disabled:opacity-60"
               >
                 {clearAccountsMutation.isPending ? "Clearing..." : "Clear all accounts"}
               </button>
@@ -279,19 +279,19 @@ export function UserAccountsForm({
             <div key={group.key}>
               <div className="font-semibold">{group.label}</div>
               {group.entries.length > 0 ? (
-                <ul className="mt-1 list-disc pl-5 text-white/70">
+                <ul className="mt-1 list-disc pl-5 text-ink-muted">
                   {group.entries.map((entry, idx) => (
                     <li key={`${group.key}-${idx}`}>{entry}</li>
                   ))}
                 </ul>
               ) : (
-                <div className="text-white/50">No users yet</div>
+                <div className="text-ink-subtle">No users yet</div>
               )}
             </div>
           ))}
         </div>
         {status.missingAdmins.length > 0 ? (
-          <div className="mt-3 rounded border border-yellow-500/30 bg-yellow-500/10 p-2 text-xs text-yellow-300">
+          <div className="mt-3 rounded border border-status-warning bg-status-warning-surface/40 p-2 text-xs text-status-warning">
             <div className="font-semibold">Missing admins:</div>
             <ul className="mt-1 list-disc pl-5">
               {status.missingAdmins.map((missing) => (
@@ -301,35 +301,35 @@ export function UserAccountsForm({
           </div>
         ) : null}
         {createDefaultUsersMutation.error ? (
-          <p className="mt-2 text-xs text-red-300">{createDefaultUsersMutation.error.message}</p>
+          <p className="mt-2 text-xs text-status-danger">{createDefaultUsersMutation.error.message}</p>
         ) : null}
         {clearAccountsMutation.error ? (
-          <p className="mt-2 text-xs text-red-300">{clearAccountsMutation.error.message}</p>
+          <p className="mt-2 text-xs text-status-danger">{clearAccountsMutation.error.message}</p>
         ) : null}
       </div>
       {generatedDefaults.length > 0 ? (
-        <div className="rounded-md border border-white/10 bg-black/60 p-4 text-sm">
+        <div className="rounded-md border border-outline-muted bg-surface-muted p-4 text-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs uppercase text-white/50">Generated default accounts</div>
-              <p className="mt-1 text-xs text-white/60">Copy these credentials before leaving this page.</p>
+              <div className="text-xs uppercase text-ink-subtle">Generated default accounts</div>
+              <p className="mt-1 text-xs text-ink-muted">Copy these credentials before leaving this page.</p>
             </div>
             <button
               type="button"
               onClick={() => setGeneratedDefaults([])}
-              className="text-xs text-white/60 transition hover:text-white"
+              className="text-xs text-ink-muted transition hover:text-ink-primary"
             >
               Clear list
             </button>
           </div>
           <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
             {generatedDefaults.map((user) => (
-              <div key={`${user.username}-${user.roleType}`} className="rounded border border-white/10 bg-black/50 p-3">
+              <div key={`${user.username}-${user.roleType}`} className="rounded border border-outline-muted bg-surface-muted p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-semibold">{user.scopeLabel}</span>
-                  <span className="text-xs uppercase text-white/60">{roleLabels[user.roleType] ?? user.roleType}</span>
+                  <span className="text-xs uppercase text-ink-muted">{roleLabels[user.roleType] ?? user.roleType}</span>
                 </div>
-                <div className="mt-2 grid gap-1 font-mono text-[11px] text-white/80">
+                <div className="mt-2 grid gap-1 font-mono text-[11px] text-ink-primary">
                   <span>username: {user.username}</span>
                   <span>password: {user.password}</span>
                   <span>email: {user.email}</span>
@@ -342,21 +342,21 @@ export function UserAccountsForm({
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">First name</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">First name</label>
             <input
               value={form.firstName}
               onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="Riley"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">Last name</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">Last name</label>
             <input
               value={form.lastName}
               onChange={(e) => setForm((prev) => ({ ...prev, lastName: e.target.value }))}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="Jordan"
               required
             />
@@ -364,18 +364,18 @@ export function UserAccountsForm({
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">Email</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">Email</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="riley@example.edu"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">Phone</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">Phone</label>
             <input
               type="tel"
               inputMode="tel"
@@ -388,7 +388,7 @@ export function UserAccountsForm({
                   phoneNumber: digits,
                 }));
               }}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="(555) 123-4567"
               required
             />
@@ -396,43 +396,43 @@ export function UserAccountsForm({
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">Username</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">Username</label>
             <input
               value={form.username}
               onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="riley.jordan"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase text-white/50">Password</label>
+            <label className="mb-1 block text-xs uppercase text-ink-subtle">Password</label>
             <input
               type="password"
               value={form.password}
               onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-              className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               placeholder="Strong password"
               required
             />
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs uppercase text-white/50">Date of birth (optional)</label>
+          <label className="mb-1 block text-xs uppercase text-ink-subtle">Date of birth (optional)</label>
           <input
             type="date"
             value={form.dateOfBirth}
             onChange={(e) => setForm((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
-            className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+            className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
           />
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs uppercase text-white/50">Role assignments</label>
+            <label className="text-xs uppercase text-ink-subtle">Role assignments</label>
             <button
               type="button"
               onClick={addAssignment}
-              className="text-xs font-semibold text-emerald-300 hover:text-emerald-200"
+              className="text-xs font-semibold text-ink-primary hover:text-accent-soft"
             >
               + Add assignment
             </button>
@@ -448,7 +448,7 @@ export function UserAccountsForm({
                     scopeId: Number(scopeId),
                   });
                 }}
-                className="rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+                className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               >
                 {scopeOptions.map((option) => (
                   <option key={`${option.scopeType}-${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
@@ -459,43 +459,43 @@ export function UserAccountsForm({
               <select
                 value={assignment.roleType}
                 onChange={(e) => updateAssignment(assignment.id, { roleType: e.target.value as AssignmentDraft["roleType"] })}
-                className="rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+                className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               >
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="employee">Employee</option>
               </select>
-              <button type="button" className="text-xs text-white/50 hover:text-white" onClick={() => removeAssignment(assignment.id)}>
+              <button type="button" className="text-xs text-ink-subtle hover:text-ink-primary" onClick={() => removeAssignment(assignment.id)}>
                 Remove
               </button>
             </div>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-xs text-white/70">
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
           <input
             type="checkbox"
             checked={form.rememberForLogin}
             onChange={(e) => setForm((prev) => ({ ...prev, rememberForLogin: e.target.checked }))}
-            className="h-4 w-4 rounded border-white/30 bg-black/70"
+            className="h-4 w-4 rounded border-outline-muted/60 bg-surface-raised"
           />
           Use this account to sign in after setup
         </label>
         {rememberedCredential ? (
-          <p className="text-xs text-emerald-300">Will sign in as {rememberedCredential.identifier} once setup completes.</p>
+          <p className="text-xs text-ink-primary">Will sign in as {rememberedCredential.identifier} once setup completes.</p>
         ) : null}
-        {mutation.error ? <p className="text-sm text-red-300">{mutation.error.message}</p> : null}
+        {mutation.error ? <p className="text-sm text-status-danger">{mutation.error.message}</p> : null}
         <div className="flex gap-3">
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+            className="rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
           >
             {mutation.isPending ? "Creating..." : "Create account"}
           </button>
           <button
             type="button"
             onClick={() => onRememberCredential(null)}
-            className="text-xs text-white/60 hover:text-white"
+            className="text-xs text-ink-muted hover:text-ink-primary"
           >
             Clear saved credentials
           </button>
@@ -504,3 +504,4 @@ export function UserAccountsForm({
     </div>
   );
 }
+

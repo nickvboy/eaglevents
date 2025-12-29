@@ -73,21 +73,21 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Departments & divisions</h2>
-        <p className="mt-1 text-sm text-white/60">Model reporting lines so calendars inherit permissions.</p>
+        <p className="mt-1 text-sm text-ink-muted">Model reporting lines so calendars inherit permissions.</p>
       </div>
       {status.departments.roots.length > 0 ? (
-        <div className="rounded-md border border-white/10 bg-black/60 p-4 text-sm">
-          <div className="text-xs uppercase text-white/50">Existing</div>
+        <div className="rounded-md border border-outline-muted bg-surface-muted p-4 text-sm">
+          <div className="text-xs uppercase text-ink-subtle">Existing</div>
           <div className="mt-2 space-y-3">
             {status.departments.roots.map((dept: DepartmentTreeNode) => (
               <div key={dept.id}>
                 <div className="font-semibold">{dept.name}</div>
                 {dept.children.length > 0 ? (
-                  <div className="mt-1 text-white/60">
+                  <div className="mt-1 text-ink-muted">
                     Divisions: {dept.children.map((child: DepartmentTreeNode) => child.name).join(", ")}
                   </div>
                 ) : (
-                  <div className="text-white/50">No divisions yet</div>
+                  <div className="text-ink-subtle">No divisions yet</div>
                 )}
               </div>
             ))}
@@ -96,32 +96,32 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
       ) : null}
       <form onSubmit={onSubmit} className="space-y-4">
         {drafts.map((draft, index) => (
-          <div key={draft.id} className="rounded-md border border-white/10 bg-black/50 p-4">
+          <div key={draft.id} className="rounded-md border border-outline-muted bg-surface-muted p-4">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">Department {index + 1}</div>
               {drafts.length > 1 ? (
                 <button
                   type="button"
                   onClick={() => setDrafts((prev) => prev.filter((item) => item.id !== draft.id))}
-                  className="text-xs text-white/50 hover:text-white"
+                  className="text-xs text-ink-subtle hover:text-ink-primary"
                 >
                   Remove
                 </button>
               ) : null}
             </div>
             <div className="mt-3">
-              <label className="mb-1 block text-xs uppercase text-white/50">Name</label>
+              <label className="mb-1 block text-xs uppercase text-ink-subtle">Name</label>
               <input
                 value={draft.name}
                 onChange={(e) =>
                   setDrafts((prev) => prev.map((item) => (item.id === draft.id ? { ...item, name: e.target.value } : item)))
                 }
-                className="w-full rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                 placeholder="Event Production"
               />
             </div>
             <div className="mt-4">
-              <label className="mb-1 block text-xs uppercase text-white/50">Divisions (optional)</label>
+              <label className="mb-1 block text-xs uppercase text-ink-subtle">Divisions (optional)</label>
               <div className="flex gap-2">
                 <input
                   value={draft.divisionField}
@@ -130,13 +130,13 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
                       prev.map((item) => (item.id === draft.id ? { ...item, divisionField: e.target.value } : item)),
                     )
                   }
-                  className="flex-1 rounded-md border border-white/15 bg-black/60 px-3 py-2 text-sm outline-none ring-emerald-500/50 focus:ring"
+                  className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                   placeholder="Broadcast Ops"
                 />
                 <button
                   type="button"
                   onClick={() => addDivision(draft.id)}
-                  className="rounded-md border border-emerald-400/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-400/10"
+                  className="rounded-md border border-outline-accent px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-primary hover:bg-accent-muted"
                 >
                   Add division
                 </button>
@@ -144,16 +144,16 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
               {draft.divisions.length > 0 ? (
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                   {draft.divisions.map((division) => (
-                    <span key={division} className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1">
+                    <span key={division} className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1">
                       {division}
-                      <button type="button" onClick={() => removeDivision(draft.id, division)} className="text-white/60">
+                      <button type="button" onClick={() => removeDivision(draft.id, division)} className="text-ink-subtle">
                         ×
                       </button>
                     </span>
                   ))}
                 </div>
               ) : (
-                <p className="mt-1 text-xs text-white/50">Divisions inherit their parent department.</p>
+                <p className="mt-1 text-xs text-ink-subtle">Divisions inherit their parent department.</p>
               )}
             </div>
           </div>
@@ -161,16 +161,16 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
         <button
           type="button"
           onClick={() => setDrafts((prev) => [...prev, createDraft()])}
-          className="w-full rounded-md border border-white/20 px-4 py-2 text-sm text-white/80 hover:border-white/40"
+          className="w-full rounded-md border border-outline-muted px-4 py-2 text-sm text-ink-muted hover:border-outline-strong"
         >
           + Add another department
         </button>
-        {error ? <p className="text-sm text-red-300">{error}</p> : null}
-        {mutation.error ? <p className="text-sm text-red-300">{mutation.error.message}</p> : null}
+        {error ? <p className="text-sm text-status-danger">{error}</p> : null}
+        {mutation.error ? <p className="text-sm text-status-danger">{mutation.error.message}</p> : null}
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+          className="rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
         >
           {mutation.isPending ? "Saving..." : "Save departments"}
         </button>

@@ -2,7 +2,7 @@ import { faker } from "@faker-js/faker";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
@@ -13,6 +13,8 @@ import {
   organizationRoles,
   users,
   profiles,
+  themePalettes,
+  themeProfiles,
 } from "~/server/db/schema";
 import { getSetupStatus } from "~/server/services/setup";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
@@ -554,7 +556,9 @@ export const setupRouter = createTRPCRouter({
     };
   }),
 
-  completeSetup: publicProcedure.mutation(async ({ ctx }) => {
+  completeSetup: publicProcedure
+    .input(z.object({ paletteId: z.number().int().positive().nullable().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
     const status = await getSetupStatus(ctx.db);
     requireActiveSetup(status);
     if (!status.business) {
@@ -572,6 +576,60 @@ export const setupRouter = createTRPCRouter({
     );
 
     await ctx.db.transaction(async (tx) => {
+      if (input?.paletteId !== undefined) {
+        if (input.paletteId === null) {
+          await tx
+            .delete(themeProfiles)
+            .where(
+              and(
+                eq(themeProfiles.businessId, status.business!.id),
+                eq(themeProfiles.scopeType, "business"),
+                eq(themeProfiles.scopeId, status.business!.id),
+              ),
+            );
+        } else {
+          const [palette] = await tx
+            .select({ id: themePalettes.id })
+            .from(themePalettes)
+            .where(and(eq(themePalettes.id, input.paletteId), eq(themePalettes.businessId, status.business!.id)))
+            .limit(1);
+          if (!palette) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Selected theme does not belong to this workspace." });
+          }
+
+          const [existing] = await tx
+            .select({ id: themeProfiles.id })
+            .from(themeProfiles)
+            .where(
+              and(
+                eq(themeProfiles.businessId, status.business!.id),
+                eq(themeProfiles.scopeType, "business"),
+                eq(themeProfiles.scopeId, status.business!.id),
+              ),
+            )
+            .limit(1);
+
+          if (existing) {
+            await tx
+              .update(themeProfiles)
+              .set({
+                paletteId: input.paletteId,
+                updatedAt: new Date(),
+              })
+              .where(eq(themeProfiles.id, existing.id));
+          } else {
+            await tx.insert(themeProfiles).values({
+              businessId: status.business!.id,
+              scopeType: "business",
+              scopeId: status.business!.id,
+              paletteId: input.paletteId,
+              label: "Workspace default",
+              description: "",
+            });
+          }
+        }
+      }
+
       await tx
         .update(businesses)
         .set({ setupCompletedAt: new Date(), updatedAt: new Date() })

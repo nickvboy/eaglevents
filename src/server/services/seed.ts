@@ -152,7 +152,7 @@ export async function seedWorkspace(
 
   if (status.needsSetup && status.readyForCompletion) {
     log("Completing setup");
-    await caller.setup.completeSetup();
+    await caller.setup.completeSetup(undefined);
   } else if (!status.needsSetup) {
     log("Setup already completed");
   } else {

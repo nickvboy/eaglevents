@@ -12,10 +12,11 @@ import { BuildingsForm } from "./forms/BuildingsForm";
 import { DepartmentsForm } from "./forms/DepartmentsForm";
 import { UserAccountsForm } from "./forms/UserAccountsForm";
 import { CompletionPanel } from "./forms/CompletionPanel";
+import { ThemeForm } from "./forms/ThemeForm";
 
-type StepKey = "business" | "buildings" | "departments" | "users" | "complete";
+type StepKey = "business" | "buildings" | "departments" | "users" | "theme" | "complete";
 
-const orderedSteps: StepKey[] = ["business", "buildings", "departments", "users", "complete"];
+const orderedSteps: StepKey[] = ["business", "buildings", "departments", "users", "theme", "complete"];
 
 function deriveStep(status: SetupStatusData | undefined): StepKey {
   if (!status) return "business";
@@ -30,6 +31,8 @@ export function SetupWizard() {
   const router = useRouter();
   const [activeStep, setActiveStep] = useState<StepKey>("business");
   const [postSetupCredential, setPostSetupCredential] = useState<{ identifier: string; password: string } | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [themeSelection, setThemeSelection] = useState<{ paletteId: number | null; paletteName: string | null } | null>(null);
 
   const statusQuery = api.setup.status.useQuery(undefined, { refetchOnWindowFocus: false });
   const { data: status, isLoading, refetch, error } = statusQuery;
@@ -40,13 +43,15 @@ export function SetupWizard() {
       router.replace("/");
       return;
     }
+    const recommended = deriveStep(status);
     setActiveStep((current) => {
-      const recommended = deriveStep(status);
       const currentIndex = orderedSteps.indexOf(current);
       const recommendedIndex = orderedSteps.indexOf(recommended);
-      return currentIndex <= recommendedIndex ? recommended : current;
+      if (!hasInitialized) return recommended;
+      return currentIndex > recommendedIndex ? recommended : current;
     });
-  }, [status, router]);
+    if (!hasInitialized) setHasInitialized(true);
+  }, [status, router, hasInitialized]);
 
   const completeMutation = api.setup.completeSetup.useMutation({
     onSuccess: () => {
@@ -57,7 +62,9 @@ export function SetupWizard() {
   const handleCompleteSetup = async () => {
     if (completeMutation.isPending || !status) return;
     try {
-      await completeMutation.mutateAsync();
+      await completeMutation.mutateAsync({
+        paletteId: themeSelection?.paletteId,
+      });
     } catch {
       return;
     }
@@ -94,6 +101,9 @@ export function SetupWizard() {
           />
         );
         break;
+      case "theme":
+        stepContent = <ThemeForm onSelectionChange={setThemeSelection} />;
+        break;
       case "complete":
         stepContent = (
           <CompletionPanel
@@ -101,6 +111,7 @@ export function SetupWizard() {
             onComplete={handleCompleteSetup}
             completing={completeMutation.isPending}
             completionError={completeMutation.error?.message ?? null}
+            themeSelection={themeSelection}
           />
         );
         break;
@@ -111,16 +122,16 @@ export function SetupWizard() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
-        <div className="w-full max-w-md rounded-lg border border-white/10 bg-black/50 p-6 text-center">
+      <main className="flex min-h-screen items-center justify-center bg-surface-canvas text-ink-primary">
+        <div className="w-full max-w-md rounded-lg border border-outline-muted bg-surface-raised p-6 text-center shadow-[var(--shadow-pane)]">
           <h1 className="text-xl font-semibold">Unable to load setup status</h1>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-ink-muted">
             {error.message ?? "The server returned an unexpected error. Check the API logs and try again."}
           </p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="mt-4 rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-emerald-400"
+            className="mt-4 rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default"
           >
             Retry
           </button>
@@ -131,29 +142,32 @@ export function SetupWizard() {
 
   if (isLoading || !status) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
-        <div className="text-sm text-white/70">Loading setup data...</div>
+      <main className="flex min-h-screen items-center justify-center bg-surface-canvas text-ink-primary">
+        <div className="text-sm text-ink-muted">Loading setup data...</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
+    <main className="min-h-screen bg-surface-canvas text-ink-primary">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 md:flex-row">
         <div className="md:w-1/3">
           <SetupProgress
             status={status}
             currentStep={activeStep}
+            maxUnlockedIndex={orderedSteps.indexOf(deriveStep(status))}
             onStepChange={(step) => {
-              const recommended = deriveStep(status);
+              const maxIndex = orderedSteps.indexOf(deriveStep(status));
               const requestedIndex = orderedSteps.indexOf(step);
-              const recommendedIndex = orderedSteps.indexOf(recommended);
-              if (requestedIndex <= recommendedIndex) setActiveStep(step);
+              if (requestedIndex <= maxIndex) setActiveStep(step);
             }}
+            themeSelected={themeSelection !== null}
           />
         </div>
         <div className="md:w-2/3">
-          <div className="rounded-lg border border-white/10 bg-black/40 p-6 shadow-xl">{stepContent}</div>
+          <div className="rounded-lg border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+            {stepContent}
+          </div>
         </div>
       </div>
     </main>
