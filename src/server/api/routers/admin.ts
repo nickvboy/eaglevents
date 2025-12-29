@@ -2588,7 +2588,7 @@ export const adminRouter = createTRPCRouter({
               lastName: z.string().min(1).max(100),
               email: z.string().email().max(255),
               phoneNumber: z.string().min(1).max(32),
-              dateOfBirth: z.coerce.date().optional().nullable(),
+              dateOfBirth: z.string().optional().nullable(),
             })
             .optional(),
           primaryRole: z.enum(["admin", "manager", "employee"]).optional(),
@@ -2607,6 +2607,20 @@ export const adminRouter = createTRPCRouter({
         let existingProfileRecord: { id: number } | undefined;
 
         if (input.profile) {
+          let dateOfBirth: string | null = null;
+          if (input.profile.dateOfBirth) {
+            const parsed = new Date(input.profile.dateOfBirth);
+            if (Number.isNaN(parsed.getTime())) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date of birth." });
+            }
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (parsed > today) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Date of birth cannot be in the future." });
+            }
+            dateOfBirth = input.profile.dateOfBirth;
+          }
+
           const [existingProfile] = await tx
             .select({ id: profiles.id })
             .from(profiles)
@@ -2623,7 +2637,7 @@ export const adminRouter = createTRPCRouter({
                 lastName: input.profile.lastName,
                 email: input.profile.email,
                 phoneNumber: input.profile.phoneNumber,
-                dateOfBirth: input.profile.dateOfBirth ?? null,
+                dateOfBirth,
               })
               .where(eq(profiles.id, existingProfileRecord.id));
             profileId = existingProfileRecord.id;
@@ -2636,7 +2650,7 @@ export const adminRouter = createTRPCRouter({
                 lastName: input.profile.lastName,
                 email: input.profile.email,
                 phoneNumber: input.profile.phoneNumber,
-                dateOfBirth: input.profile.dateOfBirth ?? null,
+                dateOfBirth,
               })
               .returning({ id: profiles.id });
             profileId = createdProfile?.id ?? null;

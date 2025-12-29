@@ -139,7 +139,7 @@ export function UsersView() {
               lastName: formState.lastName.trim(),
               email: formState.profileEmail.trim(),
               phoneNumber: formState.phoneNumber.trim(),
-              dateOfBirth: formState.dateOfBirth ? new Date(formState.dateOfBirth) : undefined,
+              dateOfBirth: formState.dateOfBirth || null,
             }
           : undefined,
         primaryRole: formState.primaryRole,
@@ -230,7 +230,7 @@ export function UsersView() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-ink-subtle">{user.email}</td>
-                    <td className="px-4 py-3 text-ink-subtle capitalize">{user.primaryRole ?? "â€”"}</td>
+                    <td className="px-4 py-3 text-ink-subtle capitalize">{user.primaryRole ?? "Unassigned"}</td>
                     <td className="px-4 py-3 text-ink-subtle">{formatDateCell(user.lastActivity)}</td>
                   </tr>
                 );

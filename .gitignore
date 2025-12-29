@@ -24,6 +24,10 @@ next-env.d.ts
 # misc
 .DS_Store
 *.pem
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
 
 # debug
 npm-debug.log*

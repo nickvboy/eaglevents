@@ -14089,3 +14089,315 @@ Working dir: C:\Users\nickv\Documents\code_projects\eaglevents
 ============================== 
 C:\Program Files\nodejs\node.exe
 INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:09:52.28 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:12:51.72 
+User: nickv 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+C:\Users\nickv\AppData\Roaming\npm\pnpm
+C:\Users\nickv\AppData\Roaming\npm\pnpm.cmd
+
+> t3-app-template@0.1.0 prod C:\Users\nickv\Documents\code_projects\eaglevents
+> dotenv -e .env -- node scripts/prod.cjs
+
+
+> t3-app-template@0.1.0 dev C:\Users\nickv\Documents\code_projects\eaglevents
+> node scripts/dev.cjs
+
+   ▲ Next.js 15.5.6
+   - Local:        http://localhost:3024
+   - Network:      http://192.168.56.1:3024
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 2.4s
+ ELIFECYCLE  Command failed with exit code 1073807364.
+ ELIFECYCLE  Command failed with exit code 1073807364.
+============================== 
+Service start Mon 12/29/2025 11:58:27.53 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:58:29.65 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:58:33.75 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:58:41.90 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:58:58.04 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 11:59:30.16 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 12:00:34.33 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 12:01:01.92 
+User: nickv 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+C:\Users\nickv\AppData\Roaming\npm\pnpm
+C:\Users\nickv\AppData\Roaming\npm\pnpm.cmd
+
+> t3-app-template@0.1.0 prod C:\Users\nickv\Documents\code_projects\eaglevents
+> dotenv -e .env -- node scripts/prod.cjs
+
+
+> t3-app-template@0.1.0 dev C:\Users\nickv\Documents\code_projects\eaglevents
+> node scripts/dev.cjs
+
+   ▲ Next.js 15.5.6
+   - Local:        http://localhost:3024
+   - Network:      http://192.168.56.1:3024
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1629ms
+ ✓ Compiled /middleware in 225ms (261 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 6.8s (2038 modules)
+ ✓ Compiled in 677ms (428 modules)
+[hour-log-export] scheduled refresh failed [Error [PostgresError]: relation "t3-app-template_event_hour_log" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '106',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable'
+}
+[join-table-export] scheduled refresh failed [Error [PostgresError]: relation "t3-app-template_event" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '352',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable'
+}
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ ✓ Compiled in 138ms (428 modules)
+ GET / 500 in 7629ms
+ ⚠ Cross origin request detected from vents.orbitsam.com to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ GET / 500 in 51ms
+ ✓ Compiled in 182ms (428 modules)
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ GET / 500 in 39ms
+ ✓ Compiled in 161ms (428 modules)
+ ✓ Compiled in 164ms (428 modules)
+ ✓ Compiled in 159ms (428 modules)
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ GET / 500 in 64ms
+ ✓ Compiled in 153ms (428 modules)
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ GET / 500 in 43ms
+ ✓ Compiled in 119ms (428 modules)
+ ✓ Compiled in 95ms (428 modules)
+ ⨯ [Error [PostgresError]: relation "t3-app-template_business" does not exist] {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '42P01',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1469',
+  routine: 'parserOpenTable',
+  digest: '2338898565'
+}
+ GET / 500 in 41ms
+^C^C ELIFECYCLE  Command failed with exit code 3221225786.
+ ELIFECYCLE  Command failed with exit code 3221225786.
+============================== 
+Service start Mon 12/29/2025 14:55:12.01 
+User: nickv 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+C:\Users\nickv\AppData\Roaming\npm\pnpm
+C:\Users\nickv\AppData\Roaming\npm\pnpm.cmd
+
+> t3-app-template@0.1.0 prod C:\Users\nickv\Documents\code_projects\eaglevents
+> dotenv -e .env -- node scripts/prod.cjs
+
+
+> t3-app-template@0.1.0 dev C:\Users\nickv\Documents\code_projects\eaglevents
+> node scripts/dev.cjs
+
+   ▲ Next.js 15.5.6
+   - Local:        http://localhost:3024
+   - Network:      http://192.168.56.1:3024
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1378ms
+[?25h
+============================== 
+Service start Mon 12/29/2025 14:57:40.50 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:01:56.63 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:06:12.76 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:10:28.88 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:14:45.03 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:19:01.16 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:23:17.29 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:27:33.42 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:31:49.58 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:36:05.70 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:40:21.84 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Mon 12/29/2025 15:44:37.98 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
