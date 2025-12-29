@@ -45,56 +45,56 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
-      <div className="w-full max-w-[960px] overflow-hidden rounded-lg border border-white/10 bg-neutral-950 shadow-xl md:grid md:grid-cols-2">
+    <main className="flex min-h-screen items-center justify-center bg-surface-canvas text-ink-primary">
+      <div className="w-full max-w-[960px] overflow-hidden rounded-lg border border-outline-muted bg-surface-raised shadow-[var(--shadow-pane)] md:grid md:grid-cols-2">
         {/* Left brand panel */}
-        <div className="hidden h-full flex-col justify-between border-r border-white/10 bg-[radial-gradient(35rem_20rem_at_-10%_-20%,#093,#000),linear-gradient(#0a0a0a,#090909)] p-8 md:flex">
+        <div className="hidden h-full flex-col justify-between border-r border-outline-muted bg-[radial-gradient(35rem_20rem_at_-10%_-20%,var(--color-accent-muted),transparent),linear-gradient(180deg,var(--color-surface-muted),var(--color-surface-canvas))] p-8 md:flex">
           <div className="text-2xl font-semibold tracking-tight">Eaglevents Calendar</div>
-          <div className="text-sm text-white/70">Sign in to access your calendars and events.</div>
+          <div className="text-sm text-ink-muted">Sign in to access your calendars and events.</div>
         </div>
         {/* Right sign-in form */}
         <div className="p-8">
           <div className="mb-6">
             <div className="text-2xl font-semibold">Sign in</div>
-            <div className="text-sm text-white/60">Use your account to continue</div>
+            <div className="text-sm text-ink-subtle">Use your account to continue</div>
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs uppercase text-white/60">Username or Email</label>
+              <label className="mb-1 block text-xs uppercase text-ink-faint">Username or Email</label>
               <input
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 placeholder="you@example.com or username"
                 autoComplete="username"
                 required
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs uppercase text-white/60">Password</label>
+              <label className="mb-1 block text-xs uppercase text-ink-faint">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 placeholder="Enter your password"
                 autoComplete="current-password"
                 required
               />
             </div>
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
+            {error ? <p className="text-sm text-status-danger">{error}</p> : null}
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-black transition hover:bg-emerald-400 disabled:opacity-60"
+              className="w-full rounded-md bg-accent-default px-4 py-2 text-sm font-medium text-ink-inverted transition hover:bg-accent-strong disabled:opacity-60"
             >
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
           <div className="mt-6 flex items-center justify-between text-sm">
-            <div className="text-white/60">New to Eaglevents?</div>
-            <Link href="/signup" className="text-emerald-400 hover:text-emerald-300">
+            <div className="text-ink-subtle">New to Eaglevents?</div>
+            <Link href="/signup" className="text-accent-default hover:text-accent-soft">
               Create an account
             </Link>
           </div>

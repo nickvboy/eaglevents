@@ -50,7 +50,7 @@ export function AccountMenu({ user, variant = "icon" }: Props) {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-outline-muted bg-surface-raised p-1 text-sm text-ink-primary shadow-lg">
+        <div className="absolute right-0 z-[999] mt-1 w-48 rounded-md border border-outline-muted bg-surface-raised p-1 text-sm text-ink-primary shadow-lg">
           <button
             className="block w-full rounded-md px-2 py-1 text-left hover:bg-surface-muted"
             onClick={() => signOut({ callbackUrl: "/login" })}
