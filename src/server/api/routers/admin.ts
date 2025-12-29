@@ -28,6 +28,7 @@ import {
   startOfMonth,
   sumSeries,
 } from "~/server/services/admin";
+import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 
 type DbClient = typeof import("~/server/db").db;
 
@@ -1948,6 +1949,75 @@ export const adminRouter = createTRPCRouter({
       },
     };
   }),
+
+  seedDatabase: publicProcedure
+    .input(
+      z.object({
+        mode: z.enum(["workspace", "events", "full", "revert"]),
+        eventCount: z.number().int().min(0).max(2000).optional(),
+        fakerSeed: z.number().int().optional().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const mode = input.mode;
+      const eventCount = input.eventCount ?? getDefaultEventCount(mode);
+      const logs: string[] = [];
+      const log = (message: string) => {
+        logs.push(message);
+      };
+
+      const [{ appRouter }, { createTRPCContext }, { ensurePrimaryCalendars }] = await Promise.all([
+        import("~/server/api/root"),
+        import("~/server/api/trpc"),
+        import("~/server/services/calendar"),
+      ]);
+
+      const buildHeaders = () => {
+        const headers = new Headers();
+        headers.set("x-trpc-source", "admin-seed");
+        headers.set("x-seed-mode", mode);
+        return headers;
+      };
+
+      const createCallerForSession = async (session?: Session | null) => {
+        const context = await createTRPCContext({
+          headers: buildHeaders(),
+          session: session ?? null,
+        });
+        return appRouter.createCaller(context);
+      };
+
+      const ensureCalendarId = async (userId: number) => {
+        const calendars = await ensurePrimaryCalendars(ctx.db, userId);
+        const primary = calendars.find((cal) => cal.isPrimary) ?? calendars[0];
+        if (!primary) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to resolve calendar for user ${userId}`,
+          });
+        }
+        return primary.id;
+      };
+
+      const result = await runSeed(
+        {
+          mode,
+          eventCount,
+          fakerSeed: input.fakerSeed ?? null,
+        },
+        {
+          db: ctx.db,
+          createCallerForSession,
+          ensureCalendarId,
+          log,
+        },
+      );
+
+      return {
+        ...result,
+        logs,
+      };
+    }),
 
   databaseEvents: publicProcedure
     .input(

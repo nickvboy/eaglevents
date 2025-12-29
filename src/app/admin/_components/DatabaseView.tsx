@@ -8,8 +8,18 @@ import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 type DatabaseSummary = RouterOutputs["admin"]["databaseSummary"];
 type DatabaseEventQuery = NonNullable<RouterInputs["admin"]["databaseEvents"]>;
 type DatabaseEvent = RouterOutputs["admin"]["databaseEvents"]["events"][number];
+type DatabaseSeedInput = RouterInputs["admin"]["seedDatabase"];
+type SeedMode = DatabaseSeedInput["mode"];
 
 const defaultEventQuery: DatabaseEventQuery = { limit: 50 };
+const DEFAULT_SEED_EVENT_COUNT = 15;
+const DEFAULT_FULL_SEED_EVENT_COUNT = 420;
+const seedDefaultCounts: Record<SeedMode, number> = {
+  workspace: DEFAULT_SEED_EVENT_COUNT,
+  events: DEFAULT_SEED_EVENT_COUNT,
+  full: DEFAULT_FULL_SEED_EVENT_COUNT,
+  revert: 0,
+};
 
 const summarySections: Array<{ label: string; key: keyof DatabaseSummary["counts"] }> = [
   { label: "Events", key: "events" },
@@ -69,6 +79,7 @@ function buildEventQuery({
 export function DatabaseView() {
   const utils = api.useUtils();
   const summaryQuery = api.admin.databaseSummary.useQuery(undefined, { staleTime: 30_000 });
+  const seedMutation = api.admin.seedDatabase.useMutation();
 
   const [eventSearch, setEventSearch] = useState("");
   const [eventStartDate, setEventStartDate] = useState("");
@@ -77,6 +88,13 @@ export function DatabaseView() {
   const [eventQuery, setEventQuery] = useState<DatabaseEventQuery>(defaultEventQuery);
   const [pendingDelete, setPendingDelete] = useState<DatabaseEvent | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const [seedMode, setSeedMode] = useState<SeedMode>("full");
+  const [seedEventCount, setSeedEventCount] = useState(String(seedDefaultCounts.full));
+  const [seedFakerSeed, setSeedFakerSeed] = useState("");
+  const [seedConfirmText, setSeedConfirmText] = useState("");
+  const [seedMessage, setSeedMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [seedLogs, setSeedLogs] = useState<string[]>([]);
 
   const [rangeStartDate, setRangeStartDate] = useState("");
   const [rangeEndDate, setRangeEndDate] = useState("");
@@ -123,6 +141,19 @@ export function DatabaseView() {
   const canDeleteSelected = pendingDelete && deleteConfirmText.trim().toUpperCase() === "DELETE";
   const totalEvents = summaryQuery.data?.counts.events ?? 0;
   const rangeCountValue = deleteAllChecked ? totalEvents : rangeCountQuery.data?.count ?? 0;
+  const seedNeedsEventCount = seedMode === "events" || seedMode === "full";
+  const seedEventCountValue = seedNeedsEventCount ? Number(seedEventCount) : null;
+  const seedEventCountValid =
+    !seedNeedsEventCount ||
+    (seedEventCountValue !== null && Number.isFinite(seedEventCountValue) && seedEventCountValue >= 0);
+  const seedFakerSeedValue = seedFakerSeed.trim() ? Number(seedFakerSeed) : null;
+  const seedFakerSeedValid =
+    seedFakerSeed.trim() === "" || (seedFakerSeedValue !== null && Number.isFinite(seedFakerSeedValue));
+  const requiresSeedConfirm = seedMode === "revert";
+  const canRunSeed =
+    seedEventCountValid &&
+    seedFakerSeedValid &&
+    (!requiresSeedConfirm || seedConfirmText.trim().toUpperCase() === "REVERT");
 
   const summaryCards = useMemo(() => {
     const summary = summaryQuery.data;
@@ -132,6 +163,56 @@ export function DatabaseView() {
       value: summary.counts[section.key],
     }));
   }, [summaryQuery.data]);
+
+  const handleSeedModeChange = (value: SeedMode) => {
+    setSeedMode(value);
+    setSeedEventCount(String(seedDefaultCounts[value]));
+    setSeedConfirmText("");
+    setSeedMessage(null);
+    setSeedLogs([]);
+  };
+
+  const handleSeedRun = async () => {
+    setSeedMessage(null);
+    setSeedLogs([]);
+
+    if (!seedEventCountValid) {
+      setSeedMessage({ type: "error", text: "Event count must be zero or a positive number." });
+      return;
+    }
+    if (!seedFakerSeedValid) {
+      setSeedMessage({ type: "error", text: "Seed value must be a valid number." });
+      return;
+    }
+
+    const fakerSeed = seedFakerSeed.trim() ? Number(seedFakerSeed) : null;
+    const input: DatabaseSeedInput = {
+      mode: seedMode,
+      eventCount: seedNeedsEventCount ? (seedEventCountValue ?? 0) : undefined,
+      fakerSeed,
+    };
+
+    try {
+      const result = await seedMutation.mutateAsync(input);
+      setSeedMessage({
+        type: "success",
+        text:
+          result.mode === "revert"
+            ? "Seeded data removed."
+            : `Seeded ${result.seededEvents} event${result.seededEvents === 1 ? "" : "s"}.`,
+      });
+      setSeedLogs(result.logs ?? []);
+      setSeedConfirmText("");
+      await utils.admin.databaseSummary.invalidate();
+      await utils.admin.databaseEvents.invalidate();
+      await utils.admin.databaseEventCount.invalidate();
+    } catch (error) {
+      setSeedMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Seeding failed.",
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -169,6 +250,113 @@ export function DatabaseView() {
             </p>
           </>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-ink-primary">Database seeding</h2>
+          <p className="text-sm text-ink-muted">
+            Run the same seed workflow used by the CLI against the current database connection.
+          </p>
+        </header>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <div className="grid gap-4">
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+              Seed mode
+              <select
+                value={seedMode}
+                onChange={(event) => handleSeedModeChange(event.target.value as SeedMode)}
+                className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary"
+              >
+                <option value="full">Full (workspace + events)</option>
+                <option value="workspace">Workspace only</option>
+                <option value="events">Events only</option>
+                <option value="revert">Revert seeded data</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+              Event count
+              <input
+                type="number"
+                min={0}
+                value={seedEventCount}
+                disabled={!seedNeedsEventCount}
+                onChange={(event) => setSeedEventCount(event.target.value)}
+                className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <span className="text-xs font-normal text-ink-subtle">
+                Used for events or full mode. Leave at 0 to skip event creation.
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+              Faker seed (optional)
+              <input
+                type="number"
+                value={seedFakerSeed}
+                onChange={(event) => setSeedFakerSeed(event.target.value)}
+                className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
+              />
+              <span className="text-xs font-normal text-ink-subtle">Set this for deterministic output.</span>
+            </label>
+
+            {requiresSeedConfirm ? (
+              <label className="flex flex-col gap-2 text-sm font-semibold text-status-danger">
+                Type REVERT to confirm
+                <input
+                  value={seedConfirmText}
+                  onChange={(event) => setSeedConfirmText(event.target.value)}
+                  placeholder="REVERT"
+                  className="rounded-lg border border-status-danger bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+            <div className="space-y-1 text-xs text-ink-subtle">
+              <div className="uppercase tracking-[0.2em] text-ink-muted">Seed target</div>
+              <div>Uses the active database connection for this environment.</div>
+              <div>
+                Mode: <span className="font-semibold text-ink-primary">{seedMode}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSeedRun()}
+              disabled={!canRunSeed || seedMutation.isPending}
+              className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {seedMutation.isPending ? "Seeding..." : "Run seed"}
+            </button>
+          </div>
+        </div>
+
+        {seedMessage ? (
+          <div
+            className={
+              "mt-4 rounded-xl border px-4 py-2 text-sm " +
+              (seedMessage.type === "success"
+                ? "border-outline-accent bg-accent-muted text-accent-soft"
+                : "border-status-danger bg-status-danger-surface text-status-danger")
+            }
+          >
+            {seedMessage.text}
+          </div>
+        ) : null}
+
+        {seedLogs.length > 0 ? (
+          <div className="mt-4 rounded-xl border border-outline-muted bg-surface-muted px-4 py-3 text-xs text-ink-subtle">
+            <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-ink-muted">Seed output</div>
+            <div className="space-y-1">
+              {seedLogs.map((line, index) => (
+                <div key={`${line}-${index}`}>{line}</div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
