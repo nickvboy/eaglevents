@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import type { Session } from "next-auth";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
@@ -28,6 +27,16 @@ import {
   startOfMonth,
   sumSeries,
 } from "~/server/services/admin";
+import {
+  ensureJoinTableExportScheduler,
+  getJoinTableExportStatus,
+  refreshJoinTableExport,
+} from "~/server/services/join-table-export";
+import {
+  ensureHourLogExportScheduler,
+  getHourLogExportStatus,
+  refreshHourLogExport,
+} from "~/server/services/hour-log-export";
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 
 type DbClient = typeof import("~/server/db").db;
@@ -259,6 +268,9 @@ const EVENT_CODE_MIN = 1000000;
 const EVENT_CODE_RANGE = 9000000;
 const EVENT_CODE_RETRY_LIMIT = 10;
 
+ensureJoinTableExportScheduler();
+ensureHourLogExportScheduler();
+
 function generateEventCode() {
   return String(Math.floor(EVENT_CODE_MIN + Math.random() * EVENT_CODE_RANGE));
 }
@@ -464,33 +476,6 @@ function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?
   return combined;
 }
 
-async function requireAdminSession(ctx: { session: Session | null; db: DbClient }) {
-  const userIdRaw = ctx.session?.user?.id;
-  if (!userIdRaw) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to access admin tools." });
-  }
-  const userId = Number(userIdRaw);
-  if (!Number.isFinite(userId)) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid user session." });
-  }
-
-  const [role] = await ctx.db
-    .select({ id: organizationRoles.id })
-    .from(organizationRoles)
-    .where(
-      and(
-        eq(organizationRoles.userId, userId),
-        eq(organizationRoles.roleType, "admin"),
-        eq(organizationRoles.scopeType, "business"),
-      ),
-    );
-
-  if (!role) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access is required for this operation." });
-  }
-
-  return userId;
-}
 
 async function findBusinessId(db: DbClient): Promise<number | null> {
   const [business] = await db.select({ id: businesses.id }).from(businesses).orderBy(businesses.id).limit(1);
@@ -1522,19 +1507,67 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
+  joinTableExportStatus: publicProcedure.query(async ({ ctx }) => {
+    return getJoinTableExportStatus();
+  }),
+
+  refreshJoinTableExport: publicProcedure
+    .input(
+      z
+        .object({
+          force: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await refreshJoinTableExport(ctx.db, input?.force ?? true);
+      return {
+        refreshed: Boolean(result),
+        result,
+        status: await getJoinTableExportStatus(),
+      };
+    }),
+
+  hourLogExportStatus: publicProcedure.query(async ({ ctx }) => {
+    return getHourLogExportStatus();
+  }),
+
+  refreshHourLogExport: publicProcedure
+    .input(
+      z
+        .object({
+          force: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await refreshHourLogExport(ctx.db, input?.force ?? true);
+      return {
+        refreshed: Boolean(result),
+        result,
+        status: await getHourLogExportStatus(),
+      };
+    }),
+
   exportSnapshot: publicProcedure
     .input(z.object({ note: z.string().max(500).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
-    const adminUserId = await requireAdminSession(ctx);
-    const [user] = await ctx.db
-      .select({
-        id: users.id,
-        email: users.email,
-        displayName: users.displayName,
-      })
-      .from(users)
-      .where(eq(users.id, adminUserId))
-      .limit(1);
+    const userIdRaw = ctx.session?.user?.id ?? null;
+    const userId = userIdRaw ? Number(userIdRaw) : null;
+    const user =
+      userId && Number.isFinite(userId)
+        ? (
+            await ctx.db
+              .select({
+                id: users.id,
+                email: users.email,
+                displayName: users.displayName,
+              })
+              .from(users)
+              .where(eq(users.id, userId))
+              .limit(1)
+          )[0]
+        : null;
 
     const data = await loadSnapshotData(ctx.db);
     const note = input?.note?.trim() ? input.note.trim() : undefined;
@@ -1546,7 +1579,7 @@ export const adminRouter = createTRPCRouter({
         note,
       },
       exportedBy: {
-        userId: user?.id ?? adminUserId,
+        userId: user?.id ?? (Number.isFinite(userId) ? userId : null),
         email: user?.email ?? null,
         displayName: user?.displayName ?? null,
       },
@@ -1573,7 +1606,6 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requireAdminSession(ctx);
       const [calendar] = await ctx.db.select({ id: calendars.id }).from(calendars).where(eq(calendars.id, input.calendarId)).limit(1);
       if (!calendar) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Calendar not found." });
@@ -1602,15 +1634,19 @@ export const adminRouter = createTRPCRouter({
         };
       });
 
-      await ctx.db.insert(events).values(values);
-      return { inserted: values.length };
-    }),
+        await ctx.db.insert(events).values(values);
+        void refreshJoinTableExport(ctx.db, true).catch((error) => {
+          console.error("[join-table-export] importIcsEvents refresh failed", error);
+        });
+        void refreshHourLogExport(ctx.db, true).catch((error) => {
+          console.error("[hour-log-export] importIcsEvents refresh failed", error);
+        });
+        return { inserted: values.length };
+      }),
 
   importSnapshot: publicProcedure
     .input(snapshotSchema)
     .mutation(async ({ ctx, input }) => {
-      await requireAdminSession(ctx);
-
       if (input.version !== SNAPSHOT_VERSION) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported snapshot version." });
       }
@@ -1876,6 +1912,13 @@ export const adminRouter = createTRPCRouter({
         await resetIdentitySequences(tx);
       });
 
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] importSnapshot refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] importSnapshot refresh failed", error);
+      });
+
       return {
         success: true,
         counts: {
@@ -2137,6 +2180,13 @@ export const adminRouter = createTRPCRouter({
         await tx.delete(events).where(eq(events.id, input.id));
       });
 
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] admin deleteEvent refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] admin deleteEvent refresh failed", error);
+      });
+
       return { deleted: input.id };
     }),
 
@@ -2165,6 +2215,13 @@ export const adminRouter = createTRPCRouter({
         await tx.delete(events).where(inArray(events.id, eventIds));
       });
 
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] admin deleteEventsByRange refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] admin deleteEventsByRange refresh failed", error);
+      });
+
       return { deleted: eventIds.length };
     }),
 
@@ -2179,6 +2236,13 @@ export const adminRouter = createTRPCRouter({
       await tx.delete(eventReminders);
       await tx.delete(eventAttendees);
       await tx.delete(events);
+    });
+
+    void refreshJoinTableExport(ctx.db, true).catch((error) => {
+      console.error("[join-table-export] admin deleteAllEvents refresh failed", error);
+    });
+    void refreshHourLogExport(ctx.db, true).catch((error) => {
+      console.error("[hour-log-export] admin deleteAllEvents refresh failed", error);
     });
 
     return { deleted: total };

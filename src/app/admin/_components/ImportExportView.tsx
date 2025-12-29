@@ -7,6 +7,8 @@ import { parseIcsEvents } from "~/app/calendar/utils/ics";
 
 type ExportSnapshotPayload = RouterOutputs["admin"]["exportSnapshot"];
 type ImportSnapshotInput = RouterInputs["admin"]["importSnapshot"];
+type JoinTableExportStatus = RouterOutputs["admin"]["joinTableExportStatus"];
+type HourLogExportStatus = RouterOutputs["admin"]["hourLogExportStatus"];
 
 type SnapshotSummary = {
   version: number;
@@ -120,6 +122,14 @@ export function ImportExportView() {
   const exportMutation = api.admin.exportSnapshot.useMutation();
   const importMutation = api.admin.importSnapshot.useMutation();
   const importIcsMutation = api.admin.importIcsEvents.useMutation();
+  const joinTableStatusQuery = api.admin.joinTableExportStatus.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const joinTableRefreshMutation = api.admin.refreshJoinTableExport.useMutation();
+  const hourLogStatusQuery = api.admin.hourLogExportStatus.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const hourLogRefreshMutation = api.admin.refreshHourLogExport.useMutation();
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
 
   const [exportNote, setExportNote] = useState("");
@@ -138,6 +148,8 @@ export function ImportExportView() {
   const [icsFileName, setIcsFileName] = useState<string | null>(null);
   const [icsFilterStart, setIcsFilterStart] = useState("");
   const [icsFilterEnd, setIcsFilterEnd] = useState("");
+  const [joinTableMessage, setJoinTableMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [hourLogMessage, setHourLogMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [icsPreviewEvents, setIcsPreviewEvents] = useState<
     Array<{
       id: string;
@@ -304,6 +316,46 @@ export function ImportExportView() {
     () => icsPreviewEvents.filter((event) => event.selected).length,
     [icsPreviewEvents],
   );
+  const joinTableStatus: JoinTableExportStatus | null = joinTableStatusQuery.data ?? null;
+  const hourLogStatus: HourLogExportStatus | null = hourLogStatusQuery.data ?? null;
+
+  const handleAllExportsRefresh = async () => {
+    setJoinTableMessage(null);
+    setHourLogMessage(null);
+
+    const [joinResult, hourResult] = await Promise.allSettled([
+      joinTableRefreshMutation.mutateAsync({ force: true }),
+      hourLogRefreshMutation.mutateAsync({ force: true }),
+    ]);
+
+    if (joinResult.status === "fulfilled") {
+      const rowCount = joinResult.value.result?.rowCount;
+      setJoinTableMessage({
+        type: "success",
+        text: rowCount !== undefined ? `Join table updated (${rowCount} rows).` : "Join table updated.",
+      });
+      void joinTableStatusQuery.refetch();
+    } else {
+      setJoinTableMessage({
+        type: "error",
+        text: joinResult.reason instanceof Error ? joinResult.reason.message : "Failed to update the join table export.",
+      });
+    }
+
+    if (hourResult.status === "fulfilled") {
+      const rowCount = hourResult.value.result?.rowCount;
+      setHourLogMessage({
+        type: "success",
+        text: rowCount !== undefined ? `Hour log export updated (${rowCount} rows).` : "Hour log export updated.",
+      });
+      void hourLogStatusQuery.refetch();
+    } else {
+      setHourLogMessage({
+        type: "error",
+        text: hourResult.reason instanceof Error ? hourResult.reason.message : "Failed to update the hour log export.",
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -345,6 +397,104 @@ export function ImportExportView() {
         {exportMessage ? (
           <div className="mt-4 rounded-xl border border-outline-muted bg-surface-muted px-4 py-2 text-sm text-ink-muted">
             {exportMessage}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-ink-primary">Join table Excel backup</h2>
+          <p className="text-sm text-ink-muted">
+            Automatically keep a single Excel file updated with an exhaustive join of event data for read-only recovery.
+          </p>
+          <p className="text-xs text-ink-muted">
+            The main file is overwritten in place every 12 hours or after event edits, with a backup saved each time.
+          </p>
+        </header>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <div className="flex flex-col gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4 text-sm text-ink-primary">
+            <div className="flex flex-col gap-1 text-xs text-ink-subtle">
+              <span>
+                Last updated:{" "}
+                {joinTableStatus?.lastUpdatedAt ? formatTimestamp(joinTableStatus.lastUpdatedAt) : "Never"}
+              </span>
+              <span>
+                Next scheduled: {joinTableStatus?.nextScheduledAt ? formatTimestamp(joinTableStatus.nextScheduledAt) : "Pending"}
+              </span>
+              <span>File: {joinTableStatus?.filePath ?? "Pending"}</span>
+              <span>Backups: {joinTableStatus?.backupDirectory ?? "Pending"}</span>
+            </div>
+          </div>
+          <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Auto refresh</p>
+            <p className="text-sm font-semibold text-ink-primary">Every 12 hours</p>
+            <button
+              type="button"
+              onClick={() => void handleAllExportsRefresh()}
+              disabled={joinTableRefreshMutation.isPending || hourLogRefreshMutation.isPending}
+              className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {joinTableRefreshMutation.isPending || hourLogRefreshMutation.isPending
+                ? "Updating..."
+                : "Force update both exports"}
+            </button>
+          </div>
+        </div>
+        {joinTableMessage ? (
+          <div
+            className={
+              "mt-4 rounded-xl border px-4 py-2 text-sm " +
+              (joinTableMessage.type === "success"
+                ? "border-outline-accent bg-accent-muted text-accent-soft"
+                : "border-status-danger bg-status-danger-surface text-status-danger")
+            }
+          >
+            {joinTableMessage.text}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-ink-primary">Hour log Excel backup</h2>
+          <p className="text-sm text-ink-muted">
+            A human-friendly workbook with one sheet per user, focused on hour logs and event details.
+          </p>
+          <p className="text-xs text-ink-muted">
+            Backups are saved separately before each update.
+          </p>
+        </header>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <div className="flex flex-col gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4 text-sm text-ink-primary">
+            <div className="flex flex-col gap-1 text-xs text-ink-subtle">
+              <span>
+                Last updated:{" "}
+                {hourLogStatus?.lastUpdatedAt ? formatTimestamp(hourLogStatus.lastUpdatedAt) : "Never"}
+              </span>
+              <span>
+                Next scheduled:{" "}
+                {hourLogStatus?.nextScheduledAt ? formatTimestamp(hourLogStatus.nextScheduledAt) : "Pending"}
+              </span>
+              <span>File: {hourLogStatus?.filePath ?? "Pending"}</span>
+              <span>Backups: {hourLogStatus?.backupDirectory ?? "Pending"}</span>
+            </div>
+          </div>
+          <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Auto refresh</p>
+            <p className="text-sm font-semibold text-ink-primary">Every 12 hours</p>
+            <p className="text-xs text-ink-subtle">Use the button above to refresh both exports together.</p>
+          </div>
+        </div>
+        {hourLogMessage ? (
+          <div
+            className={
+              "mt-4 rounded-xl border px-4 py-2 text-sm " +
+              (hourLogMessage.type === "success"
+                ? "border-outline-accent bg-accent-muted text-accent-soft"
+                : "border-status-danger bg-status-danger-surface text-status-danger")
+            }
+          >
+            {hourLogMessage.text}
           </div>
         ) : null}
       </section>

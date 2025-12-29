@@ -14,6 +14,8 @@ import {
 } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import { refreshJoinTableExport } from "~/server/services/join-table-export";
+import { refreshHourLogExport } from "~/server/services/hour-log-export";
 import type { Session } from "next-auth";
 
 type DbClient = typeof import("~/server/db").db;
@@ -718,6 +720,12 @@ export const eventRouter = createTRPCRouter({
 
       const [result] = await buildEventResponses(ctx.db, [created as EventRow]);
       if (!result) throw new Error("Failed to load created event");
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] event create refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] event create refresh failed", error);
+      });
       return result;
     }),
 
@@ -847,6 +855,12 @@ export const eventRouter = createTRPCRouter({
 
       const [result] = await buildEventResponses(ctx.db, [updated as EventRow]);
       if (!result) throw new Error("Failed to load updated event");
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] event update refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] event update refresh failed", error);
+      });
       return result;
     }),
 
@@ -854,6 +868,12 @@ export const eventRouter = createTRPCRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(events).where(eq(events.id, input.id));
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] event delete refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] event delete refresh failed", error);
+      });
       return { success: true };
     }),
 });

@@ -13076,3 +13076,666 @@ https://nextjs.org/docs/messages/module-not-found
  ✓ Compiled in 134ms (599 modules)
  GET /api/setup/status 200 in 16ms
  GET /calendar 200 in 27ms
+ ✓ Compiled in 130ms (599 modules)
+ GET /api/setup/status 200 in 12ms
+ GET /calendar 200 in 32ms
+ GET /api/auth/session 200 in 20ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.listMine took 155ms to execute
+[TRPC] event.list took 178ms to execute
+[TRPC] calendar.getBusiness took 484ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 530ms
+ ✓ Compiled in 241ms (599 modules)
+ GET /api/setup/status 200 in 18ms
+ GET /calendar 200 in 44ms
+ ✓ Compiled in 128ms (599 modules)
+ GET /api/setup/status 200 in 109ms
+ ✓ Compiled in 124ms (599 modules)
+ GET /calendar 200 in 99ms
+ ✓ Compiled in 116ms (599 modules)
+ GET /api/setup/status 200 in 18ms
+ GET /calendar 200 in 45ms
+ ✓ Compiled in 114ms (599 modules)
+ GET /api/setup/status 200 in 19ms
+ GET /calendar 200 in 92ms
+ ✓ Compiled in 125ms (599 modules)
+ GET /api/setup/status 200 in 98ms
+ ✓ Compiled in 113ms (599 modules)
+ GET /calendar 200 in 35ms
+ ✓ Compiled in 116ms (599 modules)
+ GET /api/setup/status 200 in 93ms
+ ✓ Compiled in 136ms (599 modules)
+ GET /calendar 200 in 136ms
+ ✓ Compiled in 109ms (599 modules)
+ GET /api/setup/status 200 in 87ms
+ ✓ Compiled in 125ms (599 modules)
+ GET /calendar 200 in 123ms
+ GET /api/setup/status 200 in 87ms
+ ✓ Compiled in 113ms (599 modules)
+ GET /calendar 200 in 89ms
+ ✓ Compiled in 110ms (599 modules)
+ GET /api/setup/status 200 in 20ms
+ GET /calendar 200 in 42ms
+ ✓ Compiled in 107ms (599 modules)
+ GET /api/setup/status 200 in 21ms
+ GET /calendar 200 in 42ms
+ ✓ Compiled in 111ms (599 modules)
+ GET /api/setup/status 200 in 21ms
+ GET /calendar 200 in 90ms
+ ✓ Compiled in 114ms (599 modules)
+ GET /api/setup/status 200 in 20ms
+ GET /calendar 200 in 92ms
+ ✓ Compiled in 113ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ ✓ Compiled in 127ms (599 modules)
+ GET /calendar 200 in 119ms
+ ✓ Compiled in 98ms (599 modules)
+ ✓ Compiled in 98ms (599 modules)
+ ✓ Compiled in 93ms (599 modules)
+ ✓ Compiled in 107ms (599 modules)
+ ✓ Compiled in 108ms (599 modules)
+ ✓ Compiled in 103ms (599 modules)
+ ✓ Compiled in 214ms (599 modules)
+ ✓ Compiled in 268ms (599 modules)
+ ✓ Compiled in 210ms (599 modules)
+ GET /api/auth/session 200 in 22ms
+ GET /api/setup/status 200 in 18ms
+[TRPC] calendar.getBusiness took 264ms to execute
+[TRPC] calendar.listMine took 313ms to execute
+[TRPC] event.list took 316ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 342ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 32ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 29ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 35ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 39ms
+ GET /api/setup/status 200 in 21ms
+ GET /api/setup/status 200 in 19ms
+ GET /admin 200 in 32ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 36ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 30ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 8ms
+ GET /admin 200 in 26ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 28ms
+[TRPC] admin.dashboard took 430ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 454ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] calendar.listMine took 420ms to execute
+ GET /api/trpc/calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 443ms
+ ✓ Compiled in 210ms (599 modules)
+ GET /api/setup/status 200 in 20ms
+ GET /admin 200 in 51ms
+ GET /api/setup/status 200 in 14ms
+ GET /settings 200 in 30ms
+ ✓ Compiled in 153ms (599 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /settings 200 in 23ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.settings took 296ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 334ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] theme.update took 328ms to execute
+ POST /api/trpc/theme.update?batch=1 200 in 345ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.settings took 452ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 477ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] theme.current took 498ms to execute
+ GET /api/trpc/theme.current?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 515ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 35ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] event.list took 269ms to execute
+[TRPC] calendar.getBusiness took 327ms to execute
+ GET /api/trpc/calendar.getBusiness,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 345ms
+ GET /api/setup/status 200 in 10ms
+ GET /tickets 200 in 19ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] event.tickets took 119ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 193ms
+ GET /api/setup/status 200 in 10ms
+ GET /calendar 200 in 16ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] calendar.listMine took 203ms to execute
+ GET /api/trpc/calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 247ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 13ms
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 15ms
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 16ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.users took 199ms to execute
+ GET /api/trpc/admin.users?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 219ms
+ GET /api/setup/status 200 in 9ms
+ GET /settings 200 in 14ms
+ ✓ Compiled in 138ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 27ms
+ ✓ Compiled in 145ms (599 modules)
+ GET /api/setup/status 200 in 12ms
+ GET /settings 200 in 32ms
+ GET /api/auth/session 200 in 25ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] theme.settings took 375ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 405ms
+ ✓ Compiled in 126ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /settings 200 in 27ms
+ ✓ Compiled in 204ms (599 modules)
+ GET /api/setup/status 200 in 19ms
+ GET /settings 200 in 90ms
+ ✓ Compiled in 162ms (599 modules)
+ GET /api/setup/status 200 in 12ms
+ GET /settings 200 in 28ms
+ ✓ Compiled in 117ms (599 modules)
+ GET /api/setup/status 200 in 10ms
+ GET /settings 200 in 25ms
+ ✓ Compiled in 1880ms (2381 modules)
+ ○ Compiling /api/setup/status ...
+ ✓ Compiled /api/setup/status in 661ms (1801 modules)
+ GET /api/setup/status 200 in 787ms
+ GET /settings 200 in 89ms
+ ✓ Compiled in 1350ms (2381 modules)
+ ✓ Compiled /api/setup/status in 235ms (1801 modules)
+ GET /api/setup/status 200 in 356ms
+ GET /settings 200 in 87ms
+ ✓ Compiled in 128ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 28ms
+ ✓ Compiled in 115ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /settings 200 in 25ms
+ ✓ Compiled in 123ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /settings 200 in 29ms
+ ✓ Compiled in 369ms (2400 modules)
+ GET /api/setup/status 200 in 36ms
+ GET /settings 200 in 43ms
+ ✓ Compiled in 944ms (2400 modules)
+ GET /api/setup/status 200 in 40ms
+ GET /settings 200 in 49ms
+ ✓ Compiled in 842ms (2400 modules)
+ GET /api/setup/status 200 in 38ms
+ GET /settings 200 in 48ms
+ ✓ Compiled in 1370ms (2400 modules)
+ GET /api/setup/status 200 in 73ms
+ GET /settings 200 in 48ms
+ ✓ Compiled in 514ms (2400 modules)
+ GET /api/setup/status 200 in 72ms
+ GET /settings 200 in 88ms
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 731ms (1803 modules)
+ GET /api/auth/session 200 in 1025ms
+ GET /api/setup/status 200 in 949ms
+ ✓ Compiled /api/trpc/[trpc] in 279ms (1806 modules)
+ GET /api/setup/status 200 in 29ms
+[join-table-export] scheduled refresh failed Error: cannot save file C:\Users\nickv\Documents\code_projects\eaglevents\exports\eaglevents-join-table.xlsx
+    at writeJoinTableExport (src\server\services\join-table-export.ts:271:3)
+    at async run (src\server\services\join-table-export.ts:339:7)
+  269 |   const worksheet = XLSX.utils.aoa_to_sheet(matrix);
+  270 |   XLSX.utils.book_append_sheet(workbook, worksheet, "Join Table");
+> 271 |   XLSX.writeFile(workbook, filePath);
+      |   ^
+  272 |
+  273 |   return {
+  274 |     updatedAt: new Date().toISOString(),
+[TRPC] theme.settings took 813ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 1406ms
+ GET /settings 200 in 685ms
+ GET /api/setup/status 200 in 15ms
+ GET /calendar 200 in 36ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] calendar.listMine took 205ms to execute
+[TRPC] calendar.getBusiness took 279ms to execute
+[TRPC] event.list took 334ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 379ms
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 27ms
+ GET /api/setup/status 200 in 19ms
+[TRPC] admin.dashboard took 512ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 548ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.joinTableExportStatus took 357ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 396ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.joinTableExportStatus took 387ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 429ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.joinTableExportStatus took 403ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 427ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.joinTableExportStatus took 109ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 139ms
+ ✓ Compiled in 167ms (599 modules)
+ GET /api/setup/status 200 in 15ms
+ GET /admin 200 in 27ms
+ ✓ Compiled in 128ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 31ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] admin.joinTableExportStatus took 227ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 245ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.joinTableExportStatus took 294ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 313ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.joinTableExportStatus took 404ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 440ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.joinTableExportStatus took 233ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 266ms
+ ✓ Compiled in 140ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 23ms
+ ✓ Compiled in 947ms (2403 modules)
+ GET /api/setup/status 200 in 42ms
+ GET /admin 200 in 193ms
+ GET /api/setup/status 200 in 12ms
+ GET /admin 200 in 196ms
+ ✓ Compiled /api/auth/[...nextauth] in 258ms (1806 modules)
+ GET /api/auth/session 200 in 550ms
+ GET /api/setup/status 200 in 511ms
+[TRPC] admin.dashboard took 138ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 316ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] calendar.listMine took 157ms to execute
+[TRPC] admin.joinTableExportStatus took 482ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus,calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 517ms
+ GET /api/setup/status 200 in 9ms
+[TRPC] admin.joinTableExportStatus took 171ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 209ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.joinTableExportStatus took 234ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 277ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.joinTableExportStatus took 310ms to execute
+❌ tRPC failed on admin.joinTableExportStatus: Admin access is required for this operation.
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 345ms
+ ✓ Compiled in 120ms (599 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 42ms
+ ✓ Compiled in 108ms (599 modules)
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 25ms
+ ✓ Compiled in 114ms (599 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 24ms
+ ✓ Compiled in 130ms (599 modules)
+ GET /api/setup/status 200 in 11ms
+ GET /admin 200 in 25ms
+ GET /api/setup/status 200 in 9ms
+ GET /calendar 200 in 34ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.getBusiness took 202ms to execute
+[TRPC] event.list took 458ms to execute
+ GET /api/trpc/calendar.getBusiness,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 496ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] event.list took 159ms to execute
+ GET /api/trpc/event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-29T05%3A00%3A00.000Z%22%2C%22end%22%3A%222026-01-03T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 191ms
+ ✓ Compiled in 1038ms (2403 modules)
+ GET /api/setup/status 200 in 71ms
+ GET /calendar 200 in 378ms
+ GET /api/setup/status 200 in 23ms
+[TRPC] event.findByIdentifier took 207ms to execute
+ GET /api/trpc/event.findByIdentifier?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22identifier%22%3A%224626986%22%7D%7D%7D 200 in 260ms
+ ✓ Compiled in 1330ms (2403 modules)
+ GET /api/setup/status 200 in 42ms
+ GET /calendar 200 in 123ms
+ GET /api/setup/status 200 in 10ms
+ GET /tickets 200 in 29ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] event.tickets took 485ms to execute
+ GET /api/trpc/event.tickets?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22search%22%3A%22%22%2C%22limit%22%3A200%7D%7D%7D 200 in 567ms
+ GET /api/setup/status 200 in 16ms
+ GET /calendar 200 in 25ms
+ GET /api/setup/status 200 in 11ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] calendar.getBusiness took 193ms to execute
+[TRPC] event.list took 383ms to execute
+[TRPC] event.list took 391ms to execute
+ GET /api/trpc/event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-29T05%3A00%3A00.000Z%22%2C%22end%22%3A%222026-01-03T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 409ms
+[TRPC] calendar.listMine took 457ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 477ms
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 28ms
+ GET /api/setup/status 200 in 8ms
+[TRPC] admin.dashboard took 412ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 446ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.users took 459ms to execute
+ GET /api/trpc/admin.users?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 481ms
+ GET /api/setup/status 200 in 18ms
+[TRPC] calendar.listMine took 125ms to execute
+[TRPC] admin.adminAccess took 236ms to execute
+ GET /api/trpc/admin.adminAccess,calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 254ms
+ ✓ Compiled in 279ms (599 modules)
+ GET /api/setup/status 200 in 22ms
+ GET /admin 200 in 45ms
+ ✓ Compiled in 328ms (599 modules)
+ GET /api/setup/status 200 in 21ms
+ GET /admin 200 in 47ms
+ ✓ Compiled in 127ms (599 modules)
+ GET /api/setup/status 200 in 10ms
+ GET /admin 200 in 25ms
+ ✓ Compiled in 201ms (599 modules)
+ GET /api/setup/status 200 in 22ms
+ GET /admin 200 in 95ms
+ ✓ Compiled in 1172ms (2400 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /api/setup/status 200 in 237ms
+ GET /api/setup/status 200 in 242ms
+ GET /admin 200 in 251ms
+ GET /admin 200 in 173ms
+ ✓ Compiled /api/auth/[...nextauth] in 248ms (1803 modules)
+ GET /api/auth/session 200 in 547ms
+ GET /api/setup/status 200 in 510ms
+ ✓ Compiled /api/trpc/[trpc] in 258ms (1806 modules)
+[TRPC] admin.dashboard took 364ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 795ms
+ ✓ Compiled in 388ms (2405 modules)
+ GET /api/setup/status 200 in 36ms
+ GET /admin 200 in 133ms
+ GET /api/setup/status 200 in 11ms
+[TRPC] calendar.listMine took 141ms to execute
+[TRPC] admin.adminAccess took 327ms to execute
+ GET /api/trpc/admin.adminAccess,calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 359ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] admin.databaseEvents took 356ms to execute
+[TRPC] admin.databaseSummary took 381ms to execute
+ GET /api/trpc/admin.databaseSummary,admin.databaseEvents?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A50%7D%7D%7D 200 in 411ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.refreshJoinTableExport took 206ms to execute
+❌ tRPC failed on admin.refreshJoinTableExport: Admin access is required for this operation.
+ POST /api/trpc/admin.refreshJoinTableExport?batch=1 200 in 228ms
+ ✓ Compiled in 113ms (599 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 26ms
+ ✓ Compiled in 997ms (2403 modules)
+ GET /api/setup/status 200 in 43ms
+ GET /admin 200 in 124ms
+ ✓ Compiled in 391ms (2403 modules)
+ GET /api/setup/status 200 in 388ms
+ GET /api/setup/status 200 in 219ms
+ GET /admin 200 in 153ms
+[TRPC] admin.joinTableExportStatus took 122ms to execute
+[TRPC] calendar.listMine took 330ms to execute
+ GET /api/trpc/admin.joinTableExportStatus,calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 471ms
+ ✓ Compiled in 132ms (599 modules)
+ GET /api/setup/status 200 in 16ms
+ GET /admin 200 in 35ms
+ GET /api/setup/status 200 in 17ms
+[TRPC] admin.refreshJoinTableExport took 887ms to execute
+❌ tRPC failed on admin.refreshJoinTableExport: cannot save file C:\Users\nickv\Documents\code_projects\eaglevents\exports\eaglevents-join-table.xlsx
+ POST /api/trpc/admin.refreshJoinTableExport?batch=1 200 in 929ms
+[join-table-export] scheduled refresh failed Error: cannot save file C:\Users\nickv\Documents\code_projects\eaglevents\exports\eaglevents-join-table.xlsx
+    at writeJoinTableExport (src\server\services\join-table-export.ts:271:3)
+    at async run (src\server\services\join-table-export.ts:339:7)
+  269 |   const worksheet = XLSX.utils.aoa_to_sheet(matrix);
+  270 |   XLSX.utils.book_append_sheet(workbook, worksheet, "Join Table");
+> 271 |   XLSX.writeFile(workbook, filePath);
+      |   ^
+  272 |
+  273 |   return {
+  274 |     updatedAt: new Date().toISOString(),
+ GET /api/setup/status 200 in 56ms
+[TRPC] admin.joinTableExportStatus took 112ms to execute
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 188ms
+ ✓ Compiled in 270ms (599 modules)
+ GET /api/setup/status 200 in 16ms
+ GET /admin 200 in 36ms
+ GET /api/setup/status 200 in 15ms
+[TRPC] admin.joinTableExportStatus took 481ms to execute
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 520ms
+ ✓ Compiled in 224ms (599 modules)
+ GET /api/setup/status 200 in 18ms
+ GET /admin 200 in 64ms
+ ✓ Compiled in 132ms (599 modules)
+ GET /api/setup/status 200 in 9ms
+ GET /admin 200 in 26ms
+^C^C ELIFECYCLE  Command failed with exit code 3221225786.
+ ELIFECYCLE  Command failed with exit code 3221225786.
+============================== 
+Service start Sun 12/28/2025 20:54:56.08 
+User: nickv 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+C:\Users\nickv\AppData\Roaming\npm\pnpm
+C:\Users\nickv\AppData\Roaming\npm\pnpm.cmd
+
+> t3-app-template@0.1.0 prod C:\Users\nickv\Documents\code_projects\eaglevents
+> dotenv -e .env -- node scripts/prod.cjs
+
+
+> t3-app-template@0.1.0 dev C:\Users\nickv\Documents\code_projects\eaglevents
+> node scripts/dev.cjs
+
+   ▲ Next.js 15.5.6
+   - Local:        http://localhost:3024
+   - Network:      http://192.168.56.1:3024
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1532ms
+ ✓ Compiled /middleware in 230ms (261 modules)
+ ✓ Compiled /api/setup/status in 487ms (482 modules)
+ GET /api/setup/status 200 in 673ms
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 1485ms (2037 modules)
+[join-table-export] scheduled refresh failed Error: cannot save file C:\Users\nickv\Documents\code_projects\eaglevents\exports\eaglevents-join-table.xlsx
+    at writeJoinTableExport (src\server\services\join-table-export.ts:271:3)
+    at async run (src\server\services\join-table-export.ts:339:7)
+  269 |   const worksheet = XLSX.utils.aoa_to_sheet(matrix);
+  270 |   XLSX.utils.book_append_sheet(workbook, worksheet, "Join Table");
+> 271 |   XLSX.writeFile(workbook, filePath);
+      |   ^
+  272 |
+  273 |   return {
+  274 |     updatedAt: new Date().toISOString(),
+ ✓ Compiled in 6.4s (427 modules)
+ GET /admin 200 in 7964ms
+ ✓ Compiled in 133ms (427 modules)
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 550ms (2039 modules)
+ GET /api/setup/status 200 in 520ms
+ ✓ Compiled /api/trpc/[trpc] in 267ms (2042 modules)
+ GET /api/auth/session 200 in 1224ms
+[TRPC] admin.dashboard took 377ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 1630ms
+ GET /api/setup/status 200 in 22ms
+ GET /admin 200 in 212ms
+ GET /api/auth/session 200 in 24ms
+ GET /api/setup/status 200 in 13ms
+[TRPC] admin.dashboard took 494ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 534ms
+ GET /api/setup/status 200 in 17ms
+[TRPC] admin.joinTableExportStatus took 325ms to execute
+[TRPC] calendar.listMine took 420ms to execute
+ GET /api/trpc/admin.joinTableExportStatus,calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 467ms
+ GET /api/setup/status 200 in 12ms
+[TRPC] admin.exportSnapshot took 188ms to execute
+❌ tRPC failed on admin.exportSnapshot: Admin access is required for this operation.
+ POST /api/trpc/admin.exportSnapshot?batch=1 200 in 216ms
+ ✓ Compiled in 184ms (427 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 32ms
+ ✓ Compiled in 130ms (427 modules)
+ GET /api/setup/status 200 in 13ms
+ GET /admin 200 in 37ms
+ ✓ Compiled in 442ms (2054 modules)
+ GET /api/setup/status 200 in 68ms
+ GET /admin 200 in 252ms
+ GET /api/setup/status 200 in 16ms
+[TRPC] admin.joinTableExportStatus took 430ms to execute
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 463ms
+ ✓ Compiled in 314ms (2054 modules)
+ GET /api/setup/status 200 in 62ms
+ GET /admin 200 in 213ms
+ ✓ Compiled in 306ms (2054 modules)
+ GET /api/setup/status 200 in 35ms
+ GET /admin 200 in 117ms
+ GET /api/setup/status 200 in 14ms
+[TRPC] admin.joinTableExportStatus took 262ms to execute
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 306ms
+ ✓ Compiled /api/auth/[...nextauth] in 283ms (1629 modules)
+ GET /api/auth/session 200 in 538ms
+ GET /api/setup/status 200 in 518ms
+[TRPC] calendar.listMine took 163ms to execute
+ GET /api/trpc/calendar.listMine?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 402ms
+ GET /api/auth/session 200 in 19ms
+ GET /api/auth/session 200 in 45ms
+ GET /api/auth/session 200 in 30ms
+ GET /api/auth/session 200 in 50ms
+ ✓ Compiled in 167ms (427 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 612ms (2072 modules)
+ GET / 200 in 1058ms
+ GET /api/auth/session 200 in 23ms
+ ⚠ Cross origin request detected from vents.orbitsam.com to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+[TRPC] calendar.listMine took 149ms to execute
+[TRPC] calendar.getBusiness took 274ms to execute
+[TRPC] event.list took 327ms to execute
+ GET /api/trpc/calendar.getBusiness,calendar.listMine,event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-22T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-27T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 363ms
+[TRPC] event.list took 437ms to execute
+ GET /api/trpc/event.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22start%22%3A%222025-12-01T05%3A00%3A00.000Z%22%2C%22end%22%3A%222025-12-06T05%3A00%3A00.000Z%22%7D%2C%22meta%22%3A%7B%22values%22%3A%7B%22start%22%3A%5B%22Date%22%5D%2C%22end%22%3A%5B%22Date%22%5D%7D%2C%22v%22%3A1%7D%7D%7D 200 in 468ms
+ ✓ Compiled /settings in 369ms (2097 modules)
+ GET /settings 200 in 486ms
+ GET /settings 200 in 33ms
+[TRPC] theme.settings took 453ms to execute
+ GET /api/trpc/theme.settings?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 631ms
+ ✓ Compiled /calendar in 236ms (2085 modules)
+ GET /calendar 200 in 371ms
+ GET /admin 200 in 26ms
+[TRPC] admin.dashboard took 305ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 333ms
+[TRPC] admin.joinTableExportStatus took 372ms to execute
+ GET /api/trpc/admin.joinTableExportStatus?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 401ms
+[TRPC] admin.refreshJoinTableExport took 787ms to execute
+❌ tRPC failed on admin.refreshJoinTableExport: cannot save file C:\Users\nickv\Documents\code_projects\eaglevents\exports\eaglevents-join-table.xlsx
+ POST /api/trpc/admin.refreshJoinTableExport?batch=1 200 in 822ms
+ ✓ Compiled in 142ms (443 modules)
+ GET /admin 200 in 23ms
+ GET /api/setup/status 200 in 18ms
+ GET /admin 200 in 148ms
+ GET /api/auth/session 200 in 28ms
+ GET /api/setup/status 200 in 10ms
+[TRPC] admin.dashboard took 483ms to execute
+ GET /api/trpc/admin.dashboard?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 517ms
+ ✓ Compiled in 123ms (443 modules)
+ GET /api/setup/status 200 in 16ms
+ GET /admin 200 in 34ms
+ GET /admin 200 in 57ms
+ ✓ Compiled in 117ms (443 modules)
+ GET /api/setup/status 200 in 14ms
+ GET /admin 200 in 24ms
+ GET /admin 200 in 35ms
+^C^C ELIFECYCLE  Command failed with exit code 3221225786.
+ ELIFECYCLE  Command failed with exit code 3221225786.
+============================== 
+Service start Sun 12/28/2025 21:00:58.47 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:05:14.59 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:09:30.74 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:13:46.87 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:18:03.03 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:22:19.18 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:26:35.32 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:30:51.48 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:35:07.64 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:39:23.78 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Sun 12/28/2025 21:43:39.92 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
