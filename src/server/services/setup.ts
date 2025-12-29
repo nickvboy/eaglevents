@@ -182,7 +182,8 @@ export async function getSetupStatus(dbClient: DbClient): Promise<SetupStatus> {
     })
     .from(organizationRoles)
     .leftJoin(users, eq(users.id, organizationRoles.userId))
-    .leftJoin(profiles, eq(profiles.id, organizationRoles.profileId));
+    .leftJoin(profiles, eq(profiles.id, organizationRoles.profileId))
+    .where(eq(users.isActive, true));
 
   const roles: RoleSummary[] = roleRows.map((row) => {
     const scopeLabel =

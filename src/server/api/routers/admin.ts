@@ -74,6 +74,8 @@ const snapshotSchema = z.object({
         email: z.string().min(1),
         displayName: z.string(),
         passwordHash: z.string(),
+        isActive: z.boolean().optional().default(true),
+        deactivatedAt: nullableTimestampSchema.optional(),
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
       }),
@@ -303,6 +305,8 @@ type UserSummary = {
   username: string;
   email: string;
   displayName: string;
+  isActive: boolean;
+  deactivatedAt: Date | null;
   createdAt: Date;
   primaryRole: "admin" | "manager" | "employee" | null;
   profile: {
@@ -484,6 +488,38 @@ async function findBusinessId(db: DbClient): Promise<number | null> {
   return business?.id ?? null;
 }
 
+async function requireAdminOrManager(ctx: { db: DbClient; session: { user?: { id?: string | number } } | null }) {
+  const userIdRaw = ctx.session?.user?.id;
+  const userId = userIdRaw ? Number(userIdRaw) : NaN;
+  if (!Number.isFinite(userId)) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to manage users." });
+  }
+
+  const businessId = await findBusinessId(ctx.db);
+  if (!businessId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+  }
+
+  const [roleRow] = await ctx.db
+    .select({ roleType: organizationRoles.roleType })
+    .from(organizationRoles)
+    .where(
+      and(
+        eq(organizationRoles.userId, userId),
+        eq(organizationRoles.scopeType, "business"),
+        eq(organizationRoles.scopeId, businessId),
+        inArray(organizationRoles.roleType, ["admin", "manager"]),
+      ),
+    )
+    .limit(1);
+
+  if (!roleRow) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage users." });
+  }
+
+  return { userId, roleType: roleRow.roleType };
+}
+
 function wouldCreateDepartmentCycle(
   targetId: number,
   newParentId: number | null,
@@ -504,6 +540,8 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
       username: users.username,
       email: users.email,
       displayName: users.displayName,
+      isActive: users.isActive,
+      deactivatedAt: users.deactivatedAt,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -589,6 +627,8 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
       username: user.username,
       email: user.email,
       displayName: user.displayName,
+      isActive: user.isActive,
+      deactivatedAt: user.deactivatedAt ?? null,
       createdAt: user.createdAt,
       primaryRole: roleMap.get(user.id) ?? null,
       profile: profile
@@ -651,6 +691,8 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       email: row.email,
       displayName: row.displayName,
       passwordHash: row.passwordHash,
+      isActive: row.isActive,
+      deactivatedAt: serializeTimestamp(row.deactivatedAt),
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
     })),
@@ -1694,6 +1736,8 @@ export const adminRouter = createTRPCRouter({
                 email: row.email,
                 displayName: row.displayName,
                 passwordHash: row.passwordHash,
+                isActive: row.isActive ?? true,
+                deactivatedAt: parseTimestamp(row.deactivatedAt ?? null),
                 createdAt: parseRequiredTimestamp(row.createdAt),
                 updatedAt: parseTimestamp(row.updatedAt),
             })),
@@ -2698,5 +2742,40 @@ export const adminRouter = createTRPCRouter({
 
         return updatedUser;
       });
+    }),
+
+  deleteUser: publicProcedure
+    .input(z.object({ userId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { userId: sessionUserId } = await requireAdminOrManager(ctx);
+      if (sessionUserId === input.userId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot delete your own account." });
+      }
+
+      const [existingUser] = await ctx.db
+        .select({ id: users.id, isActive: users.isActive })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+      if (!existingUser) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+      if (!existingUser.isActive) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "User is already deactivated." });
+      }
+
+      await ctx.db
+        .update(users)
+        .set({ isActive: false, deactivatedAt: new Date() })
+        .where(eq(users.id, input.userId));
+
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] admin deactivateUser refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] admin deactivateUser refresh failed", error);
+      });
+
+      return { deactivated: input.userId };
     }),
 });

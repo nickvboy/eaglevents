@@ -36,6 +36,8 @@ export const users = createTable(
     email: varchar({ length: 255 }).notNull(),
     displayName: varchar({ length: 255 }).default("").notNull(),
     passwordHash: varchar({ length: 255 }).notNull(),
+    isActive: d.boolean().default(true).notNull(),
+    deactivatedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true })
       .default(psql`CURRENT_TIMESTAMP`)
       .notNull(),

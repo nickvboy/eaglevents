@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 
 import { SearchIcon } from "~/app/_components/icons";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -71,6 +72,7 @@ function formatDateForInput(value: Date | string | null | undefined) {
 }
 
 export function UsersView() {
+  const { data: session } = useSession();
   const { data, isLoading, isError, refetch } = api.admin.users.useQuery(undefined, {
     staleTime: 45_000,
   });
@@ -80,16 +82,28 @@ export function UsersView() {
       await utils.admin.users.invalidate();
     },
   });
+  const deleteMutation = api.admin.deleteUser.useMutation({
+    onSuccess: async () => {
+      await utils.admin.users.invalidate();
+    },
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [formState, setFormState] = useState<FormState>(createDefaultForm);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const users = data?.users ?? [];
 
   useEffect(() => {
-    if (users.length > 0 && selectedUserId === null) {
+    if (users.length === 0) {
+      if (selectedUserId !== null) {
+        setSelectedUserId(null);
+      }
+      return;
+    }
+    if (selectedUserId === null || !users.some((user) => user.id === selectedUserId)) {
       setSelectedUserId(users[0]!.id);
     }
   }, [users, selectedUserId]);
@@ -113,6 +127,10 @@ export function UsersView() {
   }, [users, searchTerm]);
 
   const selectedUser = filteredUsers.find((user) => user.id === selectedUserId) ?? users.find((user) => user.id === selectedUserId) ?? null;
+  const sessionUserId = session?.user?.id;
+  const currentUserId = sessionUserId && Number.isFinite(Number(sessionUserId)) ? Number(sessionUserId) : null;
+  const isSelfSelected = selectedUser && currentUserId !== null && selectedUser.id === currentUserId;
+  const isDeactivated = selectedUser ? !selectedUser.isActive : false;
 
   useEffect(() => {
     setFormState(buildFormStateFromUser(selectedUser));
@@ -154,6 +172,20 @@ export function UsersView() {
     if (!selectedUser) return;
     setFormState(buildFormStateFromUser(selectedUser));
     setFeedback(null);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedUser || isSelfSelected || isDeactivated) return;
+    setFeedback(null);
+
+    try {
+      await deleteMutation.mutateAsync({ userId: selectedUser.id });
+      setSelectedUserId(null);
+      setIsDeleteOpen(false);
+      setFeedback({ type: "success", message: "User deactivated" });
+    } catch (error) {
+      setFeedback({ type: "error", message: (error as Error).message ?? "Failed to deactivate user" });
+    }
   };
 
   if (isLoading) {
@@ -227,6 +259,9 @@ export function UsersView() {
                       <div className="flex flex-col">
                         <span className="font-medium text-ink-primary">{user.displayName || user.username}</span>
                         <span className="text-xs text-ink-faint">Created {user.createdAt.toLocaleDateString()}</span>
+                        {!user.isActive ? (
+                          <span className="text-xs font-semibold uppercase tracking-wide text-status-danger">Deactivated</span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-ink-subtle">{user.email}</td>
@@ -400,10 +435,56 @@ export function UsersView() {
               >
                 Reset
               </button>
+              <button
+                type="button"
+                onClick={() => setIsDeleteOpen(true)}
+                disabled={deleteMutation.isPending || isSelfSelected || isDeactivated}
+                className="rounded-full border border-status-danger px-4 py-2 text-sm font-semibold text-status-danger transition hover:bg-status-danger-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-status-danger disabled:cursor-not-allowed disabled:border-status-danger/50 disabled:text-status-danger/50"
+              >
+                {deleteMutation.isPending ? "Deactivating..." : "Deactivate user"}
+              </button>
             </div>
+            {isSelfSelected ? (
+              <p className="text-xs text-ink-muted">You cannot deactivate your own account.</p>
+            ) : null}
+            {isDeactivated ? (
+              <p className="text-xs text-ink-muted">This account is already deactivated.</p>
+            ) : null}
           </form>
         )}
       </section>
+      {isDeleteOpen && selectedUser ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-primary/30 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+            <h3 className="text-lg font-semibold text-ink-primary">Deactivate user account</h3>
+            <p className="mt-2 text-sm text-ink-muted">
+              This will remove{" "}
+              <span className="font-semibold text-ink-primary">{selectedUser.displayName || selectedUser.username}</span>
+              {" "}from the platform while keeping their events and history intact.
+            </p>
+            <div className="mt-4 rounded-xl border border-status-danger/40 bg-status-danger-surface px-3 py-2 text-xs text-status-danger">
+              They will no longer be able to sign in.
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteOpen(false)}
+                className="rounded-full border border-outline-muted px-4 py-2 text-sm text-ink-subtle transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+                className="rounded-full bg-status-danger px-4 py-2 text-sm font-semibold text-white transition hover:bg-status-danger/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-status-danger disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteMutation.isPending ? "Deactivating..." : "Deactivate user"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

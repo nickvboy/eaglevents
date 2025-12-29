@@ -1,5 +1,5 @@
 import { Client } from "@elastic/elasticsearch";
-import { eq, ilike, or } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, isNull } from "drizzle-orm";
 
 import { env } from "~/env";
 import { profiles, users } from "~/server/db/schema";
@@ -75,7 +75,7 @@ export async function searchProfiles(query: string, limit: number, dbClient: DbC
       });
       const hits = response.hits.hits;
       if (hits?.length) {
-        return hits
+        const results = hits
           .map((hit) => {
             const source = hit._source;
             if (!source) return null;
@@ -90,6 +90,21 @@ export async function searchProfiles(query: string, limit: number, dbClient: DbC
           })
           .filter((entry): entry is ProfileSearchResult => Boolean(entry))
           .slice(0, limit);
+        const resultIds = results.map((entry) => entry.id);
+        if (resultIds.length === 0) return [];
+
+        const activeRows = await dbClient
+          .select({ id: profiles.id })
+          .from(profiles)
+          .leftJoin(users, eq(users.id, profiles.userId))
+          .where(
+            and(
+              inArray(profiles.id, resultIds),
+              or(eq(users.isActive, true), isNull(users.id)),
+            ),
+          );
+        const activeIdSet = new Set(activeRows.map((row) => row.id));
+        return results.filter((entry) => activeIdSet.has(entry.id));
       }
     } catch (error) {
       console.error("[profile-search] Elasticsearch search failed, falling back to DB:", error);
@@ -115,12 +130,15 @@ async function fallbackDbSearch(term: string, limit: number, dbClient: DbClient)
     .from(profiles)
     .leftJoin(users, eq(users.id, profiles.userId))
     .where(
-      or(
-        ilike(profiles.firstName, likeTerm),
-        ilike(profiles.lastName, likeTerm),
-        ilike(profiles.email, likeTerm),
-        ilike(profiles.phoneNumber, likeTerm),
-        ilike(users.username, likeTerm),
+      and(
+        or(eq(users.isActive, true), isNull(users.id)),
+        or(
+          ilike(profiles.firstName, likeTerm),
+          ilike(profiles.lastName, likeTerm),
+          ilike(profiles.email, likeTerm),
+          ilike(profiles.phoneNumber, likeTerm),
+          ilike(users.username, likeTerm),
+        ),
       ),
     )
     .limit(limit);

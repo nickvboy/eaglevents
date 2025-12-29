@@ -127,6 +127,20 @@
       "when": 1764546851846,
       "tag": "0017_harsh_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1767042709698,
+      "tag": "0018_deactivate_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1767042984004,
+      "tag": "0019_fearless_human_torch",
+      "breakpoints": true
     }
   ]
 }
