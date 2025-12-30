@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { skipToken } from "@tanstack/react-query";
 
 import { SearchIcon } from "~/app/_components/icons";
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
@@ -109,7 +110,7 @@ export function DatabaseView() {
     if (!start || !end) return undefined;
     return { start, end };
   }, [rangeEndDate, rangeStartDate]);
-  const rangeCountQuery = api.admin.databaseEventCount.useQuery(rangeInput, {
+  const rangeCountQuery = api.admin.databaseEventCount.useQuery(rangeInput ?? skipToken, {
     enabled: Boolean(rangeInput) && !deleteAllChecked,
   });
 

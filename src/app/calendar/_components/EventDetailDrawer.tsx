@@ -199,6 +199,11 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                   {calendar.name}
                 </div>
               )}
+              {event.scopeType && event.scopeId ? (
+                <div className="mt-2 text-xs text-ink-subtle">
+                  Scope: {event.scopeType.replace("_", " ")} #{event.scopeId}
+                </div>
+              ) : null}
               {assigneeName && (
                 <div className="mt-3 rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-xs">
                   <div className="text-ink-subtle">Assigned to</div>
@@ -229,6 +234,24 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                 <span className="text-xs text-ink-subtle">{calendar?.name ?? "Calendar"}</span>
               </div>
               <div className="text-xs text-ink-subtle">Event created {start.toLocaleString()}</div>
+              {event.coOwners && event.coOwners.length > 0 ? (
+                <div className="mt-3">
+                  <div className="text-xs font-semibold text-ink-subtle">Co-owners</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {event.coOwners.map((owner) => (
+                      <span
+                        key={owner.profileId}
+                        className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
+                      >
+                        <span className="font-medium">
+                          {[owner.firstName, owner.lastName].filter(Boolean).join(" ").trim() || owner.email}
+                        </span>
+                        <span className="text-ink-muted">{owner.email}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-3 text-xs text-ink-muted">Attendee details are not available for this event.</div>
             </div>
           </section>
@@ -635,6 +658,7 @@ function normalizeTimeInput(value: string) {
   const meridiemMatch = numericPart.match(/\s*(am|pm|a|p)$/);
   if (meridiemMatch) {
     const token = meridiemMatch[1];
+    if (!token) return null;
     meridiem = token.startsWith("p") ? "pm" : "am";
     numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0]!.length).trim();
   }
@@ -643,7 +667,7 @@ function normalizeTimeInput(value: string) {
   let minutes: number | null = null;
   if (numericPart.includes(":")) {
     const [h, m = "0"] = numericPart.split(":");
-    if (!/^\d+$/.test(h) || !/^\d+$/.test(m)) return null;
+    if (!h || !/^\d+$/.test(h) || !/^\d+$/.test(m)) return null;
     hours = Number(h);
     minutes = Number(m);
   } else if (/^\d{3,4}$/.test(numericPart)) {

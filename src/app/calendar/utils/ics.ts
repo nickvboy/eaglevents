@@ -28,10 +28,10 @@ function extractEventNameFromDescription(value: string | null) {
   return name && name.length > 0 ? name : null;
 }
 
-function extractZendeskTicketNumber(value: string | null) {
+function extractZendeskTicketNumber(value: string | null): string | null {
   if (!value) return null;
   const match = /#(\d{4,})/.exec(value);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 function unfoldLines(text: string) {
@@ -59,7 +59,10 @@ function parseIcsDate(value: string): ParsedIcsDate | null {
 
   const match = /^(\d{8})T(\d{4,6})(Z?)$/.exec(trimmed);
   if (!match) return null;
-  const [, datePart, timePart, utcFlag] = match;
+  const datePart = match[1];
+  const timePart = match[2];
+  const utcFlag = match[3] ?? "";
+  if (!datePart || !timePart) return null;
   const year = Number(datePart.slice(0, 4));
   const month = Number(datePart.slice(4, 6)) - 1;
   const day = Number(datePart.slice(6, 8));

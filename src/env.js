@@ -19,6 +19,7 @@ export const env = createEnv({
     ELASTICSEARCH_USERNAME: z.string().optional(),
     ELASTICSEARCH_PASSWORD: z.string().optional(),
     ELASTICSEARCH_PROFILE_INDEX: z.string().optional(),
+    ENABLE_ELASTICSEARCH: z.string().optional(),
     // Prod variants (kept in same .env; used by `pnpm prod <script>`)
     DATABASE_URL_PROD: z.string().url().optional(),
     DEV_SERVER_PROD: z.string().url().optional(),
@@ -47,6 +48,7 @@ export const env = createEnv({
     ELASTICSEARCH_USERNAME: process.env.ELASTICSEARCH_USERNAME,
     ELASTICSEARCH_PASSWORD: process.env.ELASTICSEARCH_PASSWORD,
     ELASTICSEARCH_PROFILE_INDEX: process.env.ELASTICSEARCH_PROFILE_INDEX,
+    ENABLE_ELASTICSEARCH: process.env.ENABLE_ELASTICSEARCH,
     DATABASE_URL_PROD: process.env.DATABASE_URL_PROD,
     DEV_SERVER_PROD: process.env.DEV_SERVER_PROD,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,

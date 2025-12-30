@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
 
@@ -22,6 +22,8 @@ type NodePosition = {
 
 type HandleSide = "top" | "right" | "bottom" | "left";
 
+type SnapTarget = { id: number; handle: NodePosition; side: HandleSide; distance: number };
+
 type ConnectorDrag = {
   fromId: number;
   startX: number;
@@ -42,9 +44,9 @@ const businessTypes: Array<{ value: BusinessType; label: string }> = [
 
 function renderDepartmentRows(
   nodes: DepartmentNode[],
-  renderRow: (node: DepartmentNode, depth: number) => JSX.Element,
+  renderRow: (node: DepartmentNode, depth: number) => ReactElement,
   depth = 0,
-) {
+): ReactElement[] {
   return nodes.flatMap((node) => [
     renderRow(node, depth),
     ...(node.children?.length ? renderDepartmentRows(node.children, renderRow, depth + 1) : []),
@@ -348,7 +350,7 @@ export function CompanyView() {
     return { handle: closest, distance };
   };
 
-  const findSnapTarget = (x: number, y: number, fromId: number) => {
+  const findSnapTarget = (x: number, y: number, fromId: number): SnapTarget | null => {
     const entries = Object.entries(nodePositionsRef.current)
       .map(([id, pos]) => ({ id: Number(id), pos, width: NODE_WIDTH, height: NODE_HEIGHT }))
       .filter((entry) => entry.id !== fromId);
@@ -363,8 +365,8 @@ export function CompanyView() {
       );
     });
 
-    const evaluate = (candidates: typeof entries) => {
-      let best: { id: number; handle: NodePosition; side: HandleSide; distance: number } | null = null;
+    const evaluate = (candidates: typeof entries): SnapTarget | null => {
+      let best: SnapTarget | null = null;
       candidates.forEach(({ id, pos, width, height }) => {
         const { handle, distance } = getClosestHandle(pos, x, y, width, height);
         if (!best || distance < best.distance) {
@@ -391,8 +393,8 @@ export function CompanyView() {
       if (current === childId) return true;
       if (visited.has(current)) return true;
       visited.add(current);
-      const override = Object.prototype.hasOwnProperty.call(pendingParents, current)
-        ? pendingParents[current]
+      const override: number | null = Object.prototype.hasOwnProperty.call(pendingParents, current)
+        ? pendingParents[current] ?? null
         : departmentById.get(current)?.parentDepartmentId ?? null;
       current = override ?? null;
     }
@@ -583,10 +585,13 @@ export function CompanyView() {
     setBuildingFeedback(null);
     try {
       await createRoom.mutateAsync({ buildingId, roomNumber: draft.roomField.trim() });
-      setBuildingForms((prev) => ({
-        ...prev,
-        [buildingId]: { ...prev[buildingId], roomField: "" },
-      }));
+      setBuildingForms((prev) => {
+        const base = prev[buildingId] ?? { name: "", acronym: "", roomField: "" };
+        return {
+          ...prev,
+          [buildingId]: { ...base, roomField: "" },
+        };
+      });
     } catch (error) {
       setBuildingFeedback((error as Error).message ?? "Failed to add room.");
     }
@@ -707,10 +712,13 @@ export function CompanyView() {
                     <input
                       value={form?.name ?? building.name}
                       onChange={(event) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [building.id]: { ...prev[building.id], name: event.target.value },
-                        }))
+                        setBuildingForms((prev) => {
+                          const base = prev[building.id] ?? { name: building.name, acronym: building.acronym, roomField: "" };
+                          return {
+                            ...prev,
+                            [building.id]: { ...base, name: event.target.value },
+                          };
+                        })
                       }
                       className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                     />
@@ -720,10 +728,13 @@ export function CompanyView() {
                     <input
                       value={form?.acronym ?? building.acronym}
                       onChange={(event) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [building.id]: { ...prev[building.id], acronym: event.target.value },
-                        }))
+                        setBuildingForms((prev) => {
+                          const base = prev[building.id] ?? { name: building.name, acronym: building.acronym, roomField: "" };
+                          return {
+                            ...prev,
+                            [building.id]: { ...base, acronym: event.target.value },
+                          };
+                        })
                       }
                       className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
                     />
@@ -805,10 +816,13 @@ export function CompanyView() {
                     <input
                       value={form?.roomField ?? ""}
                       onChange={(event) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [building.id]: { ...prev[building.id], roomField: event.target.value },
-                        }))
+                        setBuildingForms((prev) => {
+                          const base = prev[building.id] ?? { name: building.name, acronym: building.acronym, roomField: "" };
+                          return {
+                            ...prev,
+                            [building.id]: { ...base, roomField: event.target.value },
+                          };
+                        })
                       }
                       className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                       placeholder="Add room"
@@ -1519,10 +1533,13 @@ export function CompanyView() {
                         <input
                           value={form?.name ?? dept.name}
                           onChange={(event) =>
-                            setDepartmentForms((prev) => ({
-                              ...prev,
-                              [dept.id]: { ...prev[dept.id], name: event.target.value },
-                            }))
+                            setDepartmentForms((prev) => {
+                              const base = prev[dept.id] ?? { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null };
+                              return {
+                                ...prev,
+                                [dept.id]: { ...base, name: event.target.value },
+                              };
+                            })
                           }
                           className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                         />
@@ -1532,13 +1549,16 @@ export function CompanyView() {
                         <select
                           value={form?.parentDepartmentId ?? ""}
                           onChange={(event) =>
-                            setDepartmentForms((prev) => ({
-                              ...prev,
-                              [dept.id]: {
-                                ...prev[dept.id],
-                                parentDepartmentId: event.target.value ? Number(event.target.value) : null,
-                              },
-                            }))
+                            setDepartmentForms((prev) => {
+                              const base = prev[dept.id] ?? { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null };
+                              return {
+                                ...prev,
+                                [dept.id]: {
+                                  ...base,
+                                  parentDepartmentId: event.target.value ? Number(event.target.value) : null,
+                                },
+                              };
+                            })
                           }
                           className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                         >

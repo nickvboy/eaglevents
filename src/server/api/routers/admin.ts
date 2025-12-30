@@ -1,13 +1,16 @@
 import { z } from "zod";
-import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import type { Session } from "next-auth";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
+  auditLogs,
   buildings,
   businesses,
   calendars,
   departments,
+  eventCoOwners,
   eventAttendees,
   eventHourLogs,
   eventReminders,
@@ -20,6 +23,7 @@ import {
   themePalettes,
   themeProfiles,
   users,
+  visibilityGrants,
 } from "~/server/db/schema";
 import {
   bucketizeByMonth,
@@ -27,6 +31,7 @@ import {
   startOfMonth,
   sumSeries,
 } from "~/server/services/admin";
+import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import {
   ensureJoinTableExportScheduler,
   getJoinTableExportStatus,
@@ -39,11 +44,30 @@ import {
 } from "~/server/services/hour-log-export";
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 import { getSetupStatus } from "~/server/services/setup";
+import {
+  canAssignRole,
+  getPermissionContext,
+  getUsersInScopes,
+  getVisibleScopes,
+  requireAdminCapability,
+} from "~/server/services/permissions";
+import bcrypt from "bcryptjs";
 
 type DbClient = typeof import("~/server/db").db;
+type DbReader = Pick<DbClient, "select">;
+type DbExecutor = Pick<DbClient, "execute">;
 
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2;
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
+const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
+const organizationScopeTypeValues = ["business", "department", "division"] as const;
+const themeProfileScopeValues = ["business", "department"] as const;
+const eventRequestCategoryValues = [
+  "university_affiliated_request_to_university_business",
+  "university_affiliated_nonrequest_to_university_business",
+  "fgcu_student_affiliated_event",
+  "non_affiliated_or_revenue_generating_event",
+] as const;
 
 const timestampSchema = z.string().datetime();
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -105,7 +129,7 @@ const snapshotSchema = z.object({
       z.object({
         id: z.number().int().positive(),
         name: z.string(),
-        type: z.string(),
+        type: z.enum(businessTypeValues),
         setupCompletedAt: nullableTimestampSchema,
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
@@ -157,7 +181,7 @@ const snapshotSchema = z.object({
       z.object({
         id: z.number().int().positive(),
         businessId: z.number().int().positive(),
-        scopeType: z.string(),
+        scopeType: z.enum(themeProfileScopeValues),
         scopeId: z.number().int().positive(),
         label: z.string(),
         description: z.string(),
@@ -171,8 +195,8 @@ const snapshotSchema = z.object({
         id: z.number().int().positive(),
         userId: z.number().int().positive(),
         profileId: z.number().int().positive(),
-        roleType: z.string(),
-        scopeType: z.string(),
+        roleType: z.enum(organizationRoleValues),
+        scopeType: z.enum(organizationScopeTypeValues),
         scopeId: z.number().int().positive(),
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
@@ -195,6 +219,9 @@ const snapshotSchema = z.object({
         calendarId: z.number().int().positive(),
         buildingId: z.number().int().positive().nullable(),
         assigneeProfileId: z.number().int().positive().nullable(),
+        ownerProfileId: z.number().int().positive().nullable(),
+        scopeType: z.enum(organizationScopeTypeValues),
+        scopeId: z.number().int().positive(),
         eventCode: z.string(),
         title: z.string(),
         description: z.string().nullable(),
@@ -205,7 +232,7 @@ const snapshotSchema = z.object({
         recurrenceRule: z.string().nullable(),
         participantCount: z.number().int().nullable(),
         technicianNeeded: z.boolean(),
-        requestCategory: z.string().nullable(),
+        requestCategory: z.enum(eventRequestCategoryValues).nullable(),
         equipmentNeeded: z.string().nullable(),
         eventStartTime: nullableTimestampSchema,
         eventEndTime: nullableTimestampSchema,
@@ -213,6 +240,14 @@ const snapshotSchema = z.object({
         zendeskTicketNumber: z.string().nullable(),
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
+      }),
+    ),
+    eventCoOwners: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        profileId: z.number().int().positive(),
+        createdAt: timestampSchema,
       }),
     ),
     eventAttendees: z.array(
@@ -248,6 +283,32 @@ const snapshotSchema = z.object({
         eventId: z.number().int().positive(),
         profileId: z.number().int().positive(),
         confirmedAt: timestampSchema,
+      }),
+    ),
+    visibilityGrants: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        userId: z.number().int().positive(),
+        scopeType: z.enum(organizationScopeTypeValues),
+        scopeId: z.number().int().positive(),
+        createdByUserId: z.number().int().positive().nullable(),
+        reason: z.string(),
+        createdAt: timestampSchema,
+      }),
+    ),
+    auditLogs: z.array(
+      z.object({
+        id: z.number().int().positive(),
+        businessId: z.number().int().positive().nullable(),
+        actorUserId: z.number().int().positive().nullable(),
+        actorProfileId: z.number().int().positive().nullable(),
+        action: z.string(),
+        targetType: z.string(),
+        targetId: z.number().int().positive().nullable(),
+        scopeType: z.enum(organizationScopeTypeValues).nullable(),
+        scopeId: z.number().int().positive().nullable(),
+        metadata: z.record(z.unknown()).nullable(),
+        createdAt: timestampSchema,
       }),
     ),
   }),
@@ -308,14 +369,27 @@ type UserSummary = {
   isActive: boolean;
   deactivatedAt: Date | null;
   createdAt: Date;
-  primaryRole: "admin" | "manager" | "employee" | null;
+  primaryRole: "admin" | "co_admin" | "manager" | "employee" | null;
+  roles: Array<{
+    roleType: "admin" | "co_admin" | "manager" | "employee";
+    scopeType: "business" | "department" | "division";
+    scopeId: number;
+    scopeLabel: string;
+  }>;
+  visibilityGrants: Array<{
+    id: number;
+    scopeType: "business" | "department" | "division";
+    scopeId: number;
+    scopeLabel: string;
+    reason: string;
+  }>;
   profile: {
     id: number;
     firstName: string;
     lastName: string;
     email: string;
     phoneNumber: string;
-    dateOfBirth: Date | null;
+    dateOfBirth: string | null;
   } | null;
   lastActivity: Date | null;
   totalEvents: number;
@@ -399,6 +473,10 @@ function coerceTimestampValue(value: Date | string) {
   throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot timestamp is invalid." });
 }
 
+function sanitizePhone(raw: string) {
+  return raw.replace(/\D/g, "").slice(0, 15);
+}
+
 function serializeTimestamp(value: Date | string | null | undefined) {
   if (!value) return null;
   return coerceTimestampValue(value).toISOString();
@@ -449,7 +527,7 @@ function parseDateOnly(value: string | Date | null) {
 }
 
 function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?: Date }) {
-  const conditions: Array<ReturnType<typeof and>> = [];
+  const conditions: SQL<unknown>[] = [];
   if (input?.start) {
     conditions.push(gte(events.startDatetime, input.start));
   }
@@ -462,62 +540,43 @@ function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?
       const like = `%${trimmed.replace(/[%_]/g, (match) => `\\${match}`)}%`;
       const numericId = Number(trimmed);
       const idCondition = Number.isInteger(numericId) && numericId > 0 ? eq(events.id, numericId) : null;
-      conditions.push(
-        or(
-          ilike(events.title, like),
-          ilike(events.location, like),
-          eq(events.eventCode, trimmed),
-          eq(events.zendeskTicketNumber, trimmed),
-          ...(idCondition ? [idCondition] : []),
-        ),
+      const searchCondition = or(
+        ilike(events.title, like),
+        ilike(events.location, like),
+        eq(events.eventCode, trimmed),
+        eq(events.zendeskTicketNumber, trimmed),
+        ...(idCondition ? [idCondition] : []),
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
   }
 
   if (conditions.length === 0) return null;
-  let combined = conditions[0]!;
-  for (let index = 1; index < conditions.length; index += 1) {
-    combined = and(combined, conditions[index]!);
-  }
-  return combined;
+  return and(...conditions) ?? null;
 }
 
 
-async function findBusinessId(db: DbClient): Promise<number | null> {
+async function findBusinessId(db: DbReader): Promise<number | null> {
   const [business] = await db.select({ id: businesses.id }).from(businesses).orderBy(businesses.id).limit(1);
   return business?.id ?? null;
 }
 
-async function requireAdminOrManager(ctx: { db: DbClient; session: { user?: { id?: string | number } } | null }) {
-  const userIdRaw = ctx.session?.user?.id;
-  const userId = userIdRaw ? Number(userIdRaw) : NaN;
-  if (!Number.isFinite(userId)) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to manage users." });
-  }
-
-  const businessId = await findBusinessId(ctx.db);
-  if (!businessId) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
-  }
-
-  const [roleRow] = await ctx.db
-    .select({ roleType: organizationRoles.roleType })
-    .from(organizationRoles)
-    .where(
-      and(
-        eq(organizationRoles.userId, userId),
-        eq(organizationRoles.scopeType, "business"),
-        eq(organizationRoles.scopeId, businessId),
-        inArray(organizationRoles.roleType, ["admin", "manager"]),
-      ),
-    )
+async function findDefaultDepartmentScope(db: DbReader, businessId: number) {
+  const [department] = await db
+    .select({ id: departments.id })
+    .from(departments)
+    .where(eq(departments.businessId, businessId))
+    .orderBy(departments.id)
     .limit(1);
+  if (!department) return null;
+  return { scopeType: "department" as const, scopeId: department.id };
+}
 
-  if (!roleRow) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage users." });
-  }
-
-  return { userId, roleType: roleRow.roleType };
+async function requireAdminOrManager(ctx: { db: DbClient; session: Session | null }) {
+  const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
+  return { userId: context.userId, roleType: context.primaryRole };
 }
 
 function wouldCreateDepartmentCycle(
@@ -533,8 +592,8 @@ function wouldCreateDepartmentCycle(
   return false;
 }
 
-async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> {
-  let userQuery = db
+async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> {
+  const baseQuery = db
     .select({
       id: users.id,
       username: users.username,
@@ -544,46 +603,62 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
       deactivatedAt: users.deactivatedAt,
       createdAt: users.createdAt,
     })
-    .from(users)
-    .orderBy(desc(users.createdAt), users.id);
+    .from(users);
 
-  if (ids && ids.length > 0) {
-    userQuery = userQuery.where(inArray(users.id, ids));
-  }
-
-  const userRows = await userQuery;
+  const filteredQuery = ids && ids.length > 0 ? baseQuery.where(inArray(users.id, ids)) : baseQuery;
+  const userRows = await filteredQuery.orderBy(desc(users.createdAt), users.id);
   if (userRows.length === 0) return [];
 
   const userIds = userRows.map((row) => row.id);
 
-  const profileRows = await db
-    .select({
-      id: profiles.id,
-      userId: profiles.userId,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      email: profiles.email,
-      phoneNumber: profiles.phoneNumber,
-      dateOfBirth: profiles.dateOfBirth,
-    })
-    .from(profiles)
-    .where(inArray(profiles.userId, userIds));
+  const [profileRows, activityRows, roleRows, grantRows] = await Promise.all([
+    db
+      .select({
+        id: profiles.id,
+        userId: profiles.userId,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+        phoneNumber: profiles.phoneNumber,
+        dateOfBirth: profiles.dateOfBirth,
+      })
+      .from(profiles)
+      .where(inArray(profiles.userId, userIds)),
+    db
+      .select({
+        userId: calendars.userId,
+        lastActivity: sql<Date | null>`max(${events.startDatetime})`,
+        totalEvents: sql<number>`count(${events.id})::int`,
+      })
+      .from(events)
+      .innerJoin(calendars, eq(events.calendarId, calendars.id))
+      .where(inArray(calendars.userId, userIds))
+      .groupBy(calendars.userId),
+    db
+      .select({
+        userId: organizationRoles.userId,
+        roleType: organizationRoles.roleType,
+        scopeType: organizationRoles.scopeType,
+        scopeId: organizationRoles.scopeId,
+      })
+      .from(organizationRoles)
+      .where(inArray(organizationRoles.userId, userIds)),
+    db
+      .select({
+        id: visibilityGrants.id,
+        userId: visibilityGrants.userId,
+        scopeType: visibilityGrants.scopeType,
+        scopeId: visibilityGrants.scopeId,
+        reason: visibilityGrants.reason,
+      })
+      .from(visibilityGrants)
+      .where(inArray(visibilityGrants.userId, userIds)),
+  ]);
 
   const profileMap = new Map<number, (typeof profileRows)[number]>();
   for (const profile of profileRows) {
     if (profile.userId !== null) profileMap.set(profile.userId, profile);
   }
-
-  const activityRows = await db
-    .select({
-      userId: calendars.userId,
-      lastActivity: sql<Date | null>`max(${events.startDatetime})`,
-      totalEvents: sql<number>`count(${events.id})::int`,
-    })
-    .from(events)
-    .innerJoin(calendars, eq(events.calendarId, calendars.id))
-    .where(inArray(calendars.userId, userIds))
-    .groupBy(calendars.userId);
 
   const activityMap = new Map<number, { lastActivity: Date | null; totalEvents: number }>();
   for (const activity of activityRows) {
@@ -593,30 +668,73 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
     });
   }
 
-  const roleRows = await db
-    .select({
-      userId: organizationRoles.userId,
-      roleType: organizationRoles.roleType,
-    })
-    .from(organizationRoles)
-    .where(
-      and(
-        inArray(organizationRoles.userId, userIds),
-        eq(organizationRoles.scopeType, "business"),
-      ),
-    );
+  const businessId = await findBusinessId(db);
+  const businessRow =
+    businessId !== null
+      ? await db
+          .select({ id: businesses.id, name: businesses.name })
+          .from(businesses)
+          .where(eq(businesses.id, businessId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : null;
 
-  const priority = new Map<"admin" | "manager" | "employee", number>([
-    ["admin", 3],
+  const departmentRows =
+    businessId !== null
+      ? await db
+          .select({ id: departments.id, name: departments.name, parentDepartmentId: departments.parentDepartmentId })
+          .from(departments)
+          .where(eq(departments.businessId, businessId))
+      : [];
+
+  const departmentMap = new Map<number, { name: string; parentDepartmentId: number | null }>();
+  for (const dept of departmentRows) {
+    departmentMap.set(dept.id, { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null });
+  }
+
+  const scopeLabel = (scopeType: "business" | "department" | "division", scopeId: number) => {
+    if (scopeType === "business") {
+      return `${businessRow?.name ?? "Business"} (Business)`;
+    }
+    const dept = departmentMap.get(scopeId);
+    const suffix = scopeType === "division" ? "Division" : "Department";
+    return `${dept?.name ?? "Unknown"} (${suffix})`;
+  };
+
+  const priority = new Map<"admin" | "co_admin" | "manager" | "employee", number>([
+    ["admin", 4],
+    ["co_admin", 3],
     ["manager", 2],
     ["employee", 1],
   ]);
-  const roleMap = new Map<number, "admin" | "manager" | "employee">();
+  const roleMap = new Map<number, "admin" | "co_admin" | "manager" | "employee">();
+  const rolesByUser = new Map<number, UserSummary["roles"]>();
   for (const role of roleRows) {
     const existing = roleMap.get(role.userId);
     if (!existing || (priority.get(role.roleType) ?? 0) > (priority.get(existing) ?? 0)) {
       roleMap.set(role.userId, role.roleType);
     }
+    const list = rolesByUser.get(role.userId) ?? [];
+    list.push({
+      roleType: role.roleType,
+      scopeType: role.scopeType,
+      scopeId: role.scopeId,
+      scopeLabel: scopeLabel(role.scopeType, role.scopeId),
+    });
+    rolesByUser.set(role.userId, list);
+  }
+
+  const grantsByUser = new Map<number, UserSummary["visibilityGrants"]>();
+  for (const grant of grantRows) {
+    const list = grantsByUser.get(grant.userId) ?? [];
+    list.push({
+      id: grant.id,
+      scopeType: grant.scopeType,
+      scopeId: grant.scopeId,
+      scopeLabel: scopeLabel(grant.scopeType, grant.scopeId),
+      reason: grant.reason,
+    });
+    grantsByUser.set(grant.userId, list);
   }
 
   return userRows.map((user) => {
@@ -631,6 +749,8 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
       deactivatedAt: user.deactivatedAt ?? null,
       createdAt: user.createdAt,
       primaryRole: roleMap.get(user.id) ?? null,
+      roles: rolesByUser.get(user.id) ?? [],
+      visibilityGrants: grantsByUser.get(user.id) ?? [],
       profile: profile
         ? {
             id: profile.id,
@@ -638,7 +758,7 @@ async function fetchUsers(db: DbClient, ids?: number[]): Promise<UserSummary[]> 
             lastName: profile.lastName,
             email: profile.email,
             phoneNumber: profile.phoneNumber,
-            dateOfBirth: profile.dateOfBirth ?? null,
+            dateOfBirth: parseDateOnly(profile.dateOfBirth ?? null),
           }
         : null,
       lastActivity: activity?.lastActivity ?? null,
@@ -661,10 +781,13 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
     organizationRoleRows,
     calendarRows,
     eventRows,
+    eventCoOwnerRows,
     attendeeRows,
     reminderRows,
     hourLogRows,
     confirmationRows,
+    visibilityGrantRows,
+    auditLogRows,
   ] = await Promise.all([
     db.select().from(users).orderBy(users.id),
     db.select().from(posts).orderBy(posts.id),
@@ -678,10 +801,13 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
     db.select().from(organizationRoles).orderBy(organizationRoles.id),
     db.select().from(calendars).orderBy(calendars.id),
     db.select().from(events).orderBy(events.id),
+    db.select().from(eventCoOwners).orderBy(eventCoOwners.id),
     db.select().from(eventAttendees).orderBy(eventAttendees.id),
     db.select().from(eventReminders).orderBy(eventReminders.id),
     db.select().from(eventHourLogs).orderBy(eventHourLogs.id),
     db.select().from(eventZendeskConfirmations).orderBy(eventZendeskConfirmations.id),
+    db.select().from(visibilityGrants).orderBy(visibilityGrants.id),
+    db.select().from(auditLogs).orderBy(auditLogs.id),
   ]);
 
   return {
@@ -790,6 +916,9 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       calendarId: row.calendarId,
       buildingId: row.buildingId ?? null,
       assigneeProfileId: row.assigneeProfileId ?? null,
+      ownerProfileId: row.ownerProfileId ?? null,
+      scopeType: row.scopeType,
+      scopeId: row.scopeId,
       eventCode: row.eventCode,
       title: row.title,
       description: row.description ?? null,
@@ -808,6 +937,12 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       zendeskTicketNumber: row.zendeskTicketNumber ?? null,
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    eventCoOwners: eventCoOwnerRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      profileId: row.profileId,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
     })),
     eventAttendees: attendeeRows.map((row) => ({
       id: row.id,
@@ -836,10 +971,32 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       profileId: row.profileId,
       confirmedAt: serializeRequiredTimestamp(row.confirmedAt),
     })),
+    visibilityGrants: visibilityGrantRows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      scopeType: row.scopeType,
+      scopeId: row.scopeId,
+      createdByUserId: row.createdByUserId ?? null,
+      reason: row.reason,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+    })),
+    auditLogs: auditLogRows.map((row) => ({
+      id: row.id,
+      businessId: row.businessId ?? null,
+      actorUserId: row.actorUserId ?? null,
+      actorProfileId: row.actorProfileId ?? null,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: row.targetId ?? null,
+      scopeType: row.scopeType ?? null,
+      scopeId: row.scopeId ?? null,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+    })),
   };
 }
 
-async function resetIdentitySequences(db: DbClient) {
+async function resetIdentitySequences(db: DbExecutor) {
   const tableNames = [
     "t3-app-template_user",
     "t3-app-template_post",
@@ -853,10 +1010,13 @@ async function resetIdentitySequences(db: DbClient) {
     "t3-app-template_organization_role",
     "t3-app-template_calendar",
     "t3-app-template_event",
+    "t3-app-template_event_co_owner",
     "t3-app-template_event_attendee",
     "t3-app-template_event_reminder",
     "t3-app-template_event_hour_log",
     "t3-app-template_event_zendesk_confirmation",
+    "t3-app-template_visibility_grant",
+    "t3-app-template_audit_log",
   ];
 
   for (const tableName of tableNames) {
@@ -871,13 +1031,15 @@ async function resetIdentitySequences(db: DbClient) {
 
 export const adminRouter = createTRPCRouter({
   dashboard: publicProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "dashboard:view");
     const now = new Date();
     const trendRangeStart = startOfMonth(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (MONTHS_IN_TREND - 1), 1)));
     const thirtyDaysAgo = new Date(now.getTime() - 30 * MS_IN_DAY);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * MS_IN_DAY);
     const fourteenDaysAhead = new Date(now.getTime() + 14 * MS_IN_DAY);
 
-    const [{ totalUsers }] = await ctx.db.select({ totalUsers: sql<number>`count(${users.id})::int` }).from(users);
+    const userCountRows = await ctx.db.select({ totalUsers: sql<number>`count(${users.id})::int` }).from(users);
+    const totalUsers = userCountRows[0]?.totalUsers ?? 0;
 
     const userCreatedRows = await ctx.db
       .select({ createdAt: users.createdAt })
@@ -1119,8 +1281,30 @@ export const adminRouter = createTRPCRouter({
   }),
 
   reports: publicProcedure.query(async ({ ctx }) => {
+    const context = await requireAdminCapability(ctx.db, ctx.session, "reports:view");
     const now = new Date();
     const windowStart = new Date(now.getTime() - REPORT_WINDOW_DAYS * MS_IN_DAY);
+
+    let scopeCondition = and(gte(events.startDatetime, windowStart), lt(events.startDatetime, now));
+    const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
+    if (!visibleScopes.business) {
+      const scopeFilters: unknown[] = [];
+      if (visibleScopes.departmentIds.length > 0) {
+        scopeFilters.push(and(eq(events.scopeType, "department"), inArray(events.scopeId, visibleScopes.departmentIds)));
+      }
+      if (visibleScopes.divisionIds.length > 0) {
+        scopeFilters.push(and(eq(events.scopeType, "division"), inArray(events.scopeId, visibleScopes.divisionIds)));
+      }
+      if (scopeFilters.length === 0) {
+        scopeCondition = and(scopeCondition, sql`false`);
+      } else {
+        let scopeCombined = scopeFilters[0] as any;
+        for (let i = 1; i < scopeFilters.length; i += 1) {
+          scopeCombined = or(scopeCombined, scopeFilters[i] as any);
+        }
+        scopeCondition = and(scopeCondition, scopeCombined);
+      }
+    }
 
     const eventRows = await ctx.db
       .select({
@@ -1138,7 +1322,7 @@ export const adminRouter = createTRPCRouter({
       })
       .from(events)
       .leftJoin(buildings, eq(events.buildingId, buildings.id))
-      .where(and(gte(events.startDatetime, windowStart), lt(events.startDatetime, now)))
+      .where(scopeCondition)
       .orderBy(desc(events.startDatetime));
 
     const eventIds = eventRows.map((row) => row.id);
@@ -1565,6 +1749,7 @@ export const adminRouter = createTRPCRouter({
   }),
 
   joinTableExportStatus: publicProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
     return getJoinTableExportStatus();
   }),
 
@@ -1577,15 +1762,17 @@ export const adminRouter = createTRPCRouter({
         .optional(),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       const result = await refreshJoinTableExport(ctx.db, input?.force ?? true);
       return {
         refreshed: Boolean(result),
         result,
         status: await getJoinTableExportStatus(),
       };
-    }),
+  }),
 
   hourLogExportStatus: publicProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
     return getHourLogExportStatus();
   }),
 
@@ -1598,6 +1785,7 @@ export const adminRouter = createTRPCRouter({
         .optional(),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       const result = await refreshHourLogExport(ctx.db, input?.force ?? true);
       return {
         refreshed: Boolean(result),
@@ -1609,7 +1797,8 @@ export const adminRouter = createTRPCRouter({
   exportSnapshot: publicProcedure
     .input(z.object({ note: z.string().max(500).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
-    const userIdRaw = ctx.session?.user?.id ?? null;
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      const userIdRaw = ctx.session?.user?.id ?? null;
     const userId = userIdRaw ? Number(userIdRaw) : null;
     const user =
       userId && Number.isFinite(userId)
@@ -1628,6 +1817,19 @@ export const adminRouter = createTRPCRouter({
 
     const data = await loadSnapshotData(ctx.db);
     const note = input?.note?.trim() ? input.note.trim() : undefined;
+    const businessId = await findBusinessId(ctx.db);
+    if (businessId) {
+      await ctx.db.insert(auditLogs).values({
+        businessId,
+        actorUserId: user?.id ?? null,
+        action: "snapshot.export",
+        targetType: "snapshot",
+        targetId: null,
+        scopeType: "business",
+        scopeId: businessId,
+        metadata: { note },
+      });
+    }
     return {
       version: SNAPSHOT_VERSION,
       exportedAt: new Date().toISOString(),
@@ -1663,10 +1865,27 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [calendar] = await ctx.db.select({ id: calendars.id }).from(calendars).where(eq(calendars.id, input.calendarId)).limit(1);
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      const [calendar] = await ctx.db
+        .select({ id: calendars.id, userId: calendars.userId })
+        .from(calendars)
+        .where(eq(calendars.id, input.calendarId))
+        .limit(1);
       if (!calendar) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Calendar not found." });
       }
+
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+      const managerVisibleScopes = isManager ? await getVisibleScopes(ctx.db, context.userId) : null;
+
+      const [ownerProfile] = await ctx.db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.userId, calendar.userId))
+        .limit(1);
 
       const codes = await generateUniqueEventCodes(ctx.db, input.events.length);
       const now = new Date();
@@ -1680,6 +1899,9 @@ export const adminRouter = createTRPCRouter({
         }
         return {
           calendarId: input.calendarId,
+          ownerProfileId: ownerProfile?.id ?? null,
+          scopeType: "business" as const,
+          scopeId: businessId,
           eventCode: codes[index] ?? generateEventCode(),
           title: event.title,
           isAllDay: event.isAllDay,
@@ -1691,19 +1913,20 @@ export const adminRouter = createTRPCRouter({
         };
       });
 
-        await ctx.db.insert(events).values(values);
-        void refreshJoinTableExport(ctx.db, true).catch((error) => {
-          console.error("[join-table-export] importIcsEvents refresh failed", error);
-        });
-        void refreshHourLogExport(ctx.db, true).catch((error) => {
-          console.error("[hour-log-export] importIcsEvents refresh failed", error);
-        });
-        return { inserted: values.length };
-      }),
+      await ctx.db.insert(events).values(values);
+      void refreshJoinTableExport(ctx.db, true).catch((error) => {
+        console.error("[join-table-export] importIcsEvents refresh failed", error);
+      });
+      void refreshHourLogExport(ctx.db, true).catch((error) => {
+        console.error("[hour-log-export] importIcsEvents refresh failed", error);
+      });
+      return { inserted: values.length };
+    }),
 
   importSnapshot: publicProcedure
     .input(snapshotSchema)
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       if (input.version !== SNAPSHOT_VERSION) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported snapshot version." });
       }
@@ -1715,9 +1938,12 @@ export const adminRouter = createTRPCRouter({
         await tx.delete(eventHourLogs);
         await tx.delete(eventReminders);
         await tx.delete(eventAttendees);
+        await tx.delete(eventCoOwners);
         await tx.delete(events);
         await tx.delete(calendars);
         await tx.delete(organizationRoles);
+        await tx.delete(visibilityGrants);
+        await tx.delete(auditLogs);
         await tx.delete(themeProfiles);
         await tx.delete(themePalettes);
         await tx.delete(rooms);
@@ -1884,6 +2110,9 @@ export const adminRouter = createTRPCRouter({
               calendarId: row.calendarId,
               buildingId: row.buildingId ?? null,
               assigneeProfileId: row.assigneeProfileId ?? null,
+              ownerProfileId: row.ownerProfileId ?? null,
+              scopeType: row.scopeType,
+              scopeId: row.scopeId,
               eventCode: row.eventCode,
               title: row.title,
               description: row.description ?? null,
@@ -1902,6 +2131,17 @@ export const adminRouter = createTRPCRouter({
               zendeskTicketNumber: row.zendeskTicketNumber ?? null,
               createdAt: parseRequiredTimestamp(row.createdAt),
               updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.eventCoOwners.length > 0) {
+          await tx.insert(eventCoOwners).values(
+            data.eventCoOwners.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              profileId: row.profileId,
+              createdAt: parseRequiredTimestamp(row.createdAt),
             })),
           );
         }
@@ -1968,6 +2208,38 @@ export const adminRouter = createTRPCRouter({
           );
         }
 
+        if (data.visibilityGrants.length > 0) {
+          await tx.insert(visibilityGrants).values(
+            data.visibilityGrants.map((row) => ({
+              id: row.id,
+              userId: row.userId,
+              scopeType: row.scopeType,
+              scopeId: row.scopeId,
+              createdByUserId: row.createdByUserId ?? null,
+              reason: row.reason,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+            })),
+          );
+        }
+
+        if (data.auditLogs.length > 0) {
+          await tx.insert(auditLogs).values(
+            data.auditLogs.map((row) => ({
+              id: row.id,
+              businessId: row.businessId ?? null,
+              actorUserId: row.actorUserId ?? null,
+              actorProfileId: row.actorProfileId ?? null,
+              action: row.action,
+              targetType: row.targetType,
+              targetId: row.targetId ?? null,
+              scopeType: row.scopeType ?? null,
+              scopeId: row.scopeId ?? null,
+              metadata: row.metadata ?? null,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+            })),
+          );
+        }
+
         await resetIdentitySequences(tx);
       });
 
@@ -1977,6 +2249,21 @@ export const adminRouter = createTRPCRouter({
       void refreshHourLogExport(ctx.db, true).catch((error) => {
         console.error("[hour-log-export] importSnapshot refresh failed", error);
       });
+
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId) {
+        const actorUserIdRaw = ctx.session?.user?.id ?? null;
+        const actorUserId = actorUserIdRaw ? Number(actorUserIdRaw) : null;
+        await ctx.db.insert(auditLogs).values({
+          businessId,
+          actorUserId: Number.isFinite(actorUserId ?? NaN) ? actorUserId : null,
+          action: "snapshot.import",
+          targetType: "snapshot",
+          targetId: null,
+          scopeType: "business",
+          scopeId: businessId,
+        });
+      }
 
       return {
         success: true,
@@ -1993,17 +2280,22 @@ export const adminRouter = createTRPCRouter({
           organizationRoles: data.organizationRoles.length,
           calendars: data.calendars.length,
           events: data.events.length,
+          eventCoOwners: data.eventCoOwners.length,
           eventAttendees: data.eventAttendees.length,
           eventReminders: data.eventReminders.length,
           eventHourLogs: data.eventHourLogs.length,
           eventZendeskConfirmations: data.eventZendeskConfirmations.length,
+          visibilityGrants: data.visibilityGrants.length,
+          auditLogs: data.auditLogs.length,
         },
       };
-    }),
+  }),
 
   databaseSummary: publicProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "database:manage");
     const [
       eventsCount,
+      eventCoOwnerCount,
       attendeeCount,
       reminderCount,
       hourLogCount,
@@ -2016,8 +2308,11 @@ export const adminRouter = createTRPCRouter({
       paletteCount,
       themeProfileCount,
       postCount,
+      visibilityGrantCount,
+      auditLogCount,
     ] = await Promise.all([
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(events),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventCoOwners),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventAttendees),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventReminders),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventHourLogs),
@@ -2030,12 +2325,15 @@ export const adminRouter = createTRPCRouter({
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(themePalettes),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(themeProfiles),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(posts),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(visibilityGrants),
+      ctx.db.select({ count: sql<number>`count(*)::int` }).from(auditLogs),
     ]);
 
     return {
       updatedAt: new Date(),
       counts: {
         events: eventsCount[0]?.count ?? 0,
+        eventCoOwners: eventCoOwnerCount[0]?.count ?? 0,
         eventAttendees: attendeeCount[0]?.count ?? 0,
         eventReminders: reminderCount[0]?.count ?? 0,
         eventHourLogs: hourLogCount[0]?.count ?? 0,
@@ -2048,6 +2346,8 @@ export const adminRouter = createTRPCRouter({
         themePalettes: paletteCount[0]?.count ?? 0,
         themeProfiles: themeProfileCount[0]?.count ?? 0,
         posts: postCount[0]?.count ?? 0,
+        visibilityGrants: visibilityGrantCount[0]?.count ?? 0,
+        auditLogs: auditLogCount[0]?.count ?? 0,
       },
     };
   }),
@@ -2061,6 +2361,7 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const mode = input.mode;
       const eventCount = input.eventCount ?? getDefaultEventCount(mode);
       const logs: string[] = [];
@@ -2133,10 +2434,11 @@ export const adminRouter = createTRPCRouter({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const limit = input?.limit ?? 50;
       const whereClause = buildDatabaseEventFilters(input);
 
-      let query = ctx.db
+      const baseQuery = ctx.db
         .select({
           id: events.id,
           title: events.title,
@@ -2150,12 +2452,9 @@ export const adminRouter = createTRPCRouter({
           updatedAt: events.updatedAt,
         })
         .from(events);
-
-      if (whereClause) {
-        query = query.where(whereClause);
-      }
-
-      const eventRows = await query.orderBy(desc(events.startDatetime), desc(events.id)).limit(limit);
+      const eventRows = await (whereClause ? baseQuery.where(whereClause) : baseQuery)
+        .orderBy(desc(events.startDatetime), desc(events.id))
+        .limit(limit);
 
       const totalRowsQuery = ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
       const totalRows = whereClause ? await totalRowsQuery.where(whereClause) : await totalRowsQuery;
@@ -2216,6 +2515,7 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const [row] = await ctx.db
         .select({ count: sql<number>`count(*)::int` })
         .from(events)
@@ -2226,6 +2526,7 @@ export const adminRouter = createTRPCRouter({
   deleteEvent: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const [existing] = await ctx.db.select({ id: events.id }).from(events).where(eq(events.id, input.id)).limit(1);
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
@@ -2259,6 +2560,7 @@ export const adminRouter = createTRPCRouter({
         .refine((value) => value.end > value.start, { message: "End date must be after the start date." }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const eventRows = await ctx.db
         .select({ id: events.id })
         .from(events)
@@ -2285,6 +2587,7 @@ export const adminRouter = createTRPCRouter({
     }),
 
   deleteAllEvents: publicProcedure.mutation(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "database:manage");
     const [countRow] = await ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
     const total = countRow?.count ?? 0;
     if (total === 0) return { deleted: 0 };
@@ -2308,6 +2611,7 @@ export const adminRouter = createTRPCRouter({
   }),
 
   companyOverview: publicProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "company:manage");
     const status = await getSetupStatus(ctx.db);
     return {
       business: status.business,
@@ -2319,6 +2623,7 @@ export const adminRouter = createTRPCRouter({
   updateBusiness: publicProcedure
     .input(z.object({ name: z.string().min(2).max(255), type: z.enum(businessTypeValues) }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const status = await getSetupStatus(ctx.db);
       if (!status.business) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
@@ -2340,6 +2645,7 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
@@ -2381,6 +2687,7 @@ export const adminRouter = createTRPCRouter({
         .refine((value) => value.name !== undefined || value.acronym !== undefined, { message: "No updates provided" }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const [buildingRow] = await ctx.db
         .select({ id: buildings.id, businessId: buildings.businessId })
         .from(buildings)
@@ -2407,6 +2714,7 @@ export const adminRouter = createTRPCRouter({
   deleteBuilding: publicProcedure
     .input(z.object({ buildingId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const [buildingRow] = await ctx.db
         .select({ id: buildings.id, businessId: buildings.businessId })
         .from(buildings)
@@ -2426,6 +2734,7 @@ export const adminRouter = createTRPCRouter({
   createRoom: publicProcedure
     .input(z.object({ buildingId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const roomNumber = input.roomNumber.trim();
       if (!roomNumber) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
@@ -2455,6 +2764,7 @@ export const adminRouter = createTRPCRouter({
   updateRoom: publicProcedure
     .input(z.object({ roomId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const roomNumber = input.roomNumber.trim();
       if (!roomNumber) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
@@ -2486,6 +2796,7 @@ export const adminRouter = createTRPCRouter({
   deleteRoom: publicProcedure
     .input(z.object({ roomId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const [roomRow] = await ctx.db
         .select({
           id: rooms.id,
@@ -2510,6 +2821,7 @@ export const adminRouter = createTRPCRouter({
   createDepartment: publicProcedure
     .input(z.object({ name: z.string().min(2).max(255), parentDepartmentId: z.number().int().positive().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
@@ -2546,6 +2858,7 @@ export const adminRouter = createTRPCRouter({
         .refine((value) => value.name !== undefined || value.parentDepartmentId !== undefined, { message: "No updates provided" }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
@@ -2598,6 +2911,7 @@ export const adminRouter = createTRPCRouter({
   deleteDepartment: publicProcedure
     .input(z.object({ departmentId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
@@ -2614,11 +2928,155 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.departmentId };
     }),
 
-  users: publicProcedure.query(async ({ ctx }) => {
+  permissions: publicProcedure.query(async ({ ctx }) => {
+    const context = await getPermissionContext(ctx.db, ctx.session);
     return {
-      users: await fetchUsers(ctx.db),
+      primaryRole: context.primaryRole,
+      capabilities: context.capabilities,
+      roles: context.roles,
     };
   }),
+
+  users: publicProcedure.query(async ({ ctx }) => {
+    const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
+    const hasBusinessAdmin = context.roles.some((role) => role.scopeType === "business");
+    if (hasBusinessAdmin) {
+      return { users: await fetchUsers(ctx.db) };
+    }
+
+    const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
+    if (visibleScopes.business) {
+      return { users: await fetchUsers(ctx.db) };
+    }
+
+    const scopedUserIds = await getUsersInScopes(ctx.db, {
+      departmentIds: visibleScopes.departmentIds,
+      divisionIds: visibleScopes.divisionIds,
+    });
+    if (scopedUserIds.length === 0) {
+      return { users: [] };
+    }
+    return { users: await fetchUsers(ctx.db, scopedUserIds) };
+  }),
+
+  addVisibilityGrant: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        scopeType: z.enum(["business", "department", "division"]),
+        scopeId: z.number().int().positive(),
+        reason: z.string().max(255).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const context = await requireAdminCapability(ctx.db, ctx.session, "visibility_grants:manage");
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+
+      const [userRow] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!userRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      if (input.scopeType === "business") {
+        if (input.scopeId !== businessId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Business grant must target the current business." });
+        }
+      } else {
+        const [departmentRow] = await ctx.db
+          .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId, businessId: departments.businessId })
+          .from(departments)
+          .where(eq(departments.id, input.scopeId))
+          .limit(1);
+        if (!departmentRow || departmentRow.businessId !== businessId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Department scope not found." });
+        }
+        const isDivision = departmentRow.parentDepartmentId !== null;
+        if (input.scopeType === "department" && isDivision) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a division, not a department." });
+        }
+        if (input.scopeType === "division" && !isDivision) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a department, not a division." });
+        }
+      }
+
+      const [existing] = await ctx.db
+        .select({ id: visibilityGrants.id })
+        .from(visibilityGrants)
+        .where(
+          and(
+            eq(visibilityGrants.userId, input.userId),
+            eq(visibilityGrants.scopeType, input.scopeType),
+            eq(visibilityGrants.scopeId, input.scopeId),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        return { id: existing.id, created: false };
+      }
+
+      const [grantRow] = await ctx.db
+        .insert(visibilityGrants)
+        .values({
+          userId: input.userId,
+          scopeType: input.scopeType,
+          scopeId: input.scopeId,
+          createdByUserId: context.userId,
+          reason: input.reason?.trim() ?? "",
+        })
+        .returning({ id: visibilityGrants.id });
+
+      await ctx.db.insert(auditLogs).values({
+        businessId,
+        actorUserId: context.userId,
+        action: "visibility_grant.add",
+        targetType: "user",
+        targetId: input.userId,
+        scopeType: input.scopeType,
+        scopeId: input.scopeId,
+        metadata: { reason: input.reason?.trim() ?? "" },
+      });
+
+      return { id: grantRow?.id ?? null, created: true };
+    }),
+
+  removeVisibilityGrant: publicProcedure
+    .input(z.object({ grantId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const context = await requireAdminCapability(ctx.db, ctx.session, "visibility_grants:manage");
+      const [grantRow] = await ctx.db
+        .select({
+          id: visibilityGrants.id,
+          userId: visibilityGrants.userId,
+          scopeType: visibilityGrants.scopeType,
+          scopeId: visibilityGrants.scopeId,
+        })
+        .from(visibilityGrants)
+        .where(eq(visibilityGrants.id, input.grantId))
+        .limit(1);
+      if (!grantRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Visibility grant not found." });
+      }
+
+      await ctx.db.delete(visibilityGrants).where(eq(visibilityGrants.id, input.grantId));
+
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId) {
+        await ctx.db.insert(auditLogs).values({
+          businessId,
+          actorUserId: context.userId,
+          action: "visibility_grant.remove",
+          targetType: "user",
+          targetId: grantRow.userId,
+          scopeType: grantRow.scopeType,
+          scopeId: grantRow.scopeId,
+        });
+      }
+
+      return { deleted: input.grantId };
+    }),
 
   updateUser: publicProcedure
     .input(
@@ -2635,13 +3093,41 @@ export const adminRouter = createTRPCRouter({
               dateOfBirth: z.string().optional().nullable(),
             })
             .optional(),
-          primaryRole: z.enum(["admin", "manager", "employee"]).optional(),
+          primaryRole: z.enum(["admin", "co_admin", "manager", "employee"]).optional(),
         })
         .refine((value) => value.displayName !== undefined || value.profile !== undefined || value.primaryRole !== undefined, {
           message: "No updates provided",
         }),
     )
     .mutation(async ({ ctx, input }) => {
+      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
+      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
+      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
+      const isManagerOnly = !isBusinessAdmin && !isBusinessCoAdmin;
+
+      if (isManagerOnly) {
+        if (input.primaryRole) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Managers cannot change user roles." });
+        }
+        const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
+        if (!visibleScopes.business) {
+          const scopedUserIds = await getUsersInScopes(ctx.db, {
+            departmentIds: visibleScopes.departmentIds,
+            divisionIds: visibleScopes.divisionIds,
+          });
+          if (!scopedUserIds.includes(input.userId)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "You can only manage users in your scope." });
+          }
+        }
+      }
+
+      if (input.primaryRole) {
+        const allowed = await canAssignRole(ctx.db, ctx.session, input.primaryRole);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to assign that role." });
+        }
+      }
+
       return ctx.db.transaction(async (tx) => {
         if (input.displayName !== undefined) {
           await tx.update(users).set({ displayName: input.displayName }).where(eq(users.id, input.userId));
@@ -2711,27 +3197,79 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (input.primaryRole) {
-          const scopeId = await findBusinessId(tx);
-          if (scopeId !== null && profileId !== null) {
-            await tx
-              .delete(organizationRoles)
-              .where(
-                and(
-                  eq(organizationRoles.userId, input.userId),
-                  eq(organizationRoles.scopeType, "business"),
-                  eq(organizationRoles.scopeId, scopeId),
-                ),
-              );
-            await tx
-              .insert(organizationRoles)
-              .values({
-                userId: input.userId,
-                profileId,
-                roleType: input.primaryRole,
-                scopeType: "business",
-                scopeId,
-              })
-              .returning();
+          if (profileId === null) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Profile is required to assign roles." });
+          }
+
+          const existingScopes = await tx
+            .select({
+              scopeType: organizationRoles.scopeType,
+              scopeId: organizationRoles.scopeId,
+            })
+            .from(organizationRoles)
+            .where(eq(organizationRoles.userId, input.userId));
+
+          const scopesByKey = new Map<string, { scopeType: "business" | "department" | "division"; scopeId: number }>();
+          for (const scope of existingScopes) {
+            const key = `${scope.scopeType}:${scope.scopeId}`;
+            if (!scopesByKey.has(key)) {
+              scopesByKey.set(key, { scopeType: scope.scopeType, scopeId: scope.scopeId });
+            }
+          }
+
+          await tx.delete(organizationRoles).where(eq(organizationRoles.userId, input.userId));
+
+          const businessId = await findBusinessId(tx);
+          const roleType = input.primaryRole;
+          const scopesToAssign: Array<{ scopeType: "business" | "department" | "division"; scopeId: number }> = [];
+
+          if (roleType === "admin" || roleType === "co_admin") {
+            if (businessId === null) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+            }
+            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
+          } else {
+            for (const scope of scopesByKey.values()) {
+              if (scope.scopeType === "department" || scope.scopeType === "division") {
+                scopesToAssign.push(scope);
+              }
+            }
+            if (scopesToAssign.length === 0 && businessId !== null) {
+              const fallback = await findDefaultDepartmentScope(tx, businessId);
+              if (fallback) {
+                scopesToAssign.push(fallback);
+              } else {
+                scopesToAssign.push({ scopeType: "business", scopeId: businessId });
+              }
+            }
+          }
+
+          if (scopesToAssign.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "No valid scope available for role assignment." });
+          }
+
+          await tx.insert(organizationRoles).values(
+            scopesToAssign.map((scope) => ({
+              userId: input.userId,
+              profileId,
+              roleType,
+              scopeType: scope.scopeType,
+              scopeId: scope.scopeId,
+            })),
+          );
+
+          if (businessId) {
+            const auditScope = scopesToAssign[0];
+            await tx.insert(auditLogs).values({
+              businessId,
+              actorUserId: context.userId,
+              action: "user.role.update",
+              targetType: "user",
+              targetId: input.userId,
+              scopeType: auditScope?.scopeType ?? "business",
+              scopeId: auditScope?.scopeId ?? businessId,
+              metadata: { role: input.primaryRole },
+            });
           }
         }
 
@@ -2744,10 +3282,186 @@ export const adminRouter = createTRPCRouter({
       });
     }),
 
+  createUser: publicProcedure
+    .input(
+      z.object({
+        username: z.string().min(3).max(50),
+        email: z.string().email().max(255),
+        password: z.string().min(8).max(255),
+        firstName: z.string().min(1).max(100),
+        lastName: z.string().min(1).max(100),
+        phoneNumber: z.string().min(10).max(32),
+        dateOfBirth: z.string().optional(),
+        primaryRole: z.enum(["admin", "co_admin", "manager", "employee"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
+      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
+      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
+      const isManager = context.roles.some((role) => role.roleType === "manager");
+      const isAdminOrCoAdmin = isBusinessAdmin || isBusinessCoAdmin;
+      if (!isAdminOrCoAdmin && !isManager) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to create accounts." });
+      }
+
+      if (isManager && input.primaryRole !== "employee") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Managers can only create employee accounts." });
+      }
+
+      if (isAdminOrCoAdmin) {
+        const allowed = await canAssignRole(ctx.db, ctx.session, input.primaryRole);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to assign that role." });
+        }
+      }
+
+      const businessId = await findBusinessId(ctx.db);
+      if (!businessId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+      }
+
+      const username = input.username.trim();
+      const emailLower = input.email.trim().toLowerCase();
+      const phoneDigits = sanitizePhone(input.phoneNumber);
+      if (phoneDigits.length < 10) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Phone number must contain at least 10 digits." });
+      }
+
+      let dateOfBirth: string | null = null;
+      if (input.dateOfBirth) {
+        const parsed = new Date(input.dateOfBirth);
+        if (Number.isNaN(parsed.getTime())) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date of birth." });
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (parsed > today) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Date of birth cannot be in the future." });
+        }
+        dateOfBirth = input.dateOfBirth;
+      }
+
+      return ctx.db.transaction(async (tx) => {
+        const [existingUser] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(or(eq(users.username, username), eq(users.email, emailLower)))
+          .limit(1);
+        if (existingUser) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Username or email already exists." });
+        }
+
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        const displayName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+
+        const [insertedUser] = await tx
+          .insert(users)
+          .values({
+            username,
+            email: emailLower,
+            displayName,
+            passwordHash,
+          })
+          .returning({ id: users.id });
+        if (!insertedUser) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user." });
+        }
+
+        const [profileRow] = await tx
+          .insert(profiles)
+          .values({
+            userId: insertedUser.id,
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            email: emailLower,
+            phoneNumber: phoneDigits,
+            dateOfBirth,
+          })
+          .returning({ id: profiles.id });
+        if (!profileRow) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create profile." });
+        }
+
+        const scopesToAssign: Array<{ scopeType: "business" | "department" | "division"; scopeId: number }> = [];
+        if (isManager) {
+          const departmentIds = Array.from(new Set(managerVisibleScopes?.departmentIds ?? [])).sort((a, b) => a - b);
+          const divisionIds = Array.from(new Set(managerVisibleScopes?.divisionIds ?? [])).sort((a, b) => a - b);
+          for (const id of departmentIds) {
+            scopesToAssign.push({ scopeType: "department", scopeId: id });
+          }
+          for (const id of divisionIds) {
+            scopesToAssign.push({ scopeType: "division", scopeId: id });
+          }
+          if (scopesToAssign.length === 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Managers must be assigned to at least one department or division before creating users.",
+            });
+          }
+        } else if (input.primaryRole === "admin" || input.primaryRole === "co_admin") {
+          scopesToAssign.push({ scopeType: "business", scopeId: businessId });
+        } else {
+          const fallback = await findDefaultDepartmentScope(tx, businessId);
+          if (fallback) {
+            scopesToAssign.push(fallback);
+          } else {
+            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
+          }
+        }
+
+        await tx.insert(organizationRoles).values(
+          scopesToAssign.map((scope) => ({
+            userId: insertedUser.id,
+            profileId: profileRow.id,
+            roleType: input.primaryRole,
+            scopeType: scope.scopeType,
+            scopeId: scope.scopeId,
+          })),
+        );
+
+        const auditScope = scopesToAssign[0];
+        await tx.insert(auditLogs).values({
+          businessId,
+          actorUserId: context.userId,
+          action: "user.create",
+          targetType: "user",
+          targetId: insertedUser.id,
+          scopeType: auditScope?.scopeType ?? "business",
+          scopeId: auditScope?.scopeId ?? businessId,
+          metadata: { role: input.primaryRole },
+        });
+
+        await ensurePrimaryCalendars(tx, insertedUser.id);
+
+        const [createdUser] = await fetchUsers(tx, [insertedUser.id]);
+        if (!createdUser) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to load created user." });
+        }
+        return createdUser;
+      });
+    }),
+
   deleteUser: publicProcedure
     .input(z.object({ userId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const { userId: sessionUserId } = await requireAdminOrManager(ctx);
+      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
+      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
+      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
+      const isManager = context.roles.some((role) => role.roleType === "manager");
+      const isManagerOnly = !isBusinessAdmin && !isBusinessCoAdmin && isManager;
+      const sessionUserId = context.userId;
+
+      if (isManagerOnly) {
+        const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
+        const scopedUserIds = await getUsersInScopes(ctx.db, {
+          departmentIds: visibleScopes.departmentIds,
+          divisionIds: visibleScopes.divisionIds,
+        });
+        if (!scopedUserIds.includes(input.userId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You can only manage users in your scope." });
+        }
+      }
       if (sessionUserId === input.userId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot delete your own account." });
       }
@@ -2768,6 +3482,19 @@ export const adminRouter = createTRPCRouter({
         .update(users)
         .set({ isActive: false, deactivatedAt: new Date() })
         .where(eq(users.id, input.userId));
+
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId) {
+        await ctx.db.insert(auditLogs).values({
+          businessId,
+          actorUserId: context.userId,
+          action: "user.deactivate",
+          targetType: "user",
+          targetId: input.userId,
+          scopeType: "business",
+          scopeId: businessId,
+        });
+      }
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] admin deactivateUser refresh failed", error);

@@ -33,7 +33,7 @@ export default async function RootLayout({
       <body data-theme="dark" className="bg-surface-canvas text-ink-primary antialiased">
         <Providers palette={resolvedPalette}>
           <div className="flex min-h-screen">
-            <SidebarNav />
+            <SidebarNav user={session?.user ?? null} />
             <main className="min-h-screen flex-1 bg-surface-canvas">{children}</main>
           </div>
         </Providers>

@@ -1,9 +1,11 @@
 "use client";
 
 import type { ComponentType } from "react";
+import type { Session } from "next-auth";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarIcon, HomeIcon, ReportIcon, SettingsIcon, ShieldIcon } from "./icons";
+import { AccountMenu } from "../calendar/_components/AccountMenu";
 
 type NavItem = {
   href: string;
@@ -19,7 +21,12 @@ const navItems: NavItem[] = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-export function SidebarNav() {
+type SidebarNavProps = {
+  user: Session["user"] | null;
+};
+
+export function SidebarNav(props: SidebarNavProps) {
+  const { user } = props;
   const pathname = usePathname();
 
   return (
@@ -56,6 +63,9 @@ export function SidebarNav() {
           );
         })}
       </nav>
+      <div className="mt-auto pb-2">
+        <AccountMenu user={user} variant="icon" menuPlacement="up" menuAlign="left" />
+      </div>
     </aside>
   );
 }

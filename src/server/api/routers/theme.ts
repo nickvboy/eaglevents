@@ -164,10 +164,11 @@ export const themeRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const businessId = await requireBusinessId(ctx.db);
-      const [{ totalAssignments }] = await ctx.db
+      const assignmentRows = await ctx.db
         .select({ totalAssignments: count() })
         .from(themeProfiles)
         .where(and(eq(themeProfiles.paletteId, input.id), eq(themeProfiles.businessId, businessId)));
+      const totalAssignments = assignmentRows[0]?.totalAssignments ?? 0;
       if (totalAssignments > 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",

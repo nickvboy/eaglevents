@@ -174,7 +174,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
   const calendarLookup = useMemo(() => {
     const map = new Map<number, { name: string; swatchClass: string }>();
     (calendars ?? []).forEach((c, idx) => {
-      const swatchClass = CALENDAR_SWATCHES[idx % CALENDAR_SWATCHES.length];
+      const swatchClass = CALENDAR_SWATCHES[idx % CALENDAR_SWATCHES.length] ?? CALENDAR_SWATCHES[0];
       map.set(c.id, { name: c.name, swatchClass });
     });
     return map;

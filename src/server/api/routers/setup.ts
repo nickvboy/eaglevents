@@ -20,7 +20,7 @@ import { getSetupStatus } from "~/server/services/setup";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
-const roleTypeValues = ["admin", "manager", "employee"] as const;
+const roleTypeValues = ["admin", "co_admin", "manager", "employee"] as const;
 const scopeTypeValues = ["business", "department", "division"] as const;
 
 const buildingInputSchema = z.object({

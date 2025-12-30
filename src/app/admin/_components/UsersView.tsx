@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
-import { SearchIcon } from "~/app/_components/icons";
+import { SearchIcon, XIcon } from "~/app/_components/icons";
 import { api, type RouterOutputs } from "~/trpc/react";
 
-type RoleOption = "admin" | "manager" | "employee";
+type RoleOption = "admin" | "co_admin" | "manager" | "employee";
 
 type FormState = {
   displayName: string;
@@ -18,10 +18,22 @@ type FormState = {
   primaryRole: RoleOption;
 };
 
+type CreateFormState = {
+  username: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  dateOfBirth: string;
+  primaryRole: RoleOption;
+};
+
 type AdminUser = RouterOutputs["admin"]["users"]["users"][number];
 
 const roleOptions: Array<{ value: RoleOption; label: string; helper: string }> = [
   { value: "admin", label: "Administrator", helper: "Full access to all admin tools" },
+  { value: "co_admin", label: "Co-admin", helper: "Day-to-day admin access without full ownership" },
   { value: "manager", label: "Manager", helper: "Can manage teams and schedules" },
   { value: "employee", label: "Employee", helper: "Can view assigned events" },
 ];
@@ -32,6 +44,19 @@ function createDefaultForm(): FormState {
     firstName: "",
     lastName: "",
     profileEmail: "",
+    phoneNumber: "",
+    dateOfBirth: "",
+    primaryRole: "employee",
+  };
+}
+
+function createDefaultCreateForm(): CreateFormState {
+  return {
+    username: "",
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
     phoneNumber: "",
     dateOfBirth: "",
     primaryRole: "employee",
@@ -71,10 +96,33 @@ function formatDateForInput(value: Date | string | null | undefined) {
   return date && typeof date.toISOString === "function" ? date.toISOString().slice(0, 10) : "";
 }
 
+function formatPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 export function UsersView() {
   const { data: session } = useSession();
+  const { data: permissions } = api.admin.permissions.useQuery();
   const { data, isLoading, isError, refetch } = api.admin.users.useQuery(undefined, {
     staleTime: 45_000,
+  });
+  const canManageUsers = permissions?.capabilities.includes("users:manage") ?? false;
+  const canGrantVisibility = permissions?.capabilities.includes("visibility_grants:manage") ?? false;
+  const hasBusinessAdmin = permissions?.roles.some((role) => role.scopeType === "business" && role.roleType === "admin") ?? false;
+  const hasBusinessCoAdmin =
+    permissions?.roles.some((role) => role.scopeType === "business" && role.roleType === "co_admin") ?? false;
+  const isManager = permissions?.roles.some((role) => role.roleType === "manager") ?? false;
+  const canEditRoles = hasBusinessAdmin || hasBusinessCoAdmin;
+  const canAssignAdminRoles = hasBusinessAdmin || hasBusinessCoAdmin;
+  const canCreateUsers = hasBusinessAdmin || hasBusinessCoAdmin || isManager;
+  const canCreateEmployeeOnly = isManager && !hasBusinessAdmin && !hasBusinessCoAdmin;
+  const { data: companyOverview } = api.admin.companyOverview.useQuery(undefined, {
+    enabled: canGrantVisibility,
+    staleTime: 60_000,
   });
   const utils = api.useUtils();
   const mutation = api.admin.updateUser.useMutation({
@@ -82,7 +130,25 @@ export function UsersView() {
       await utils.admin.users.invalidate();
     },
   });
+  const createMutation = api.admin.createUser.useMutation({
+    onSuccess: async (created) => {
+      await utils.admin.users.invalidate();
+      if (created?.id) {
+        setSelectedUserId(created.id);
+      }
+    },
+  });
   const deleteMutation = api.admin.deleteUser.useMutation({
+    onSuccess: async () => {
+      await utils.admin.users.invalidate();
+    },
+  });
+  const addGrantMutation = api.admin.addVisibilityGrant.useMutation({
+    onSuccess: async () => {
+      await utils.admin.users.invalidate();
+    },
+  });
+  const removeGrantMutation = api.admin.removeVisibilityGrant.useMutation({
     onSuccess: async () => {
       await utils.admin.users.invalidate();
     },
@@ -91,10 +157,34 @@ export function UsersView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [formState, setFormState] = useState<FormState>(createDefaultForm);
+  const [createFormState, setCreateFormState] = useState<CreateFormState>(createDefaultCreateForm);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [grantScopeKey, setGrantScopeKey] = useState("");
+  const [grantReason, setGrantReason] = useState("");
 
   const users = data?.users ?? [];
+  const scopeOptions = useMemo(() => {
+    if (!companyOverview) return [];
+    const options: Array<{ value: string; label: string }> = [];
+    if (companyOverview.business && (hasBusinessAdmin || hasBusinessCoAdmin)) {
+      options.push({
+        value: `business:${companyOverview.business.id}`,
+        label: `${companyOverview.business.name} (Business)`,
+      });
+    }
+    const departments = companyOverview.departments?.flat ?? [];
+    for (const dept of departments) {
+      const isDivision = dept.parentDepartmentId !== null;
+      const scopeType = isDivision ? "division" : "department";
+      options.push({
+        value: `${scopeType}:${dept.id}`,
+        label: `${dept.name} (${isDivision ? "Division" : "Department"})`,
+      });
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label));
+  }, [companyOverview, hasBusinessAdmin]);
 
   useEffect(() => {
     if (users.length === 0) {
@@ -136,11 +226,29 @@ export function UsersView() {
     setFormState(buildFormStateFromUser(selectedUser));
   }, [selectedUser]);
 
+  useEffect(() => {
+    setGrantScopeKey("");
+    setGrantReason("");
+  }, [selectedUserId]);
+
   const hasValidProfile =
     formState.firstName.trim().length > 0 &&
     formState.lastName.trim().length > 0 &&
     formState.profileEmail.trim().length > 0 &&
     formState.phoneNumber.trim().length > 0;
+
+  const isEditRoleOptionDisabled = (value: RoleOption) => {
+    if (!canEditRoles) return true;
+    if ((value === "admin" || value === "co_admin") && !canAssignAdminRoles) return true;
+    return false;
+  };
+
+  const isCreateRoleOptionDisabled = (value: RoleOption) => {
+    if (!canCreateUsers) return true;
+    if (canCreateEmployeeOnly) return value !== "employee";
+    if ((value === "admin" || value === "co_admin") && !canAssignAdminRoles) return true;
+    return false;
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -148,6 +256,7 @@ export function UsersView() {
     setFeedback(null);
 
     try {
+      const primaryRole = canEditRoles ? formState.primaryRole : undefined;
       await mutation.mutateAsync({
         userId: selectedUser.id,
         displayName: formState.displayName.trim(),
@@ -160,7 +269,7 @@ export function UsersView() {
               dateOfBirth: formState.dateOfBirth || null,
             }
           : undefined,
-        primaryRole: formState.primaryRole,
+        primaryRole,
       });
       setFeedback({ type: "success", message: "User details updated" });
     } catch (error) {
@@ -174,8 +283,32 @@ export function UsersView() {
     setFeedback(null);
   };
 
+  const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canCreateUsers) return;
+    setFeedback(null);
+
+    try {
+      await createMutation.mutateAsync({
+        username: createFormState.username.trim(),
+        email: createFormState.email.trim(),
+        password: createFormState.password,
+        firstName: createFormState.firstName.trim(),
+        lastName: createFormState.lastName.trim(),
+        phoneNumber: createFormState.phoneNumber.trim(),
+        dateOfBirth: createFormState.dateOfBirth || undefined,
+        primaryRole: createFormState.primaryRole,
+      });
+      setIsCreateOpen(false);
+      setCreateFormState(createDefaultCreateForm());
+      setFeedback({ type: "success", message: "User created" });
+    } catch (error) {
+      setFeedback({ type: "error", message: (error as Error).message ?? "Failed to create user" });
+    }
+  };
+
   const handleDelete = async () => {
-    if (!selectedUser || isSelfSelected || isDeactivated) return;
+    if (!selectedUser || isSelfSelected || isDeactivated || !canCreateUsers) return;
     setFeedback(null);
 
     try {
@@ -185,6 +318,34 @@ export function UsersView() {
       setFeedback({ type: "success", message: "User deactivated" });
     } catch (error) {
       setFeedback({ type: "error", message: (error as Error).message ?? "Failed to deactivate user" });
+    }
+  };
+
+  const handleAddGrant = async () => {
+    if (!selectedUser || !grantScopeKey || !canGrantVisibility) return;
+    const [scopeType, scopeIdRaw] = grantScopeKey.split(":");
+    const scopeId = Number(scopeIdRaw);
+    if (!scopeType || !Number.isFinite(scopeId)) return;
+    try {
+      await addGrantMutation.mutateAsync({
+        userId: selectedUser.id,
+        scopeType: scopeType as "business" | "department" | "division",
+        scopeId,
+        reason: grantReason.trim() || undefined,
+      });
+      setGrantScopeKey("");
+      setGrantReason("");
+    } catch (error) {
+      setFeedback({ type: "error", message: (error as Error).message ?? "Failed to add visibility grant" });
+    }
+  };
+
+  const handleRemoveGrant = async (grantId: number) => {
+    if (!canGrantVisibility) return;
+    try {
+      await removeGrantMutation.mutateAsync({ grantId });
+    } catch (error) {
+      setFeedback({ type: "error", message: (error as Error).message ?? "Failed to remove visibility grant" });
     }
   };
 
@@ -213,15 +374,25 @@ export function UsersView() {
             <h2 className="text-lg font-semibold text-ink-primary">User Directory</h2>
             <p className="text-sm text-ink-muted">Search, review, and select a user to manage their details.</p>
           </div>
-          <div className="flex w-full max-w-xs items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-4 py-2">
-            <SearchIcon className="text-ink-muted" />
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search users..."
-              className="flex-1 bg-transparent text-sm text-ink-primary placeholder:text-ink-faint focus:outline-none"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full max-w-xs items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-4 py-2">
+              <SearchIcon className="text-ink-muted" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search users..."
+                className="flex-1 bg-transparent text-sm text-ink-primary placeholder:text-ink-faint focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              disabled={!canCreateUsers}
+              className="rounded-full bg-accent-strong px-4 py-2 text-xs font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Add user
+            </button>
           </div>
         </header>
 
@@ -265,7 +436,9 @@ export function UsersView() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-ink-subtle">{user.email}</td>
-                    <td className="px-4 py-3 text-ink-subtle capitalize">{user.primaryRole ?? "Unassigned"}</td>
+                    <td className="px-4 py-3 text-ink-subtle capitalize">
+                      {user.primaryRole ? user.primaryRole.replace("_", " ") : "Unassigned"}
+                    </td>
                     <td className="px-4 py-3 text-ink-subtle">{formatDateCell(user.lastActivity)}</td>
                   </tr>
                 );
@@ -374,19 +547,40 @@ export function UsersView() {
               </label>
             </div>
 
+            <div className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
+              <div className="text-sm font-semibold text-ink-primary">Role assignments</div>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm text-ink-subtle">
+                {selectedUser.roles.length === 0 ? (
+                  <span className="text-xs text-ink-muted">No role assignments yet.</span>
+                ) : (
+                  selectedUser.roles.map((role) => (
+                    <span
+                      key={`${role.roleType}-${role.scopeType}-${role.scopeId}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
+                    >
+                      <span className="font-semibold capitalize">{role.roleType.replace("_", " ")}</span>
+                      <span className="text-ink-muted">{role.scopeLabel}</span>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
             <fieldset className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
               <legend className="px-2 text-sm font-semibold text-ink-primary">Primary role</legend>
               <div className="mt-3 flex flex-col gap-3">
                 {roleOptions.map((option) => {
                   const checked = formState.primaryRole === option.value;
+                  const disabled = isEditRoleOptionDisabled(option.value);
                   return (
                     <label
                       key={option.value}
                       className={
-                        "flex cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2 text-sm transition " +
+                        "flex flex-col gap-1 rounded-xl border px-3 py-2 text-sm transition " +
                         (checked
                           ? "border-outline-accent bg-accent-muted text-accent-soft"
-                          : "border-outline-muted bg-transparent text-ink-subtle hover:border-outline-muted")
+                          : "border-outline-muted bg-transparent text-ink-subtle hover:border-outline-muted") +
+                        (disabled ? " cursor-not-allowed opacity-60" : " cursor-pointer")
                       }
                     >
                       <div className="flex items-center gap-3">
@@ -395,6 +589,7 @@ export function UsersView() {
                           name="role"
                           value={option.value}
                           checked={checked}
+                          disabled={disabled}
                           onChange={() => setFormState((prev) => ({ ...prev, primaryRole: option.value }))}
                           className="h-4 w-4 accent-accent-strong"
                         />
@@ -406,6 +601,75 @@ export function UsersView() {
                 })}
               </div>
             </fieldset>
+            {!canEditRoles ? (
+              <p className="text-xs text-ink-muted">Role assignments can only be updated by workspace admins.</p>
+            ) : null}
+
+            {canGrantVisibility ? (
+              <div className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
+                <div className="text-sm font-semibold text-ink-primary">Visibility grants</div>
+                <p className="mt-1 text-xs text-ink-muted">Give this user access to additional departments or divisions.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedUser.visibilityGrants.length === 0 ? (
+                    <span className="text-xs text-ink-muted">No visibility grants yet.</span>
+                  ) : (
+                    selectedUser.visibilityGrants.map((grant) => (
+                      <span
+                        key={grant.id}
+                        className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
+                      >
+                        <span>{grant.scopeLabel}</span>
+                        <button
+                          type="button"
+                          className="text-ink-faint transition hover:text-status-danger"
+                          onClick={() => handleRemoveGrant(grant.id)}
+                          aria-label="Remove visibility grant"
+                        >
+                          <XIcon className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_1.2fr_auto]">
+                  <label className="flex flex-col gap-2 text-xs text-ink-muted">
+                    <span>Scope</span>
+                    <select
+                      value={grantScopeKey}
+                      onChange={(event) => setGrantScopeKey(event.target.value)}
+                      className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                    >
+                      <option value="">Select a scope</option>
+                      {scopeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-2 text-xs text-ink-muted">
+                    <span>Reason (optional)</span>
+                    <input
+                      value={grantReason}
+                      onChange={(event) => setGrantReason(event.target.value)}
+                      className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                      placeholder="Reason for access"
+                      maxLength={255}
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleAddGrant}
+                      disabled={!grantScopeKey || addGrantMutation.isPending}
+                      className="rounded-full bg-accent-strong px-4 py-2 text-xs font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {addGrantMutation.isPending ? "Adding..." : "Add grant"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {feedback ? (
               <div
@@ -438,7 +702,7 @@ export function UsersView() {
               <button
                 type="button"
                 onClick={() => setIsDeleteOpen(true)}
-                disabled={deleteMutation.isPending || isSelfSelected || isDeactivated}
+                disabled={deleteMutation.isPending || isSelfSelected || isDeactivated || !canManageUsers}
                 className="rounded-full border border-status-danger px-4 py-2 text-sm font-semibold text-status-danger transition hover:bg-status-danger-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-status-danger disabled:cursor-not-allowed disabled:border-status-danger/50 disabled:text-status-danger/50"
               >
                 {deleteMutation.isPending ? "Deactivating..." : "Deactivate user"}
@@ -449,6 +713,11 @@ export function UsersView() {
             ) : null}
             {isDeactivated ? (
               <p className="text-xs text-ink-muted">This account is already deactivated.</p>
+            ) : null}
+            {!canManageUsers ? (
+              <p className="text-xs text-ink-muted">You do not have access to manage users.</p>
+            ) : !canCreateUsers ? (
+              <p className="text-xs text-ink-muted">Only admins, co-admins, and managers can create or deactivate users.</p>
             ) : null}
           </form>
         )}
@@ -482,6 +751,153 @@ export function UsersView() {
                 {deleteMutation.isPending ? "Deactivating..." : "Deactivate user"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {isCreateOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-primary/30 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+            <h3 className="text-lg font-semibold text-ink-primary">Add user</h3>
+            <p className="mt-2 text-sm text-ink-muted">Create a new account with a primary role.</p>
+            <form className="mt-6 grid gap-4" onSubmit={handleCreate}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>First name</span>
+                  <input
+                    value={createFormState.firstName}
+                    onChange={(event) => setCreateFormState((prev) => ({ ...prev, firstName: event.target.value }))}
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    maxLength={100}
+                    required
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>Last name</span>
+                  <input
+                    value={createFormState.lastName}
+                    onChange={(event) => setCreateFormState((prev) => ({ ...prev, lastName: event.target.value }))}
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    maxLength={100}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>Username</span>
+                  <input
+                    value={createFormState.username}
+                    onChange={(event) => setCreateFormState((prev) => ({ ...prev, username: event.target.value }))}
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    placeholder="yourname"
+                    autoComplete="username"
+                    minLength={3}
+                    maxLength={50}
+                    required
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={createFormState.email}
+                    onChange={(event) => setCreateFormState((prev) => ({ ...prev, email: event.target.value }))}
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    maxLength={255}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    value={createFormState.password}
+                    onChange={(event) => setCreateFormState((prev) => ({ ...prev, password: event.target.value }))}
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    placeholder="Enter a strong password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                  <span>Phone number</span>
+                  <input
+                    value={createFormState.phoneNumber}
+                    onChange={(event) =>
+                      setCreateFormState((prev) => ({ ...prev, phoneNumber: formatPhoneInput(event.target.value) }))
+                    }
+                    className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
+                    placeholder="+1 555 555 0101"
+                    maxLength={32}
+                    required
+                  />
+                </label>
+              </div>
+              <label className="flex flex-col gap-2 text-sm text-ink-primary md:max-w-[220px]">
+                <span>Date of birth</span>
+                <input
+                  type="date"
+                  value={createFormState.dateOfBirth}
+                  onChange={(event) => setCreateFormState((prev) => ({ ...prev, dateOfBirth: event.target.value }))}
+                  className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                />
+              </label>
+              <fieldset className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
+                <legend className="px-2 text-sm font-semibold text-ink-primary">Primary role</legend>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  {roleOptions.map((option) => {
+                    const disabled = isCreateRoleOptionDisabled(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className={
+                          "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " +
+                          (createFormState.primaryRole === option.value
+                            ? "border-outline-accent bg-accent-muted text-accent-soft"
+                            : "border-outline-muted bg-transparent text-ink-subtle hover:border-outline-muted") +
+                          (disabled ? " cursor-not-allowed opacity-60" : " cursor-pointer")
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="create-role"
+                          value={option.value}
+                          checked={createFormState.primaryRole === option.value}
+                          disabled={disabled}
+                          onChange={() => setCreateFormState((prev) => ({ ...prev, primaryRole: option.value }))}
+                          className="h-4 w-4 accent-accent-strong"
+                        />
+                        <span className="font-medium">{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <div className="mt-2 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setCreateFormState(createDefaultCreateForm());
+                  }}
+                  className="rounded-full border border-outline-muted px-4 py-2 text-sm text-ink-subtle transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending || !canCreateUsers}
+                  className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {createMutation.isPending ? "Creating..." : "Create user"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}

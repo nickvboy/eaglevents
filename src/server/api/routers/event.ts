@@ -1,10 +1,12 @@
 ﻿import { z } from "zod";
-import { and, desc, eq, ilike, inArray, lt, gt, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, lt, gt, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
+  businesses,
   calendars,
+  eventCoOwners,
   eventAttendees,
   eventHourLogs,
   eventZendeskConfirmations,
@@ -16,6 +18,13 @@ import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { refreshHourLogExport } from "~/server/services/hour-log-export";
+import {
+  getBusinessId,
+  getCreatableScopeOptions,
+  getOptionalPermissionContext,
+  getSessionProfileId,
+  getVisibleScopes,
+} from "~/server/services/permissions";
 import type { Session } from "next-auth";
 
 type DbClient = typeof import("~/server/db").db;
@@ -41,13 +50,22 @@ type EventWithAssigneeAndLogs = EventWithAssignee & {
   hourLogs: HourLogResponse[];
   totalLoggedMinutes: number;
 };
+type CoOwnerSummary = {
+  profileId: number;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+};
+type EventWithCoOwners = EventWithAssigneeAndLogs & {
+  coOwners: CoOwnerSummary[];
+};
 type AttendeeSummary = {
   profileId: number | null;
   firstName: string | null;
   lastName: string | null;
   email: string;
 };
-type EventResponse = EventRow & {
+type EventResponse = EventWithCoOwners & {
   assigneeProfile: ProfileSummary | null;
   hourLogs: HourLogResponse[];
   totalLoggedMinutes: number;
@@ -91,21 +109,8 @@ function cleanZendeskTicketNumber(value: string | null | undefined) {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-async function getSessionProfileId(ctx: { session: Session | null; db: DbClient }) {
-  const userIdRaw = ctx.session?.user?.id;
-  if (!userIdRaw) return null;
-  const userId = Number(userIdRaw);
-  if (!Number.isFinite(userId)) return null;
-  const rows = await ctx.db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.userId, userId))
-    .limit(1);
-  return rows[0]?.id ?? null;
-}
-
 async function requireSessionProfileId(ctx: { session: Session | null; db: DbClient }) {
-  const profileId = await getSessionProfileId(ctx);
+  const profileId = await getSessionProfileId(ctx.db, ctx.session);
   if (profileId === null) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to access your tickets." });
   }
@@ -212,7 +217,45 @@ async function attachHourLogs(db: DbClient, rows: EventWithAssignee[]): Promise<
   });
 }
 
-async function attachAttendees(db: DbClient, rows: EventWithAssigneeAndLogs[]): Promise<EventResponse[]> {
+async function attachCoOwners(db: DbClient, rows: EventWithAssigneeAndLogs[]): Promise<EventWithCoOwners[]> {
+  if (rows.length === 0) return [];
+  const eventIds = rows.map((row) => row.id);
+  const coOwnerRows = await db
+    .select({
+      coOwner: {
+        eventId: eventCoOwners.eventId,
+        profileId: eventCoOwners.profileId,
+      },
+      profile: {
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+      },
+    })
+    .from(eventCoOwners)
+    .innerJoin(profiles, eq(eventCoOwners.profileId, profiles.id))
+    .where(inArray(eventCoOwners.eventId, eventIds));
+
+  const grouped = new Map<number, CoOwnerSummary[]>();
+  for (const row of coOwnerRows) {
+    const list = grouped.get(row.coOwner.eventId) ?? [];
+    list.push({
+      profileId: row.coOwner.profileId,
+      firstName: row.profile.firstName,
+      lastName: row.profile.lastName,
+      email: row.profile.email,
+    });
+    grouped.set(row.coOwner.eventId, list);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    coOwners: grouped.get(row.id) ?? [],
+  }));
+}
+
+async function attachAttendees(db: DbClient, rows: EventWithCoOwners[]): Promise<EventResponse[]> {
   if (rows.length === 0) return [];
   const eventIds = rows.map((row) => row.id);
   const attendeeRows = await db
@@ -255,7 +298,8 @@ async function attachAttendees(db: DbClient, rows: EventWithAssigneeAndLogs[]): 
 async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<EventResponse[]> {
   const withAssignees = await attachAssignees(db, rows);
   const withLogs = await attachHourLogs(db, withAssignees);
-  return attachAttendees(db, withLogs);
+  const withCoOwners = await attachCoOwners(db, withLogs);
+  return attachAttendees(db, withCoOwners);
 }
 
 function normalizeHourLogs(
@@ -313,7 +357,100 @@ async function getUniqueEventCode(db: DbClient) {
   throw new Error("Failed to generate a unique event code");
 }
 
+function buildScopeCondition(visible: { business: boolean; departmentIds: number[]; divisionIds: number[] }) {
+  if (visible.business) return null;
+  const conditions: any[] = [];
+  if (visible.departmentIds.length > 0) {
+    conditions.push(and(eq(events.scopeType, "department"), inArray(events.scopeId, visible.departmentIds)));
+  }
+  if (visible.divisionIds.length > 0) {
+    conditions.push(and(eq(events.scopeType, "division"), inArray(events.scopeId, visible.divisionIds)));
+  }
+  if (conditions.length === 0) return sql`false`;
+  let combined = conditions[0];
+  for (let i = 1; i < conditions.length; i += 1) {
+    combined = or(combined, conditions[i]);
+  }
+  return combined;
+}
+
+function isScopeVisible(
+  eventRow: Pick<EventRow, "scopeType" | "scopeId">,
+  visible: { business: boolean; departmentIds: number[]; divisionIds: number[] },
+) {
+  if (visible.business) return true;
+  if (eventRow.scopeType === "department") return visible.departmentIds.includes(eventRow.scopeId);
+  if (eventRow.scopeType === "division") return visible.divisionIds.includes(eventRow.scopeId);
+  if (eventRow.scopeType === "business") return visible.business;
+  return false;
+}
+
+async function resolveEventScope(ctx: { db: DbClient; session: Session | null }, inputScope?: { scopeType?: string; scopeId?: number }) {
+  const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+  const businessId = await getBusinessId(ctx.db);
+
+  if (!context) {
+    if (!businessId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+    }
+    return { scopeType: "business" as const, scopeId: businessId };
+  }
+
+  const scopeOptions = await getCreatableScopeOptions(ctx.db, context.userId);
+  if (scopeOptions.length === 0) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to create events." });
+  }
+
+  if (inputScope?.scopeType && inputScope.scopeId) {
+    const match = scopeOptions.find(
+      (option) => option.scopeType === inputScope.scopeType && option.scopeId === inputScope.scopeId,
+    );
+    if (!match) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "You cannot create events in that scope." });
+    }
+    return { scopeType: match.scopeType, scopeId: match.scopeId };
+  }
+
+  const fallback = scopeOptions[0]!;
+  return { scopeType: fallback.scopeType, scopeId: fallback.scopeId };
+}
+
+async function canEditEvent(dbClient: DbClient, session: Session | null, eventRow: EventRow) {
+  const context = await getOptionalPermissionContext(dbClient, session);
+  if (!context) return true;
+
+  if (context.profileId) {
+    if (eventRow.ownerProfileId && eventRow.ownerProfileId === context.profileId) return true;
+    if (eventRow.assigneeProfileId && eventRow.assigneeProfileId === context.profileId) return true;
+    const [coOwner] = await dbClient
+      .select({ id: eventCoOwners.id })
+      .from(eventCoOwners)
+      .where(and(eq(eventCoOwners.eventId, eventRow.id), eq(eventCoOwners.profileId, context.profileId)))
+      .limit(1);
+    if (coOwner) return true;
+  }
+
+  const visible = await getVisibleScopes(dbClient, context.userId);
+  return isScopeVisible(eventRow, visible);
+}
+
 export const eventRouter = createTRPCRouter({
+  scopeOptions: publicProcedure.query(async ({ ctx }) => {
+    const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+    if (!context) {
+      const businessId = await getBusinessId(ctx.db);
+      if (!businessId) return [];
+      const [business] = await ctx.db
+        .select({ id: businesses.id, name: businesses.name })
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+      return business ? [{ scopeType: "business", scopeId: business.id, label: `${business.name} (Business)` }] : [];
+    }
+
+    return getCreatableScopeOptions(ctx.db, context.userId);
+  }),
+
   findByIdentifier: publicProcedure
     .input(z.object({ identifier: z.string().trim().min(1).max(64) }))
     .query(async ({ ctx, input }) => {
@@ -363,6 +500,13 @@ export const eventRouter = createTRPCRouter({
       }
 
       if (!resolved) return null;
+      const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+      if (context) {
+        const visible = await getVisibleScopes(ctx.db, context.userId);
+        if (!isScopeVisible(resolved, visible)) {
+          return null;
+        }
+      }
       const [response] = await buildEventResponses(ctx.db, [resolved]);
       return response ?? null;
     }),
@@ -382,33 +526,40 @@ export const eventRouter = createTRPCRouter({
       const limit = input?.limit ?? 100;
       const offset = input?.offset ?? 0;
 
-      const conditions: unknown[] = [];
+      const conditions: SQL<unknown>[] = [];
+      const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+      if (context) {
+        const visible = await getVisibleScopes(ctx.db, context.userId);
+        const scopeCondition = buildScopeCondition(visible);
+        if (scopeCondition) {
+          conditions.push(scopeCondition);
+        }
+      }
       if (input?.assigned === true) {
         conditions.push(sql`${events.assigneeProfileId} IS NOT NULL`);
       } else if (input?.assigned === false) {
-        conditions.push(eq(events.assigneeProfileId, null));
+        conditions.push(isNull(events.assigneeProfileId));
       }
 
       if (input?.search && input.search.trim().length > 0) {
         const like = `%${input.search.trim().replace(/[%_]/g, (m) => `\\${m}`)}%`;
-        conditions.push(
-          or(
-            ilike(events.title, like),
-            ilike(events.description, like),
-            ilike(events.location, like),
-            eq(events.eventCode, input.search.trim()),
-          ),
+        const searchCondition = or(
+          ilike(events.title, like),
+          ilike(events.description, like),
+          ilike(events.location, like),
+          eq(events.eventCode, input.search.trim()),
         );
+        if (searchCondition) {
+          conditions.push(searchCondition);
+        }
       }
 
-      let query = ctx.db.select().from(events);
-      if (conditions.length > 0) {
-        let whereCond = conditions[0] as any;
-        for (let i = 1; i < conditions.length; i++) whereCond = and(whereCond, conditions[i] as any);
-        query = query.where(whereCond);
-      }
-
-      const rows = await query.orderBy(desc(events.updatedAt), desc(events.id)).limit(limit).offset(offset);
+      const baseQuery = ctx.db.select().from(events);
+      const whereCond = conditions.length > 0 ? and(...conditions) : null;
+      const rows = await (whereCond ? baseQuery.where(whereCond) : baseQuery)
+        .orderBy(desc(events.updatedAt), desc(events.id))
+        .limit(limit)
+        .offset(offset);
       return buildEventResponses(ctx.db, rows as EventRow[]);
     }),
   zendeskQueue: publicProcedure.query(async ({ ctx }) => {
@@ -571,6 +722,14 @@ export const eventRouter = createTRPCRouter({
       if (input.calendarIds && input.calendarIds.length > 0) {
         condition = and(condition, inArray(events.calendarId, input.calendarIds));
       }
+      const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+      if (context) {
+        const visible = await getVisibleScopes(ctx.db, context.userId);
+        const scopeCondition = buildScopeCondition(visible);
+        if (scopeCondition) {
+          condition = and(condition, scopeCondition);
+        }
+      }
       const list = await ctx.db
         .select()
         .from(events)
@@ -583,6 +742,8 @@ export const eventRouter = createTRPCRouter({
     .input(
       z.object({
         calendarId: z.number().optional(),
+        scopeType: z.enum(["business", "department", "division"]).optional(),
+        scopeId: z.number().int().positive().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
@@ -592,6 +753,7 @@ export const eventRouter = createTRPCRouter({
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().optional(),
+        coOwnerProfileIds: z.array(z.number().int().positive()).optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
         attendeeProfileIds: z.array(z.number().int().positive()).optional(),
         participantCount: z.number().int().min(0).max(100000).optional(),
@@ -614,16 +776,24 @@ export const eventRouter = createTRPCRouter({
         calendarId = primary.id;
       }
 
+      if ((input.scopeType && !input.scopeId) || (!input.scopeType && input.scopeId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Scope type and id must be provided together." });
+      }
+      const scope = await resolveEventScope(ctx, { scopeType: input.scopeType, scopeId: input.scopeId });
       const eventCode = await getUniqueEventCode(ctx.db);
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
       let sessionProfileId: number | null = null;
       if (hourLogs.length > 0) {
-        sessionProfileId = await getSessionProfileId(ctx);
+        sessionProfileId = await getSessionProfileId(ctx.db, ctx.session);
         if (sessionProfileId === null) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You must be signed in to log hours." });
         }
       }
+      const ownerProfileId = await getSessionProfileId(ctx.db, ctx.session);
       const zendeskTicketNumber = cleanZendeskTicketNumber(input.zendeskTicketNumber);
+      const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
+        .filter((id) => Number.isFinite(id))
+        .filter((id) => (ownerProfileId ? id !== ownerProfileId : true));
 
       const created = await ctx.db.transaction(async (tx) => {
         // Assign to the first user who logs hours (on create),
@@ -640,6 +810,9 @@ export const eventRouter = createTRPCRouter({
           .values({
             calendarId: calendarId!,
             assigneeProfileId: assignee ?? null,
+            ownerProfileId,
+            scopeType: scope.scopeType,
+            scopeId: scope.scopeId,
             eventCode,
             title: input.title,
             description: input.description,
@@ -660,6 +833,15 @@ export const eventRouter = createTRPCRouter({
           })
           .returning();
         if (!row) throw new Error("Failed to create event");
+
+        if (coOwnerIds.length > 0) {
+          await tx.insert(eventCoOwners).values(
+            coOwnerIds.map((profileId) => ({
+              eventId: row.id,
+              profileId,
+            })),
+          );
+        }
 
         if (hourLogs.length > 0) {
           await tx.insert(eventHourLogs).values(
@@ -734,6 +916,8 @@ export const eventRouter = createTRPCRouter({
       z.object({
         id: z.number(),
         calendarId: z.number().optional(),
+        scopeType: z.enum(["business", "department", "division"]).optional(),
+        scopeId: z.number().int().positive().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
@@ -743,6 +927,7 @@ export const eventRouter = createTRPCRouter({
         endDatetime: z.coerce.date(),
         recurrenceRule: z.string().nullable().optional(),
         assigneeProfileId: z.number().int().positive().nullable().optional(),
+        coOwnerProfileIds: z.array(z.number().int().positive()).optional(),
         hourLogs: z.array(hourLogInputSchema).optional(),
         attendeeProfileIds: z.array(z.number().int().positive()).optional(),
         participantCount: z.number().int().min(0).max(100000).nullable().optional(),
@@ -761,17 +946,31 @@ export const eventRouter = createTRPCRouter({
       if (!current) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
+      const canEdit = await canEditEvent(ctx.db, ctx.session, current);
+      if (!canEdit) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to edit this event." });
+      }
 
       const hourLogs = normalizeHourLogs(input.hourLogs);
       const needsProfileForNewLogs = hourLogs?.some((log) => log.id === undefined) ?? false;
       const sessionProfileIdForNewLogs =
-        needsProfileForNewLogs && (hourLogs?.length ?? 0) > 0 ? await getSessionProfileId(ctx) : null;
+        needsProfileForNewLogs && (hourLogs?.length ?? 0) > 0 ? await getSessionProfileId(ctx.db, ctx.session) : null;
       if (needsProfileForNewLogs && sessionProfileIdForNewLogs === null) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You must be signed in to log hours." });
       }
       const zendeskTicketNumber = cleanZendeskTicketNumber(
         input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
       );
+      if ((input.scopeType && !input.scopeId) || (!input.scopeType && input.scopeId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Scope type and id must be provided together." });
+      }
+      const nextScope =
+        input.scopeType && input.scopeId
+          ? await resolveEventScope(ctx, { scopeType: input.scopeType, scopeId: input.scopeId })
+          : { scopeType: current.scopeType, scopeId: current.scopeId };
+      const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
+        .filter((id) => Number.isFinite(id))
+        .filter((id) => (current.ownerProfileId ? id !== current.ownerProfileId : true));
 
   const updated = await ctx.db.transaction(async (tx) => {
         // Determine next assignee
@@ -798,6 +997,8 @@ export const eventRouter = createTRPCRouter({
           .set({
             calendarId: input.calendarId ?? current.calendarId,
             assigneeProfileId: nextAssignee ?? null,
+            scopeType: nextScope.scopeType,
+            scopeId: nextScope.scopeId,
             title: input.title,
             description: input.description ?? null,
             location: input.location ?? null,
@@ -818,6 +1019,18 @@ export const eventRouter = createTRPCRouter({
           .where(eq(events.id, input.id))
           .returning();
         if (!row) throw new Error("Failed to update event");
+
+        if (input.coOwnerProfileIds) {
+          await tx.delete(eventCoOwners).where(eq(eventCoOwners.eventId, current.id));
+          if (coOwnerIds.length > 0) {
+            await tx.insert(eventCoOwners).values(
+              coOwnerIds.map((profileId) => ({
+                eventId: current.id,
+                profileId,
+              })),
+            );
+          }
+        }
 
         if (hourLogs !== undefined) {
           const existingLogProfiles = new Map<number, number | null>();
@@ -867,6 +1080,14 @@ export const eventRouter = createTRPCRouter({
   delete: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+      const canEdit = await canEditEvent(ctx.db, ctx.session, existing);
+      if (!canEdit) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete this event." });
+      }
       await ctx.db.delete(events).where(eq(events.id, input.id));
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] event delete refresh failed", error);

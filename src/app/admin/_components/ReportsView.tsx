@@ -10,7 +10,36 @@ type ReportsData = RouterOutputs["admin"]["reports"];
 type ExportReport = ReportsData["exportReports"][number];
 type MultiYearMonthReport = Extract<ExportReport, { format: "multiYearMonth" }>;
 type SimpleTableReport = Extract<ExportReport, { format: "simpleTable" }>;
-type ReportParameter = NonNullable<ExportReport["parameters"]>[number];
+type BaseReportParameter =
+  | {
+      id: string;
+      label: string;
+      type: "select";
+      options: Array<{ label: string; value: string }>;
+      defaultValue: string;
+      helper?: string;
+    }
+  | {
+      id: string;
+      label: string;
+      type: "number";
+      min?: number;
+      max?: number;
+      step?: number;
+      defaultValue: number;
+      suffix?: string;
+      helper?: string;
+    }
+  | {
+      id: string;
+      label: string;
+      type: "toggle";
+      defaultValue: boolean;
+      helper?: string;
+    };
+type ReportParameter = BaseReportParameter;
+type ReportWithParameters = ExportReport & { parameters?: ReportParameter[] };
+type ParameterCarrier = { parameters?: BaseReportParameter[] };
 type ParameterValue = string | number | boolean;
 type ParameterValuesMap = Record<string, ParameterValue>;
 
@@ -472,10 +501,11 @@ function ParameterControls({
   if (!report.parameters || report.parameters.length === 0) {
     return null;
   }
+  const parameters: ReportParameter[] = (report as ReportWithParameters).parameters ?? [];
 
   return (
     <div className="mt-4 grid gap-4 md:grid-cols-2">
-      {report.parameters.map((parameter) => {
+      {parameters.map((parameter) => {
         const value = values[parameter.id] ?? parameter.defaultValue;
         if (parameter.type === "select") {
           return (
@@ -555,8 +585,9 @@ function YearRangeControls({
 }) {
   const availableYears = report.years.map((year) => year.year).sort((a, b) => a - b);
   if (availableYears.length === 0) return null;
-  const hasStartParameter = report.parameters?.some((parameter) => parameter.id === "startYear");
-  const hasEndParameter = report.parameters?.some((parameter) => parameter.id === "endYear");
+  const parameters: ReportParameter[] = (report as ReportWithParameters).parameters ?? [];
+  const hasStartParameter = parameters.some((parameter) => parameter.id === "startYear");
+  const hasEndParameter = parameters.some((parameter) => parameter.id === "endYear");
   if (!hasStartParameter || !hasEndParameter) return null;
 
   const minYear = availableYears[0]!;
@@ -788,15 +819,18 @@ function SimpleTable({ report }: { report: SimpleTableReport }) {
   );
 }
 
-function sanitizeParameterValues(report: ExportReport, overrides: ParameterValuesMap): ParameterValuesMap {
-  if (!report.parameters || report.parameters.length === 0) return overrides;
+function sanitizeParameterValues(report: ParameterCarrier, overrides: ParameterValuesMap): ParameterValuesMap {
+  const parameters = (report.parameters ?? []) as any[];
+  if (parameters.length === 0) return overrides;
   let changed = false;
   const nextValues: ParameterValuesMap = { ...overrides };
-  for (const parameter of report.parameters) {
+  for (const raw of parameters) {
+    const parameter = raw as any;
     const current = overrides[parameter.id];
     if (parameter.type === "select" && parameter.options) {
       const normalized = String(current ?? parameter.defaultValue ?? "");
-      const allowed = parameter.options.some((option) => option.value === normalized);
+      const options = parameter.options as Array<{ value: string }>;
+      const allowed = options.some((option) => option.value === normalized);
       if (!allowed) {
         nextValues[parameter.id] = parameter.defaultValue;
         changed = true;
@@ -833,9 +867,10 @@ function resolveParameterValues(report: ExportReport, overrides?: ParameterValue
   return sanitizeParameterValues(report, merged);
 }
 
-function getParameterDefaults(report: ExportReport): ParameterValuesMap {
-  if (!report.parameters || report.parameters.length === 0) return {};
-  return Object.fromEntries(report.parameters.map((parameter) => [parameter.id, parameter.defaultValue]));
+function getParameterDefaults(report: ParameterCarrier): ParameterValuesMap {
+  const parameters = (report.parameters ?? []) as BaseReportParameter[];
+  if (parameters.length === 0) return {};
+  return Object.fromEntries(parameters.map((parameter) => [parameter.id, parameter.defaultValue]));
 }
 
 function applyReportParameters(report: ExportReport, values: ParameterValuesMap): ExportReport {

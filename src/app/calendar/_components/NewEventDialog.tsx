@@ -92,6 +92,7 @@ function normalizeTimeInput(value: string) {
   const meridiemMatch = numericPart.match(/\s*(am|pm|a|p)$/);
   if (meridiemMatch) {
     const token = meridiemMatch[1];
+    if (!token) return null;
     meridiem = token.startsWith("p") ? "pm" : "am";
     numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0]!.length).trim();
   }
@@ -100,7 +101,7 @@ function normalizeTimeInput(value: string) {
   let minutes: number | null = null;
   if (numericPart.includes(":")) {
     const [h, m = "0"] = numericPart.split(":");
-    if (!/^\d+$/.test(h) || !/^\d+$/.test(m)) return null;
+    if (!h || !/^\d+$/.test(h) || !/^\d+$/.test(m)) return null;
     hours = Number(h);
     minutes = Number(m);
   } else if (/^\d{3,4}$/.test(numericPart)) {
@@ -455,9 +456,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
   const update = api.event.update.useMutation();
+  const scopeOptionsQuery = api.event.scopeOptions.useQuery();
   const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
+  const [scopeKey, setScopeKey] = useState("");
   const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
   const [allDay, setAllDay] = useState(false);
   const [inPerson, setInPerson] = useState(false);
@@ -480,16 +483,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [assigneeQuery, setAssigneeQuery] = useState("");
   const [selectedAttendees, setSelectedAttendees] = useState<AssigneeSelection[]>([]);
+  const [selectedCoOwners, setSelectedCoOwners] = useState<AssigneeSelection[]>([]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [attendeeQuery, setAttendeeQuery] = useState("");
+  const [coOwnerSearch, setCoOwnerSearch] = useState("");
+  const [coOwnerQuery, setCoOwnerQuery] = useState("");
   const [assigneeHighlight, setAssigneeHighlight] = useState(-1);
   const [attendeeHighlight, setAttendeeHighlight] = useState(-1);
-  const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | null>(null);
+  const [coOwnerHighlight, setCoOwnerHighlight] = useState(-1);
+  const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | "coOwner" | null>(null);
   const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0]!.start) : new Date(defaultDate)), [segments, defaultDate]);
+  const scopeOptions = scopeOptionsQuery.data ?? [];
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -558,11 +566,29 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       } else {
         setSelectedAttendees([]);
       }
+      if (event.coOwners && event.coOwners.length > 0) {
+        setSelectedCoOwners(
+          event.coOwners.map((coOwner) => ({
+            profileId: coOwner.profileId,
+            displayName: [coOwner.firstName, coOwner.lastName].filter(Boolean).join(" ").trim() || coOwner.email,
+            email: coOwner.email,
+          })),
+        );
+      } else {
+        setSelectedCoOwners([]);
+      }
       setAttendeeSearch("");
       setAttendeeQuery("");
+      setCoOwnerSearch("");
+      setCoOwnerQuery("");
       setQuickCreateTarget(null);
       setQuickCreateDraft(emptyProfileDraft);
       setQuickCreateError(null);
+      if (event.scopeType && event.scopeId) {
+        setScopeKey(`${event.scopeType}:${event.scopeId}`);
+      } else if (scopeOptions.length > 0) {
+        setScopeKey(`${scopeOptions[0]!.scopeType}:${scopeOptions[0]!.scopeId}`);
+      }
       if (event.hourLogs && event.hourLogs.length > 0) {
         setHourLogs(
           event.hourLogs.map((log) => ({
@@ -602,11 +628,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setSelectedAttendees([]);
     setAttendeeSearch("");
     setAttendeeQuery("");
+    setSelectedCoOwners([]);
+    setCoOwnerSearch("");
+    setCoOwnerQuery("");
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
+    if (scopeOptions.length > 0) {
+      setScopeKey(`${scopeOptions[0]!.scopeType}:${scopeOptions[0]!.scopeId}`);
+    } else {
+      setScopeKey("");
+    }
     setHourLogs([]);
-  }, [open, defaultDate, event]);
+  }, [open, defaultDate, event, scopeOptions]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -621,6 +655,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     }, 250);
     return () => window.clearTimeout(handle);
   }, [attendeeSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setCoOwnerQuery(coOwnerSearch.trim());
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [coOwnerSearch]);
 
   // Location search + sync effects are defined after facility hooks
 
@@ -764,6 +805,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   );
   const attendeeMatches = attendeeResults.data ?? [];
   const shouldShowAttendeeResults = attendeeQuery.length > 1;
+  const coOwnerResults = api.profile.search.useQuery(
+    { query: coOwnerQuery, limit: 7 },
+    { enabled: open && coOwnerQuery.length > 1 },
+  );
+  const coOwnerMatches = coOwnerResults.data ?? [];
+  const shouldShowCoOwnerResults = coOwnerQuery.length > 1;
   const createProfile = api.profile.create.useMutation();
   // Facilities data
   const buildingList = api.facility.listBuildings.useQuery(undefined, { enabled: open });
@@ -902,10 +949,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const handleAddAttendee = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
     setSelectedAttendees((prev) => {
       if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
-      const displayName =
-        "displayName" in option
-          ? option.displayName
-          : [option.firstName, option.lastName].filter(Boolean).join(" ").trim() || option.email;
+      const displayName = option.displayName || option.email;
       return [
         ...prev,
         {
@@ -924,14 +968,38 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setSelectedAttendees((prev) => prev.filter((entry) => entry.profileId !== profileId));
   };
 
+  const handleAddCoOwner = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
+    setSelectedCoOwners((prev) => {
+      if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
+      const displayName = option.displayName || option.email;
+      return [
+        ...prev,
+        {
+          profileId: option.profileId,
+          displayName,
+          email: option.email,
+          username: "username" in option ? option.username : undefined,
+        },
+      ];
+    });
+    setCoOwnerSearch("");
+    setCoOwnerQuery("");
+  };
+
+  const handleRemoveCoOwner = (profileId: number) => {
+    setSelectedCoOwners((prev) => prev.filter((entry) => entry.profileId !== profileId));
+  };
+
   const closeQuickCreate = () => {
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
   };
 
-  const openQuickCreate = (target: "assignee" | "attendee", seed?: string) => {
-    const source = seed ?? (target === "assignee" ? assigneeSearch : attendeeSearch);
+  const openQuickCreate = (target: "assignee" | "attendee" | "coOwner", seed?: string) => {
+    const source =
+      seed ??
+      (target === "assignee" ? assigneeSearch : target === "coOwner" ? coOwnerSearch : attendeeSearch);
     const derived = deriveProfileDraft(source);
     setQuickCreateTarget(target);
     setQuickCreateDraft({
@@ -975,6 +1043,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         setAssigneeQuery("");
       } else if (quickCreateTarget === "attendee") {
         handleAddAttendee(selection);
+      } else if (quickCreateTarget === "coOwner") {
+        handleAddCoOwner(selection);
       }
       closeQuickCreate();
     } catch (err) {
@@ -988,7 +1058,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       <div className="mt-2 rounded-md border border-outline-muted bg-surface-muted p-3">
         <div className="flex items-center justify-between text-sm font-semibold text-ink-primary">
           <span>
-            Create {quickCreateTarget === "assignee" ? "assignee" : "attendee"} profile
+            Create{" "}
+            {quickCreateTarget === "assignee" ? "assignee" : quickCreateTarget === "coOwner" ? "co-owner" : "attendee"} profile
           </span>
           <button
             type="button"
@@ -1064,7 +1135,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       const payloadHourLogs = hourLogs
         .map((log) => {
           if (!log.start || !log.end) return null;
-          return { id: log.sourceId ?? undefined, startTime: log.start, endTime: log.end };
+          const base = { startTime: log.start, endTime: log.end };
+          return log.sourceId ? { ...base, id: log.sourceId } : base;
         })
         .filter((log): log is { id?: number; startTime: Date; endTime: Date } => Boolean(log));
       const participantCountValue =
@@ -1084,6 +1156,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       const zendeskTicketPayload =
         zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
       const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
+      const coOwnerProfileIds = selectedCoOwners.map((entry) => entry.profileId).filter((id) => id > 0);
+      const [scopeTypeRaw, scopeIdRaw] = scopeKey.split(":");
+      const scopeId = Number(scopeIdRaw);
+      const scopePayload =
+        scopeTypeRaw && Number.isFinite(scopeId)
+          ? { scopeType: scopeTypeRaw as "business" | "department" | "division", scopeId }
+          : undefined;
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -1104,6 +1183,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           endDatetime: dayEnd,
           recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
           assigneeProfileId: assignee ? assignee.profileId : null,
+          coOwnerProfileIds,
           hourLogs: payloadHourLogs,
           attendeeProfileIds,
           participantCount: participantCountValue,
@@ -1114,8 +1194,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           eventEndTime: eventInfoEndValue,
           setupTime: setupInfoValue,
           zendeskTicketNumber: zendeskTicketPayload,
+          ...scopePayload,
         });
       } else {
+        const participantCountPayload = participantCountValue ?? undefined;
+        const requestCategoryPayload = requestCategoryValue ?? undefined;
+        const equipmentPayloadCreate = equipmentPayload ?? undefined;
+        const eventInfoStartPayload = eventInfoStartValue ?? undefined;
+        const eventInfoEndPayload = eventInfoEndValue ?? undefined;
+        const setupInfoPayload = setupInfoValue ?? undefined;
+        const zendeskTicketPayloadCreate = zendeskTicketPayload ?? undefined;
         for (const segment of segments) {
           const dayStart = allDay ? startOfDay(segment.start) : segment.start;
           const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
@@ -1130,16 +1218,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             endDatetime: dayEnd,
             recurrenceRule: recurring ? "FREQ=DAILY" : null,
             assigneeProfileId: assignee?.profileId ?? undefined,
+            coOwnerProfileIds,
             hourLogs: payloadHourLogs,
             attendeeProfileIds,
-            participantCount: participantCountValue,
+            participantCount: participantCountPayload,
             technicianNeeded,
-            requestCategory: requestCategoryValue,
-            equipmentNeeded: equipmentPayload,
-            eventStartTime: eventInfoStartValue,
-            eventEndTime: eventInfoEndValue,
-            setupTime: setupInfoValue,
-            zendeskTicketNumber: zendeskTicketPayload,
+            requestCategory: requestCategoryPayload,
+            equipmentNeeded: equipmentPayloadCreate,
+            eventStartTime: eventInfoStartPayload,
+            eventEndTime: eventInfoEndPayload,
+            setupTime: setupInfoPayload,
+            zendeskTicketNumber: zendeskTicketPayloadCreate,
+            ...scopePayload,
           });
         }
       }
@@ -1171,6 +1261,25 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
             onChange={(e) => setTitle(e.target.value)}
             className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
           />
+
+          <div>
+            <div className="mb-1 text-xs text-ink-muted">Event scope</div>
+            <select
+              value={scopeKey}
+              onChange={(e) => setScopeKey(e.target.value)}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+            >
+              <option value="">Select a scope</option>
+              {scopeOptions.map((option) => (
+                <option key={`${option.scopeType}:${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {scopeOptionsQuery.isLoading ? (
+              <p className="mt-1 text-xs text-ink-subtle">Loading scope options…</p>
+            ) : null}
+          </div>
 
           <div>
             <div className="mb-1 text-xs text-ink-muted">Zendesk ticket number</div>
@@ -1284,6 +1393,106 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
               )}
             </div>
             {quickCreateTarget === "attendee" ? renderQuickCreateForm() : null}
+          </div>
+
+          <div>
+            <div className="mb-1 text-xs text-ink-muted">Co-owners</div>
+            <div className="flex flex-wrap gap-2">
+              {selectedCoOwners.length === 0 ? (
+                <span className="text-xs text-ink-muted">No co-owners selected.</span>
+              ) : (
+                selectedCoOwners.map((owner) => (
+                  <span
+                    key={owner.profileId}
+                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-sm text-ink-primary"
+                  >
+                    <span className="font-medium">{owner.displayName}</span>
+                    <span className="text-xs text-ink-muted">{owner.email}</span>
+                    <button
+                      type="button"
+                      className="text-ink-faint transition hover:text-status-danger"
+                      onClick={() => handleRemoveCoOwner(owner.profileId)}
+                      aria-label="Remove co-owner"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <div className="relative mt-2">
+              <input
+                placeholder="Search by name, email, or phone"
+                value={coOwnerSearch}
+                onChange={(e) => setCoOwnerSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setCoOwnerHighlight((prev) => Math.min(prev + 1, coOwnerMatches.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setCoOwnerHighlight((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (coOwnerMatches.length === 1) {
+                      handleAddCoOwner(coOwnerMatches[0]!);
+                    } else if (coOwnerHighlight >= 0 && coOwnerHighlight < coOwnerMatches.length) {
+                      handleAddCoOwner(coOwnerMatches[coOwnerHighlight]!);
+                    }
+                  }
+                }}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+              />
+              {shouldShowCoOwnerResults && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                  {coOwnerResults.isFetching ? (
+                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                  ) : coOwnerMatches.length > 0 ? (
+                    <>
+                      {coOwnerMatches.map((match, index) => {
+                        const isActive = index === coOwnerHighlight;
+                        return (
+                          <button
+                            key={match.profileId}
+                            type="button"
+                            className={
+                              "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                              (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                            }
+                            onClick={() => handleAddCoOwner(match)}
+                            onMouseEnter={() => setCoOwnerHighlight(index)}
+                          >
+                            <span className="font-medium">{match.displayName}</span>
+                            <span className="text-xs text-ink-muted">{match.email}</span>
+                          </button>
+                        );
+                      })}
+                      <div className="px-3 py-2 text-sm text-ink-muted">
+                        <button
+                          type="button"
+                          className="text-accent-soft hover:text-accent-strong"
+                          onClick={() => openQuickCreate("coOwner")}
+                        >
+                          Create new profile for "{coOwnerSearch.trim() || "co-owner"}"
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                      <div>No profiles found</div>
+                      <button
+                        type="button"
+                        className="text-accent-soft hover:text-accent-strong"
+                        onClick={() => openQuickCreate("coOwner")}
+                      >
+                        Create profile for "{coOwnerSearch.trim() || "co-owner"}"
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {quickCreateTarget === "coOwner" ? renderQuickCreateForm() : null}
           </div>
 
           <div>

@@ -7,9 +7,11 @@ import type { Session } from "next-auth";
 type Props = {
   user: Session["user"] | null;
   variant?: "default" | "icon";
+  menuPlacement?: "down" | "up";
+  menuAlign?: "left" | "right";
 };
 
-export function AccountMenu({ user, variant = "icon" }: Props) {
+export function AccountMenu({ user, variant = "icon", menuPlacement = "down", menuAlign = "right" }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -29,6 +31,9 @@ export function AccountMenu({ user, variant = "icon" }: Props) {
   const buttonClass = isIcon
     ? "inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent-strong text-sm font-semibold text-ink-inverted shadow hover:bg-accent-default focus:outline-none focus:ring-2 focus:ring-accent-soft"
     : "flex items-center gap-2 rounded-md border border-outline-muted bg-surface-muted px-2 py-1 text-sm text-ink-primary hover:bg-surface-muted";
+  const menuPositionClass =
+    menuPlacement === "up" ? "bottom-full mb-2" : "mt-1";
+  const menuAlignClass = menuAlign === "left" ? "left-0" : "right-0";
 
   return (
     <div className="relative" ref={ref}>
@@ -50,7 +55,9 @@ export function AccountMenu({ user, variant = "icon" }: Props) {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-[999] mt-1 w-48 rounded-md border border-outline-muted bg-surface-raised p-1 text-sm text-ink-primary shadow-lg">
+        <div
+          className={`absolute ${menuAlignClass} ${menuPositionClass} z-[999] w-48 rounded-md border border-outline-muted bg-surface-raised p-1 text-sm text-ink-primary shadow-lg`}
+        >
           <button
             className="block w-full rounded-md px-2 py-1 text-left hover:bg-surface-muted"
             onClick={() => signOut({ callbackUrl: "/login" })}

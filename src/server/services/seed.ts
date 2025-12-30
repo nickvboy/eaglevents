@@ -90,9 +90,12 @@ export async function revertSeededData(dbClient: DbClient, log: (message: string
     await tx.delete(schema.eventHourLogs);
     await tx.delete(schema.eventReminders);
     await tx.delete(schema.eventAttendees);
+    await tx.delete(schema.eventCoOwners);
     await tx.delete(schema.events);
     await tx.delete(schema.calendars);
     await tx.delete(schema.organizationRoles);
+    await tx.delete(schema.visibilityGrants);
+    await tx.delete(schema.auditLogs);
     await tx.delete(schema.themeProfiles);
     await tx.delete(schema.themePalettes);
     await tx.delete(schema.rooms);

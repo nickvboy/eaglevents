@@ -18,7 +18,7 @@ import type { ThemePaletteTokens } from "~/types/theme";
 export const createTable = pgTableCreator((name) => `t3-app-template_${name}`);
 
 export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofit", "corporation", "government", "venue", "other"]);
-export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "manager", "employee"]);
+export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "co_admin", "manager", "employee"]);
 export const organizationScopeTypeEnum = pgEnum("organization_scope_type", ["business", "department", "division"]);
 export const themeProfileScopeEnum = pgEnum("theme_profile_scope", ["business", "department"]);
 export const eventRequestCategoryEnum = pgEnum("event_request_category", [
@@ -232,6 +232,27 @@ export const organizationRoles = createTable(
   ],
 );
 
+export const visibilityGrants = createTable(
+  "visibility_grant",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d.integer().notNull().references(() => users.id, { onDelete: "cascade" }),
+    scopeType: organizationScopeTypeEnum().notNull(),
+    scopeId: d.integer().notNull(),
+    createdByUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    reason: d.varchar({ length: 255 }).default("").notNull(),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("visibility_grant_user_idx").on(t.userId),
+    index("visibility_grant_scope_idx").on(t.scopeType, t.scopeId),
+    uniqueIndex("visibility_grant_unique").on(t.userId, t.scopeType, t.scopeId),
+  ],
+);
+
 export const calendars = createTable(
   "calendar",
   (d) => ({
@@ -258,6 +279,9 @@ export const events = createTable(
     calendarId: d.integer().notNull().references(() => calendars.id, { onDelete: "cascade" }),
     buildingId: d.integer().references(() => buildings.id, { onDelete: "set null" }),
     assigneeProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    ownerProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    scopeType: organizationScopeTypeEnum().notNull(),
+    scopeId: d.integer().notNull(),
     eventCode: d.varchar({ length: 7 }).notNull(),
     title: d.varchar({ length: 255 }).notNull(),
     description: text(),
@@ -285,7 +309,27 @@ export const events = createTable(
     index("event_building_idx").on(t.buildingId),
     index("event_start_idx").on(t.startDatetime),
     index("event_assignee_idx").on(t.assigneeProfileId),
+    index("event_scope_idx").on(t.scopeType, t.scopeId),
+    index("event_owner_idx").on(t.ownerProfileId),
     uniqueIndex("event_event_code_unique").on(t.eventCode),
+  ],
+);
+
+export const eventCoOwners = createTable(
+  "event_co_owner",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("event_co_owner_event_idx").on(t.eventId),
+    index("event_co_owner_profile_idx").on(t.profileId),
+    uniqueIndex("event_co_owner_unique").on(t.eventId, t.profileId),
   ],
 );
 
@@ -343,5 +387,30 @@ export const eventZendeskConfirmations = createTable(
     index("zendesk_confirmation_event_idx").on(t.eventId),
     index("zendesk_confirmation_profile_idx").on(t.profileId),
     uniqueIndex("zendesk_confirmation_event_profile_idx").on(t.eventId, t.profileId),
+  ],
+);
+
+export const auditLogs = createTable(
+  "audit_log",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    businessId: d.integer().references(() => businesses.id, { onDelete: "set null" }),
+    actorUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    actorProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    action: d.varchar({ length: 120 }).notNull(),
+    targetType: d.varchar({ length: 120 }).notNull(),
+    targetId: d.integer(),
+    scopeType: organizationScopeTypeEnum(),
+    scopeId: d.integer(),
+    metadata: jsonb("metadata"),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("audit_log_business_idx").on(t.businessId),
+    index("audit_log_actor_idx").on(t.actorUserId),
+    index("audit_log_scope_idx").on(t.scopeType, t.scopeId),
   ],
 );

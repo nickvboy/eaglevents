@@ -141,6 +141,20 @@
       "when": 1767042984004,
       "tag": "0019_fearless_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1767071668119,
+      "tag": "0021_left_doctor_octopus",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1767071669000,
+      "tag": "0022_repair_visibility_grants",
+      "breakpoints": true
     }
   ]
 }

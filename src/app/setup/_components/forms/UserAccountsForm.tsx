@@ -17,7 +17,7 @@ type AssignmentDraft = {
   id: string;
   scopeType: ScopeOption["scopeType"];
   scopeId: number;
-  roleType: "admin" | "manager" | "employee";
+  roleType: "admin" | "co_admin" | "manager" | "employee";
 };
 
 type Credential = { identifier: string; password: string };
@@ -25,6 +25,7 @@ type GeneratedDefaultUser = RouterOutputs["setup"]["createDefaultUsers"]["genera
 
 const roleLabels: Record<AssignmentDraft["roleType"], string> = {
   admin: "Admin",
+  co_admin: "Co-admin",
   manager: "Manager",
   employee: "Employee",
 };
@@ -462,6 +463,7 @@ export function UserAccountsForm({
                 className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
               >
                 <option value="admin">Admin</option>
+                <option value="co_admin">Co-admin</option>
                 <option value="manager">Manager</option>
                 <option value="employee">Employee</option>
               </select>
