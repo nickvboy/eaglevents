@@ -179,6 +179,12 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                     );
                     setHasLocalChanges(true);
                   }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addRoom(draft.id);
+                    }
+                  }}
                   className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                   placeholder="201"
                 />
@@ -228,7 +234,11 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
           disabled={createMutation.isPending || updateMutation.isPending}
           className="rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
         >
-          {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save buildings"}
+          {createMutation.isPending || updateMutation.isPending
+            ? "Saving..."
+            : status.buildings.length > 0
+              ? "Update buildings"
+              : "Save buildings"}
         </button>
         </form>
       )}

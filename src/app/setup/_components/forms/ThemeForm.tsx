@@ -106,14 +106,14 @@ export function ThemeForm({ onSelectionChange }: { onSelectionChange: (selection
     setModalOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (nextState: PaletteFormState) => {
     try {
       if (editorMode === "edit" && selectedPaletteId) {
         const updated = await updatePalette.mutateAsync({
           id: selectedPaletteId,
-          name: formState.name,
-          description: formState.description,
-          tokens: formState.tokens,
+          name: nextState.name,
+          description: nextState.description,
+          tokens: nextState.tokens,
         });
         setModalOpen(false);
         if (updated) {
@@ -127,9 +127,9 @@ export function ThemeForm({ onSelectionChange }: { onSelectionChange: (selection
       }
 
       const created = await createPalette.mutateAsync({
-        name: formState.name,
-        description: formState.description,
-        tokens: formState.tokens,
+        name: nextState.name,
+        description: nextState.description,
+        tokens: nextState.tokens,
       });
       setModalOpen(false);
       if (created) {
@@ -174,19 +174,6 @@ export function ThemeForm({ onSelectionChange }: { onSelectionChange: (selection
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to save preset");
     }
-  };
-
-  const updateColor = (mode: "dark" | "light", key: keyof ThemePaletteTokens["dark"], value: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      tokens: {
-        ...prev.tokens,
-        [mode]: {
-          ...prev.tokens[mode],
-          [key]: value,
-        },
-      },
-    }));
   };
 
   if (isLoading) {
@@ -326,8 +313,6 @@ export function ThemeForm({ onSelectionChange }: { onSelectionChange: (selection
         <PaletteEditorModal
           mode={editorMode}
           state={formState}
-          onChange={setFormState}
-          onColorChange={updateColor}
           onSubmit={handleSubmit}
           isSaving={createPalette.isPending || updatePalette.isPending}
           onClose={() => setModalOpen(false)}

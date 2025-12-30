@@ -65,7 +65,12 @@ export function SetupWizard() {
       await completeMutation.mutateAsync({
         paletteId: themeSelection?.paletteId,
       });
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("Setup has already been completed")) {
+        router.replace("/");
+        return;
+      }
       return;
     }
     if (postSetupCredential) {

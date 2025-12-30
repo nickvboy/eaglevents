@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ThemePaletteTokens } from "~/types/theme";
 import {
@@ -191,41 +191,50 @@ export function PalettePreview({ tokens }: { tokens: ThemePaletteTokens }) {
 type PaletteEditorProps = {
   mode: "create" | "edit";
   state: PaletteFormState;
-  onChange: (state: PaletteFormState) => void;
-  onColorChange: (mode: "dark" | "light", key: keyof ThemePaletteTokens["dark"], value: string) => void;
-  onSubmit: () => Promise<void>;
+  onSubmit: (state: PaletteFormState) => Promise<void>;
   isSaving: boolean;
 };
 
 export function PaletteEditorModal({
   mode,
   state,
-  onChange,
-  onColorChange,
   onSubmit,
   isSaving,
   onClose,
   presets,
 }: PaletteEditorProps & { onClose: () => void; presets: PalettePreset[] }) {
   const [presetSelection, setPresetSelection] = useState<string>("");
+  const [draftState, setDraftState] = useState<PaletteFormState>(state);
   const [manualTokens, setManualTokens] = useState(() => JSON.stringify(state.tokens, null, 2));
   const [manualError, setManualError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftState(state);
+    setManualTokens(JSON.stringify(state.tokens, null, 2));
+    setManualError(null);
+  }, [state]);
+
+  useEffect(() => {
+    const current = JSON.stringify(draftState.tokens);
+    const matched = presets.find((preset) => JSON.stringify(preset.tokens) === current);
+    setPresetSelection(matched?.id ?? "");
+  }, [presets, draftState.tokens]);
 
   const handlePresetChange = (value: string) => {
     setPresetSelection(value);
     const preset = presets.find((p) => p.id === value);
     if (preset) {
-      onChange({
-        ...state,
+      setDraftState((prev) => ({
+        ...prev,
         tokens: cloneThemePaletteTokens(preset.tokens),
-      });
+      }));
       setManualTokens(JSON.stringify(preset.tokens, null, 2));
       setManualError(null);
     }
   };
 
   const handleLoadCurrentTokens = () => {
-    setManualTokens(JSON.stringify(state.tokens, null, 2));
+    setManualTokens(JSON.stringify(draftState.tokens, null, 2));
     setManualError(null);
   };
 
@@ -235,10 +244,10 @@ export function PaletteEditorModal({
       if (!parsed?.dark || !parsed?.light) {
         throw new Error("Tokens must include both dark and light objects.");
       }
-      onChange({
-        ...state,
+      setDraftState((prev) => ({
+        ...prev,
         tokens: cloneThemePaletteTokens(parsed),
-      });
+      }));
       setManualError(null);
     } catch (error) {
       setManualError(error instanceof Error ? error.message : "Unable to parse tokens");
@@ -281,8 +290,8 @@ export function PaletteEditorModal({
           <label className="flex flex-col gap-1 text-sm text-ink-primary">
             Palette name
             <input
-              value={state.name}
-              onChange={(event) => onChange({ ...state, name: event.target.value })}
+              value={draftState.name}
+              onChange={(event) => setDraftState((prev) => ({ ...prev, name: event.target.value }))}
               className="rounded-lg border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary outline-none focus:border-outline-accent"
               placeholder="Brand identity"
             />
@@ -290,8 +299,8 @@ export function PaletteEditorModal({
           <label className="flex flex-col gap-1 text-sm text-ink-primary">
             Description
             <textarea
-              value={state.description}
-              onChange={(event) => onChange({ ...state, description: event.target.value })}
+              value={draftState.description}
+              onChange={(event) => setDraftState((prev) => ({ ...prev, description: event.target.value }))}
               rows={2}
               className="rounded-lg border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary outline-none focus:border-outline-accent"
               placeholder="Optional notes"
@@ -318,14 +327,36 @@ export function PaletteEditorModal({
                           </span>
                           <input
                             type="color"
-                            value={state.tokens[modeKey][field.key]}
-                            onChange={(event) => onColorChange(modeKey, field.key, event.target.value)}
+                            value={draftState.tokens[modeKey][field.key]}
+                            onChange={(event) =>
+                              setDraftState((prev) => ({
+                                ...prev,
+                                tokens: {
+                                  ...prev.tokens,
+                                  [modeKey]: {
+                                    ...prev.tokens[modeKey],
+                                    [field.key]: event.target.value,
+                                  },
+                                },
+                              }))
+                            }
                             className="h-10 w-16 cursor-pointer rounded border border-outline-muted bg-transparent"
                           />
                           <input
                             type="text"
-                            value={state.tokens[modeKey][field.key]}
-                            onChange={(event) => onColorChange(modeKey, field.key, event.target.value)}
+                            value={draftState.tokens[modeKey][field.key]}
+                            onChange={(event) =>
+                              setDraftState((prev) => ({
+                                ...prev,
+                                tokens: {
+                                  ...prev.tokens,
+                                  [modeKey]: {
+                                    ...prev.tokens[modeKey],
+                                    [field.key]: event.target.value,
+                                  },
+                                },
+                              }))
+                            }
                             className="min-w-[120px] flex-1 rounded border border-outline-muted bg-surface-raised px-2 py-1 text-xs text-ink-primary outline-none focus:border-outline-accent"
                           />
                         </label>
@@ -378,8 +409,8 @@ export function PaletteEditorModal({
           </button>
           <button
             type="button"
-            onClick={() => void onSubmit()}
-            disabled={isSaving || !state.name.trim()}
+            onClick={() => void onSubmit(draftState)}
+            disabled={isSaving || !draftState.name.trim()}
             className="rounded-full bg-accent-strong px-5 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? "Saving..." : mode === "edit" ? "Update palette" : "Create palette"}

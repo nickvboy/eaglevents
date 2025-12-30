@@ -109,21 +109,21 @@ export function PaletteManager() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (nextState: PaletteFormState) => {
     try {
-      if (editorMode === "edit" && formState.id) {
+      if (editorMode === "edit" && nextState.id) {
         await updatePalette.mutateAsync({
-          id: formState.id,
-          name: formState.name,
-          description: formState.description,
-          tokens: formState.tokens,
+          id: nextState.id,
+          name: nextState.name,
+          description: nextState.description,
+          tokens: nextState.tokens,
         });
         setStatusMessage("Palette updated");
       } else {
         await createPalette.mutateAsync({
-          name: formState.name,
-          description: formState.description,
-          tokens: formState.tokens,
+          name: nextState.name,
+          description: nextState.description,
+          tokens: nextState.tokens,
         });
         setStatusMessage("Palette created");
         setFormState({
@@ -150,19 +150,6 @@ export function PaletteManager() {
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to update assignment");
     }
-  };
-
-  const updateColor = (mode: "dark" | "light", key: keyof ThemePaletteTokens["dark"], value: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      tokens: {
-        ...prev.tokens,
-        [mode]: {
-          ...prev.tokens[mode],
-          [key]: value,
-        },
-      },
-    }));
   };
 
   if (isLoading) {
@@ -323,8 +310,6 @@ export function PaletteManager() {
         <PaletteEditorModal
           mode={editorMode}
           state={formState}
-          onChange={setFormState}
-          onColorChange={updateColor}
           onSubmit={handleSubmit}
           isSaving={createPalette.isPending || updatePalette.isPending}
           onClose={handleCloseModal}

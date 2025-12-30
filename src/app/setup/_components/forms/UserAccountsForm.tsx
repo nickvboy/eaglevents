@@ -71,7 +71,7 @@ export function UserAccountsForm({
   }, [status.business, status.departments.flat]);
 
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const [form, setForm] = useState({
+  const createEmptyForm = () => ({
     firstName: "",
     lastName: "",
     email: "",
@@ -80,8 +80,9 @@ export function UserAccountsForm({
     password: "",
     dateOfBirth: "",
     assignments: [] as AssignmentDraft[],
-    rememberForLogin: rememberedCredential ? false : true,
+    rememberForLogin: false,
   });
+  const [form, setForm] = useState(createEmptyForm);
   const [generatedDefaults, setGeneratedDefaults] = useState<GeneratedDefaultUser[]>([]);
 
   useEffect(() => {
@@ -105,38 +106,48 @@ export function UserAccountsForm({
   const mutation = api.setup.createUsersWithRoles.useMutation({
     onSuccess: () => {
       onUpdated();
-      setForm((prev) => ({
-        ...prev,
-        firstName: "",
-        lastName: "",
-        email: "",
-        phoneNumber: "",
-        username: "",
-        password: "",
-        dateOfBirth: "",
-        assignments:
-          scopeOptions.length > 0
-            ? [
-                {
-                  id: crypto.randomUUID(),
-                  scopeType: scopeOptions[0]!.scopeType,
-                  scopeId: scopeOptions[0]!.scopeId,
-                  roleType: "admin",
-                },
-              ]
-            : [],
-        rememberForLogin: rememberedCredential ? false : true,
-      }));
+      setEditingUserId(null);
+      setForm(() => {
+        const base = createEmptyForm();
+        return {
+          ...base,
+          assignments:
+            scopeOptions.length > 0
+              ? [
+                  {
+                    id: crypto.randomUUID(),
+                    scopeType: scopeOptions[0]!.scopeType,
+                    scopeId: scopeOptions[0]!.scopeId,
+                    roleType: "admin",
+                  },
+                ]
+              : [],
+        };
+      });
     },
   });
 
   const updateMutation = api.setup.updateUserWithRoles.useMutation({
     onSuccess: () => {
       onUpdated();
-      setForm((prev) => ({
-        ...prev,
-        password: "",
-      }));
+      setEditingUserId(null);
+      setForm(() => {
+        const base = createEmptyForm();
+        return {
+          ...base,
+          assignments:
+            scopeOptions.length > 0
+              ? [
+                  {
+                    id: crypto.randomUUID(),
+                    scopeType: scopeOptions[0]!.scopeType,
+                    scopeId: scopeOptions[0]!.scopeId,
+                    roleType: "admin",
+                  },
+                ]
+              : [],
+        };
+      });
     },
   });
 
@@ -180,7 +191,7 @@ export function UserAccountsForm({
   const existingUsers = useMemo(() => {
     const map = new Map<number, { userId: number; displayName: string; username: string; email: string; profile: { firstName: string; lastName: string; email: string; phoneNumber: string; dateOfBirth: string | null }; assignments: AssignmentDraft[] }>();
     status.roles.forEach((role) => {
-      if (!role.user || !role.profile) return;
+      if (!role.user) return;
       const entry =
         map.get(role.user.id) ??
         (() => {
@@ -190,11 +201,11 @@ export function UserAccountsForm({
             username: role.user.username,
             email: role.user.email,
             profile: {
-              firstName: role.profile.firstName ?? "",
-              lastName: role.profile.lastName ?? "",
-              email: role.profile.email ?? role.user.email,
-              phoneNumber: role.profile.phoneNumber ?? "",
-              dateOfBirth: role.profile.dateOfBirth ?? null,
+              firstName: role.profile?.firstName ?? "",
+              lastName: role.profile?.lastName ?? "",
+              email: role.profile?.email ?? role.user.email,
+              phoneNumber: role.profile?.phoneNumber ?? "",
+              dateOfBirth: role.profile?.dateOfBirth ?? null,
             },
             assignments: [] as AssignmentDraft[],
           };
@@ -456,26 +467,22 @@ export function UserAccountsForm({
               type="button"
               onClick={() => {
                 setEditingUserId(null);
-                setForm({
-                  firstName: "",
-                  lastName: "",
-                  email: "",
-                  phoneNumber: "",
-                  username: "",
-                  password: "",
-                  dateOfBirth: "",
-                  assignments:
-                    scopeOptions.length > 0
-                      ? [
-                          {
-                            id: crypto.randomUUID(),
-                            scopeType: scopeOptions[0]!.scopeType,
-                            scopeId: scopeOptions[0]!.scopeId,
-                            roleType: "admin",
-                          },
-                        ]
-                      : [],
-                  rememberForLogin: rememberedCredential ? false : true,
+                setForm(() => {
+                  const base = createEmptyForm();
+                  return {
+                    ...base,
+                    assignments:
+                      scopeOptions.length > 0
+                        ? [
+                            {
+                              id: crypto.randomUUID(),
+                              scopeType: scopeOptions[0]!.scopeType,
+                              scopeId: scopeOptions[0]!.scopeId,
+                              roleType: "admin",
+                            },
+                          ]
+                        : [],
+                  };
                 });
               }}
               className="text-xs text-ink-muted hover:text-ink-primary"
