@@ -1,12 +1,10 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Session } from "next-auth";
 import { CalendarSidebar } from "./CalendarSidebar";
 import { CalendarToolbar } from "./CalendarToolbar";
 import { WeekGrid } from "./WeekGrid";
 import { NewEventDialog } from "./NewEventDialog";
-import { AccountMenu } from "./AccountMenu";
 import { EventDetailDrawer } from "./EventDetailDrawer";
 import { api } from "~/trpc/react";
 import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils/date";
@@ -15,10 +13,6 @@ import type { RouterOutputs } from "~/trpc/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 
 type View = "day" | "threeday" | "workweek" | "week" | "month";
-
-type CalendarShellProps = {
-  currentUser: Session["user"] | null;
-};
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
@@ -38,7 +32,7 @@ function getStoredDate(key: string, fallback: Date) {
   return fallback;
 }
 
-export function CalendarShell({ currentUser }: CalendarShellProps) {
+export function CalendarShell() {
   const initialDate = useMemo(() => startOfDay(new Date()), []);
   const [desktopView, setDesktopView] = useState<View>("workweek");
   const [mobileView, setMobileView] = useState<View>("day");
@@ -471,7 +465,7 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
           )}
           {isMobile ? (
             <>
-              <MobileToolbar onToday={goToToday} currentUser={currentUser} view={activeView} onViewChange={setActiveView} />
+              <MobileToolbar onToday={goToToday} view={activeView} onViewChange={setActiveView} />
               <MobileDateHeader
                 selectedDate={selectedDate}
                 today={today}
@@ -524,7 +518,6 @@ export function CalendarShell({ currentUser }: CalendarShellProps) {
                 onPrev={onPrev}
                 onNext={onNext}
                 onNewEvent={handleNewEventRequest}
-                currentUser={currentUser}
                 ticketSearchValue={ticketSearchValue}
                 ticketSearchPending={ticketSearchPending}
                 ticketSearchError={ticketSearchError}
@@ -691,12 +684,11 @@ function formatMonthEventTime(start: Date, end: Date) {
 
 type MobileToolbarProps = {
   onToday: () => void;
-  currentUser: Session["user"] | null;
   view: View;
   onViewChange: (v: View) => void;
 };
 
-function MobileToolbar({ onToday, currentUser, view, onViewChange }: MobileToolbarProps) {
+function MobileToolbar({ onToday, view, onViewChange }: MobileToolbarProps) {
   const views: View[] = ["day", "threeday", "workweek", "week", "month"];
   return (
     <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3 text-ink-primary">
@@ -722,7 +714,6 @@ function MobileToolbar({ onToday, currentUser, view, onViewChange }: MobileToolb
           ))}
         </div>
       </div>
-      <AccountMenu user={currentUser} />
     </div>
   );
 }
@@ -862,7 +853,7 @@ function NewEventFab({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-[18px] bg-accent-strong text-3xl font-semibold leading-none text-ink-inverted shadow-lg shadow-[var(--shadow-accent-glow)] transition hover:bg-accent-default"
+      className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-[18px] bg-accent-strong text-3xl font-semibold leading-none text-ink-inverted shadow-lg shadow-[var(--shadow-accent-glow)] transition hover:bg-accent-default md:bottom-6"
       aria-label="Create event"
     >
       +

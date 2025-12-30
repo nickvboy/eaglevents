@@ -16199,3 +16199,45 @@ C:\Users\nickv\AppData\Roaming\npm\pnpm.cmd
  GET /api/setup/status 200 in 9ms
  GET /admin 200 in 23ms
  ✓ Compiled in 184ms (443 modules)
+ ✓ Compiled in 129ms (443 modules)
+ ✓ Compiled in 99ms (443 modules)
+ ✓ Compiled in 106ms (443 modules)
+ ✓ Compiled in 111ms (443 modules)
+ ✓ Compiled in 104ms (443 modules)
+ ✓ Compiled in 102ms (443 modules)
+ ✓ Compiled in 172ms (443 modules)
+ ✓ Compiled in 177ms (443 modules)
+ ✓ Compiled in 110ms (443 modules)
+ ✓ Compiled in 168ms (443 modules)
+ ✓ Compiled in 176ms (443 modules)
+ ✓ Compiled in 108ms (443 modules)
+ ✓ Compiled in 99ms (443 modules)
+ ✓ Compiled in 120ms (443 modules)
+ ✓ Compiled in 825ms (2075 modules)
+ ✓ Compiled in 452ms (2075 modules)
+ ✓ Compiled in 121ms (443 modules)
+ ✓ Compiled in 106ms (443 modules)
+ ✓ Compiled in 125ms (443 modules)
+^C^C ELIFECYCLE  Command failed with exit code 3221225786.
+ ELIFECYCLE  Command failed with exit code 3221225786.
+============================== 
+Service start Tue 12/30/2025  9:59:54.18 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Tue 12/30/2025 10:04:10.32 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).
+============================== 
+Service start Tue 12/30/2025 10:08:26.46 
+User: webappuser 
+Working dir: C:\Users\nickv\Documents\code_projects\eaglevents 
+============================== 
+C:\Program Files\nodejs\node.exe
+INFO: Could not find files for the given pattern(s).

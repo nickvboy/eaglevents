@@ -1,8 +1,5 @@
 "use client";
 
-import type { Session } from "next-auth";
-
-import { AccountMenu } from "./AccountMenu";
 import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 import { formatRangeLabel } from "../utils/date";
 
@@ -15,7 +12,6 @@ type Props = {
   onPrev: () => void;
   onNext: () => void;
   onNewEvent: () => void;
-  currentUser: Session["user"] | null;
   ticketSearchValue: string;
   ticketSearchPending: boolean;
   ticketSearchError: string | null;
@@ -108,8 +104,6 @@ export function CalendarToolbar(props: Props) {
             {v === "workweek" ? "Work week" : v === "threeday" ? "3 day" : v}
           </button>
         ))}
-        <div className="ml-2 h-5 w-px bg-surface-muted" />
-        <AccountMenu user={props.currentUser} />
       </div>
     </div>
   );
