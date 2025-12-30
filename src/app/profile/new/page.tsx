@@ -151,30 +151,30 @@ export default function CreateProfilePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
-      <div className="w-full max-w-[960px] overflow-hidden rounded-lg border border-white/10 bg-neutral-950 shadow-xl md:grid md:grid-cols-2">
-        <div className="hidden h-full flex-col justify-between border-r border-white/10 bg-[radial-gradient(35rem_20rem_at_-10%_-20%,#093,#000),linear-gradient(#0a0a0a,#090909)] p-8 md:flex">
+    <main className="flex min-h-screen items-center justify-center bg-surface-canvas text-ink-primary">
+      <div className="w-full max-w-[960px] overflow-hidden rounded-lg border border-outline-muted bg-surface-raised shadow-[var(--shadow-pane)] md:grid md:grid-cols-2">
+        <div className="hidden h-full flex-col justify-between border-r border-outline-muted bg-[radial-gradient(35rem_20rem_at_-10%_-20%,var(--color-accent-muted),transparent),linear-gradient(180deg,var(--color-surface-muted),var(--color-surface-canvas))] p-8 md:flex">
           <div className="text-2xl font-semibold tracking-tight">Complete your profile</div>
-          <div className="text-sm text-white/70">
+          <div className="text-sm text-ink-muted">
             Tell us how to reach you so we can tailor Eaglevents to your needs.
           </div>
         </div>
         <div className="p-8">
           <div className="mb-6">
             <div className="text-2xl font-semibold">Your contact details</div>
-            <div className="text-sm text-white/60">
+            <div className="text-sm text-ink-subtle">
               Update a few basics to finish setting up your account.
             </div>
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs uppercase text-white/60">First name</label>
+                <label className="mb-1 block text-xs uppercase text-ink-faint">First name</label>
                 <input
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                   placeholder="Jane"
                   autoComplete="given-name"
                   required
@@ -183,12 +183,12 @@ export default function CreateProfilePage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs uppercase text-white/60">Last name</label>
+                <label className="mb-1 block text-xs uppercase text-ink-faint">Last name</label>
                 <input
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                   placeholder="Doe"
                   autoComplete="family-name"
                   required
@@ -198,7 +198,7 @@ export default function CreateProfilePage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs uppercase text-white/60">Email</label>
+              <label className="mb-1 block text-xs uppercase text-ink-faint">Email</label>
               <input
                 type="email"
                 value={email}
@@ -206,7 +206,7 @@ export default function CreateProfilePage() {
                   setEmailTouched(true);
                   setEmail(e.target.value);
                 }}
-                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
@@ -215,7 +215,7 @@ export default function CreateProfilePage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs uppercase text-white/60">Phone number</label>
+              <label className="mb-1 block text-xs uppercase text-ink-faint">Phone number</label>
               <input
                 type="tel"
                 inputMode="tel"
@@ -224,34 +224,34 @@ export default function CreateProfilePage() {
                   const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
                   setPhoneDigits(digits);
                 }}
-                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 placeholder="(555) 123-4567"
                 autoComplete="tel"
                 required
                 disabled={loadingProfile || submitting}
               />
-              <p className="mt-1 text-xs text-white/40">
+              <p className="mt-1 text-xs text-ink-faint">
                 Format updates automatically as you type.
               </p>
             </div>
             <div>
-              <label className="mb-1 block text-xs uppercase text-white/60">
+              <label className="mb-1 block text-xs uppercase text-ink-faint">
                 Date of birth (optional)
               </label>
               <input
                 type="date"
                 value={dateOfBirth}
                 onChange={(e) => setDateOfBirth(e.target.value)}
-                className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 outline-none ring-emerald-500/50 placeholder:text-white/40 focus:ring"
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 autoComplete="bday"
                 disabled={loadingProfile || submitting}
               />
             </div>
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
+            {error ? <p className="text-sm text-status-danger">{error}</p> : null}
             <button
               type="submit"
               disabled={loadingProfile || submitting}
-              className="w-full rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-black transition hover:bg-emerald-400 disabled:opacity-60"
+              className="w-full rounded-md bg-accent-default px-4 py-2 text-sm font-medium text-ink-inverted transition hover:bg-accent-strong disabled:opacity-60"
             >
               {submitting ? "Saving..." : "Save profile"}
             </button>

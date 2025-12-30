@@ -9,10 +9,17 @@ type Caller = ReturnType<typeof appRouter.createCaller>;
 
 export type SeedMode = "workspace" | "events" | "full" | "revert";
 
+export type DepartmentEventTarget = {
+  scopeType: "department" | "division";
+  scopeId: number;
+  eventCount: number;
+};
+
 export type SeedRunOptions = {
   mode: SeedMode;
   eventCount: number;
   fakerSeed: number | null;
+  departmentEventTargets?: DepartmentEventTarget[];
 };
 
 export type SeedRunResult = {
@@ -70,6 +77,7 @@ export async function runSeed(options: SeedRunOptions, runtime: SeedRuntime): Pr
       createCallerForSession: runtime.createCallerForSession,
       ensureCalendarId: runtime.ensureCalendarId,
       eventCount: options.eventCount,
+      departmentEventTargets: options.departmentEventTargets ?? [],
       mode: options.mode,
       log,
     });
@@ -168,20 +176,17 @@ export async function seedEvents({
   createCallerForSession,
   ensureCalendarId,
   eventCount,
+  departmentEventTargets,
   mode,
   log,
 }: {
   createCallerForSession: (session?: Session | null) => Promise<Caller>;
   ensureCalendarId: (userId: number) => Promise<number>;
   eventCount: number;
+  departmentEventTargets: DepartmentEventTarget[];
   mode: SeedMode;
   log: (message: string) => void;
 }) {
-  if (eventCount === 0) {
-    log("Skipping event seeding (requested count 0)");
-    return 0;
-  }
-
   const caller = await createCallerForSession();
   const status = await caller.setup.status();
   if (!status.business) {
@@ -191,93 +196,179 @@ export async function seedEvents({
     throw new Error("No users available to assign events.");
   }
 
-  const profilePool = Array.from(
-    status.roles.reduce((acc, role) => {
-      if (!role.profile || !role.user) return acc;
-      if (!acc.has(role.profile.id)) {
-        acc.set(role.profile.id, {
-          profileId: role.profile.id,
-          userId: role.user.id,
-          name: `${role.profile.firstName} ${role.profile.lastName}`,
-          email: role.profile.email,
-        });
-      }
-      return acc;
-    }, new Map<number, { profileId: number; userId: number; name: string; email: string }>()),
-  ).map(([, value]) => value);
+  const profilePoolMap = new Map<number, { profileId: number; userId: number; name: string; email: string }>();
+  const scopeProfileMap = new Map<string, Map<number, { profileId: number; userId: number; name: string; email: string }>>();
+
+  for (const role of status.roles) {
+    if (!role.profile || !role.user) continue;
+    let profile = profilePoolMap.get(role.profile.id);
+    if (!profile) {
+      profile = {
+        profileId: role.profile.id,
+        userId: role.user.id,
+        name: `${role.profile.firstName} ${role.profile.lastName}`,
+        email: role.profile.email,
+      };
+      profilePoolMap.set(role.profile.id, profile);
+    }
+
+    const scopeKey = `${role.scopeType}:${role.scopeId}`;
+    let scopeBucket = scopeProfileMap.get(scopeKey);
+    if (!scopeBucket) {
+      scopeBucket = new Map();
+      scopeProfileMap.set(scopeKey, scopeBucket);
+    }
+    scopeBucket.set(profile.profileId, profile);
+  }
+
+  const profilePool = Array.from(profilePoolMap.values());
 
   if (profilePool.length === 0) {
     throw new Error("No profiles linked to users were found.");
   }
 
   const buildingPool = status.buildings;
-  const createdEvents: Array<{ id: number; summary: string }> = [];
-  const startDates =
-    mode === "full" ? buildHistoricalStartDates(eventCount) : buildUpcomingStartDates(eventCount);
+  const departmentLookup = new Map(status.departments.flat.map((dept) => [dept.id, dept]));
+  const buildStartDates = mode === "full" ? buildHistoricalStartDates : buildUpcomingStartDates;
 
-  for (const start of startDates) {
-    const owner = faker.helpers.arrayElement(profilePool);
-    const session = buildSession(owner);
-    const userCaller = await createCallerForSession(session);
-    const calendarId = await ensureCalendarId(owner.userId);
-
-    const durationHours = faker.number.int({ min: 1, max: 4 });
-    const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
-
-    const building = buildingPool.length > 0 ? faker.helpers.arrayElement(buildingPool) : null;
-    const room = building && building.rooms.length > 0 ? faker.helpers.arrayElement(building.rooms) : null;
-    const attendeeIds = faker.helpers.arrayElements(
-      profilePool.filter((profile) => profile.profileId !== owner.profileId),
-      faker.number.int({ min: 0, max: 3 }),
-    ).map((profile) => profile.profileId);
-
-    const includeHours = faker.number.int({ min: 0, max: 99 }) < 65;
-    const hourLogs =
-      includeHours && faker.number.int({ min: 0, max: 99 }) > 30
-        ? (() => {
-            const minutes = faker.number.int({ min: 30, max: durationHours * 60 });
-            return [
-              {
-                startTime: start,
-                endTime: new Date(start.getTime() + minutes * 60 * 1000),
-              },
-            ];
-          })()
-        : undefined;
-
-    const zendeskTicketNumber = faker.number.int({ min: 0, max: 99 }) < 40 ? `ZD${faker.string.numeric(6)}` : undefined;
-    const description = faker.lorem.paragraph();
-    const event = await userCaller.event.create({
-      calendarId,
-      title: `${faker.company.buzzAdjective()} ${faker.word.words({ count: { min: 1, max: 3 } })}`.replace(/\b\w/g, (c) => c.toUpperCase()),
-      description,
-      location: building && room ? `${building.acronym} ${room.roomNumber}` : faker.location.streetAddress(),
-      buildingId: building?.id ?? null,
-      isAllDay: false,
-      startDatetime: start,
-      endDatetime: end,
-      assigneeProfileId: owner.profileId,
-      attendeeProfileIds: attendeeIds,
-      participantCount: faker.number.int({ min: 10, max: 250 }),
-      technicianNeeded: faker.number.int({ min: 0, max: 99 }) < 50,
-      requestCategory: faker.helpers.arrayElement(requestCategoryValues),
-      equipmentNeeded: faker.number.int({ min: 0, max: 99 }) < 60 ? faker.commerce.productDescription() : undefined,
-      eventStartTime: new Date(start.getTime() - 30 * 60 * 1000),
-      eventEndTime: new Date(end.getTime() + 30 * 60 * 1000),
-      setupTime: new Date(start.getTime() - 60 * 60 * 1000),
-      zendeskTicketNumber,
-      hourLogs,
-    });
-
-    createdEvents.push({ id: event.id, summary: event.title });
-
-    if (hourLogs && faker.number.int({ min: 0, max: 99 }) < 50) {
-      await userCaller.event.confirmZendesk({ eventId: event.id });
+  const createEventsForScope = async ({
+    ownerPool,
+    targetEventCount,
+    scopeType,
+    scopeId,
+    label,
+  }: {
+    ownerPool: Array<{ profileId: number; userId: number; name: string; email: string }>;
+    targetEventCount: number;
+    scopeType?: "department" | "division";
+    scopeId?: number;
+    label?: string;
+  }) => {
+    if (targetEventCount === 0) {
+      log(`Skipping event seeding${label ? ` for ${label}` : ""} (requested count 0)`);
+      return 0;
     }
+    if (ownerPool.length === 0) {
+      log(`Skipping event seeding${label ? ` for ${label}` : ""} (no eligible users)`);
+      return 0;
+    }
+
+    const createdEvents: Array<{ id: number; summary: string }> = [];
+    const startDates = buildStartDates(targetEventCount);
+
+    for (const start of startDates) {
+      const owner = faker.helpers.arrayElement(ownerPool);
+      const session = buildSession(owner);
+      const userCaller = await createCallerForSession(session);
+      const calendarId = await ensureCalendarId(owner.userId);
+
+      const durationHours = faker.number.int({ min: 1, max: 4 });
+      const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+
+      const building = buildingPool.length > 0 ? faker.helpers.arrayElement(buildingPool) : null;
+      const room = building && building.rooms.length > 0 ? faker.helpers.arrayElement(building.rooms) : null;
+      const attendeeIds = faker.helpers.arrayElements(
+        profilePool.filter((profile) => profile.profileId !== owner.profileId),
+        faker.number.int({ min: 0, max: 3 }),
+      ).map((profile) => profile.profileId);
+
+      const includeHours = faker.number.int({ min: 0, max: 99 }) < 65;
+      const hourLogs =
+        includeHours && faker.number.int({ min: 0, max: 99 }) > 30
+          ? (() => {
+              const minutes = faker.number.int({ min: 30, max: durationHours * 60 });
+              return [
+                {
+                  startTime: start,
+                  endTime: new Date(start.getTime() + minutes * 60 * 1000),
+                },
+              ];
+            })()
+          : undefined;
+
+      const zendeskTicketNumber = faker.number.int({ min: 0, max: 99 }) < 40 ? `ZD${faker.string.numeric(6)}` : undefined;
+      const description = faker.lorem.paragraph();
+      const event = await userCaller.event.create({
+        calendarId,
+        title: `${faker.company.buzzAdjective()} ${faker.word.words({ count: { min: 1, max: 3 } })}`.replace(/\b\w/g, (c) => c.toUpperCase()),
+        description,
+        location: building && room ? `${building.acronym} ${room.roomNumber}` : faker.location.streetAddress(),
+        buildingId: building?.id ?? null,
+        isAllDay: false,
+        startDatetime: start,
+        endDatetime: end,
+        assigneeProfileId: owner.profileId,
+        attendeeProfileIds: attendeeIds,
+        participantCount: faker.number.int({ min: 10, max: 250 }),
+        technicianNeeded: faker.number.int({ min: 0, max: 99 }) < 50,
+        requestCategory: faker.helpers.arrayElement(requestCategoryValues),
+        equipmentNeeded: faker.number.int({ min: 0, max: 99 }) < 60 ? faker.commerce.productDescription() : undefined,
+        eventStartTime: new Date(start.getTime() - 30 * 60 * 1000),
+        eventEndTime: new Date(end.getTime() + 30 * 60 * 1000),
+        setupTime: new Date(start.getTime() - 60 * 60 * 1000),
+        zendeskTicketNumber,
+        hourLogs,
+        ...(scopeType && scopeId ? { scopeType, scopeId } : {}),
+      });
+
+      createdEvents.push({ id: event.id, summary: event.title });
+
+      if (hourLogs && faker.number.int({ min: 0, max: 99 }) < 50) {
+        await userCaller.event.confirmZendesk({ eventId: event.id });
+      }
+    }
+
+    log(`Seeded ${createdEvents.length} events${label ? ` for ${label}` : ""}`);
+    return createdEvents.length;
+  };
+
+  let seededEvents = 0;
+  for (const target of departmentEventTargets) {
+    const scopeType = target.scopeType;
+    const department = departmentLookup.get(target.scopeId);
+    if (!department) {
+      log(`Skipping ${scopeType}:${target.scopeId} (department not found)`);
+      continue;
+    }
+    const isDivision = department.parentDepartmentId !== null;
+    if (scopeType === "department" && isDivision) {
+      log(`Skipping ${department.name} (expected department, found division)`);
+      continue;
+    }
+    if (scopeType === "division" && !isDivision) {
+      log(`Skipping ${department.name} (expected division, found department)`);
+      continue;
+    }
+
+    const scopeKey = `${scopeType}:${target.scopeId}`;
+    const scopeProfiles = Array.from(scopeProfileMap.get(scopeKey)?.values() ?? []);
+    if (scopeProfiles.length === 0) {
+      log(`Skipping ${department.name} (${scopeType}) (no eligible users)`);
+      continue;
+    }
+
+    seededEvents += await createEventsForScope({
+      ownerPool: scopeProfiles,
+      targetEventCount: target.eventCount,
+      scopeType,
+      scopeId: target.scopeId,
+      label: `${department.name} (${scopeType})`,
+    });
   }
 
-  log(`Seeded ${createdEvents.length} events`);
-  return createdEvents.length;
+  if (eventCount === 0 && departmentEventTargets.length === 0) {
+    log("Skipping event seeding (requested count 0)");
+    return 0;
+  }
+
+  if (eventCount > 0) {
+    seededEvents += await createEventsForScope({
+      ownerPool: profilePool,
+      targetEventCount: eventCount,
+    });
+  }
+
+  return seededEvents;
 }
 
 function createBuildingInputs() {
@@ -328,6 +419,8 @@ function createDepartmentInputs() {
 function buildHistoricalStartDates(eventCount: number): Date[] {
   const dates: Date[] = [];
   const now = new Date();
+  const weekDayCycle = shuffleWeekdays();
+  let weekdayIndex = 0;
 
   for (let monthOffset = 0; monthOffset < FULL_SEED_MONTHS && dates.length < eventCount; monthOffset++) {
     const bucketStart = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1);
@@ -337,7 +430,10 @@ function buildHistoricalStartDates(eventCount: number): Date[] {
     const eventsThisBucket = Math.max(1, Math.floor(remainingEvents / remainingMonths));
 
     for (let i = 0; i < eventsThisBucket && dates.length < eventCount; i++) {
-      dates.push(faker.date.between({ from: bucketStart, to: bucketEnd }));
+      const weekday = weekDayCycle[weekdayIndex % weekDayCycle.length] ?? 0;
+      weekdayIndex += 1;
+      const date = pickDateForWeekdayInRange(bucketStart, bucketEnd, weekday) ?? faker.date.between({ from: bucketStart, to: bucketEnd });
+      dates.push(date);
     }
   }
 
@@ -346,17 +442,50 @@ function buildHistoricalStartDates(eventCount: number): Date[] {
 
 function buildUpcomingStartDates(eventCount: number): Date[] {
   const dates: Date[] = [];
-  const now = Date.now();
+  const now = new Date();
+  const rangeStart = new Date(now);
+  const rangeEnd = new Date(now);
+  rangeEnd.setDate(rangeEnd.getDate() + 90);
+
   const dayMs = 24 * 60 * 60 * 1000;
   const hourMs = 60 * 60 * 1000;
+  const totalDays = Math.max(1, Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / dayMs));
+  const candidateDates: Date[] = [];
 
-  for (let index = 0; index < eventCount; index++) {
-    const startDayOffset = faker.number.int({ min: 0, max: 90 });
+  for (let dayOffset = 0; dayOffset <= totalDays; dayOffset++) {
+    const day = new Date(rangeStart.getTime() + dayOffset * dayMs);
     const startHourOffset = faker.number.int({ min: 0, max: 8 });
-    dates.push(new Date(now + startDayOffset * dayMs + startHourOffset * hourMs));
+    day.setHours(8 + startHourOffset, 0, 0, 0);
+    candidateDates.push(day);
   }
 
-  return dates;
+  const weekdays = shuffleWeekdays();
+  const weekdayBuckets = new Map<number, Date[]>();
+  for (const candidate of candidateDates) {
+    const weekday = candidate.getDay();
+    const bucket = weekdayBuckets.get(weekday);
+    if (bucket) {
+      bucket.push(candidate);
+    } else {
+      weekdayBuckets.set(weekday, [candidate]);
+    }
+  }
+
+  let weekdayIndex = 0;
+  for (let index = 0; index < eventCount; index++) {
+    const weekday = weekdays[weekdayIndex % weekdays.length] ?? 0;
+    weekdayIndex += 1;
+    const bucket = weekdayBuckets.get(weekday) ?? [];
+    const candidate =
+      bucket.length > 0
+        ? bucket.splice(faker.number.int({ min: 0, max: bucket.length - 1 }), 1)[0]
+        : faker.helpers.arrayElement(candidateDates);
+    const jitterHours = faker.number.int({ min: 0, max: 4 });
+    const jitterMinutes = faker.number.int({ min: 0, max: 59 });
+    dates.push(new Date(candidate.getTime() + jitterHours * hourMs + jitterMinutes * 60 * 1000));
+  }
+
+  return dates.sort((a, b) => a.getTime() - b.getTime());
 }
 
 function buildSession(profile: { userId: number; name: string; email: string }): Session {
@@ -369,4 +498,25 @@ function buildSession(profile: { userId: number; name: string; email: string }):
     },
     expires: new Date(now + 60 * 60 * 1000).toISOString(),
   };
+}
+
+function shuffleWeekdays() {
+  const weekdays = [0, 1, 2, 3, 4, 5, 6];
+  return faker.helpers.shuffle(weekdays);
+}
+
+function pickDateForWeekdayInRange(start: Date, end: Date, weekday: number) {
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const candidates: Date[] = [];
+  while (cursor.getTime() <= end.getTime()) {
+    if (cursor.getDay() === weekday) {
+      const date = new Date(cursor);
+      date.setHours(faker.number.int({ min: 8, max: 16 }), faker.number.int({ min: 0, max: 59 }), 0, 0);
+      candidates.push(date);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  if (candidates.length === 0) return null;
+  return faker.helpers.arrayElement(candidates);
 }

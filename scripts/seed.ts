@@ -4,6 +4,7 @@ import "tsconfig-paths/register";
 import type { Session } from "next-auth";
 
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
+import type { DepartmentEventTarget } from "~/server/services/seed";
 
 type SeedMode = "workspace" | "events" | "full" | "revert";
 type TargetDb = "dev" | "prod";
@@ -13,16 +14,18 @@ type CliOptions = {
   target: TargetDb;
   eventCount: number;
   fakerSeed: number | null;
+  departmentEventTargets: DepartmentEventTarget[];
 };
 
 type Caller = ReturnType<(typeof import("~/server/api/root"))["appRouter"]["createCaller"]>;
 
 const ARG_HELP = `
-Usage: pnpm tsx scripts/seed.ts [--mode workspace|events|full|revert] [--target dev|prod] [--events <count>] [--seed <number>]
+Usage: pnpm tsx scripts/seed.ts [--mode workspace|events|full|revert] [--target dev|prod] [--events <count>] [--seed <number>] [--department-events <scope:id=count,...>]
 
 Examples:
   pnpm tsx scripts/seed.ts --mode full
   pnpm tsx scripts/seed.ts --mode events --events 25
+  pnpm tsx scripts/seed.ts --mode events --department-events department:12=40,division:15=10
   pnpm tsx scripts/seed.ts --mode full --target prod --seed 1234
   pnpm tsx scripts/seed.ts --mode revert
 `.trim();
@@ -69,6 +72,7 @@ async function main() {
         mode: options.mode,
         eventCount: options.eventCount,
         fakerSeed: options.fakerSeed,
+        departmentEventTargets: options.departmentEventTargets,
       },
       {
         db,
@@ -91,6 +95,7 @@ function parseCliOptions(argv: string[]): CliOptions {
   let eventCount: number | null = null;
   let eventCountProvided = false;
   let fakerSeed: number | null = null;
+  let departmentEventTargets: DepartmentEventTarget[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -148,6 +153,20 @@ function parseCliOptions(argv: string[]): CliOptions {
       fakerSeed = parseIntSafe(value, "--seed");
       continue;
     }
+    if (arg.startsWith("--department-events=")) {
+      departmentEventTargets = mergeDepartmentEventTargets(
+        departmentEventTargets,
+        parseDepartmentEventTargets(arg.split("=")[1] ?? ""),
+      );
+      continue;
+    }
+    if (arg === "--department-events") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--department-events expects a value");
+      i += 1;
+      departmentEventTargets = mergeDepartmentEventTargets(departmentEventTargets, parseDepartmentEventTargets(value));
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -158,7 +177,7 @@ function parseCliOptions(argv: string[]): CliOptions {
     throw new Error("--events must be zero or positive");
   }
 
-  return { mode, target, eventCount: eventCount!, fakerSeed };
+  return { mode, target, eventCount: eventCount!, fakerSeed, departmentEventTargets };
 }
 
 function parseMode(value: string): SeedMode {
@@ -177,6 +196,55 @@ function parseIntSafe(value: string, flag: string) {
     throw new Error(`Invalid number for ${flag}`);
   }
   return parsed;
+}
+
+function parseDepartmentEventTargets(value: string): DepartmentEventTarget[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  const entries = trimmed.split(",").map((entry) => entry.trim()).filter(Boolean);
+  const results: DepartmentEventTarget[] = [];
+
+  for (const entry of entries) {
+    const [scopePart, countPart] = entry.split("=");
+    if (!scopePart || countPart === undefined) {
+      throw new Error(`Invalid --department-events entry "${entry}". Expected <scopeType>:<scopeId>=<count>.`);
+    }
+    const [scopeType, scopeIdRaw] = scopePart.split(":");
+    if (scopeType !== "department" && scopeType !== "division") {
+      throw new Error(`Invalid scope type "${scopeType}" in --department-events (use department or division).`);
+    }
+    const scopeId = parseIntSafe(scopeIdRaw ?? "", "--department-events");
+    if (scopeId <= 0) {
+      throw new Error(`Invalid scope id "${scopeIdRaw}" in --department-events.`);
+    }
+    const eventCount = parseIntSafe(countPart, "--department-events");
+    if (eventCount < 0) {
+      throw new Error("Department event count must be zero or positive.");
+    }
+    results.push({ scopeType, scopeId, eventCount });
+  }
+
+  return results;
+}
+
+function mergeDepartmentEventTargets(
+  existing: DepartmentEventTarget[],
+  incoming: DepartmentEventTarget[],
+): DepartmentEventTarget[] {
+  const merged = new Map<string, DepartmentEventTarget>();
+  for (const target of existing) {
+    merged.set(`${target.scopeType}:${target.scopeId}`, target);
+  }
+  for (const target of incoming) {
+    const key = `${target.scopeType}:${target.scopeId}`;
+    const current = merged.get(key);
+    if (current) {
+      merged.set(key, { ...current, eventCount: current.eventCount + target.eventCount });
+    } else {
+      merged.set(key, target);
+    }
+  }
+  return Array.from(merged.values());
 }
 
 function configureDatabaseTarget(target: TargetDb) {

@@ -18,8 +18,6 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!enabled) return null;
-
   const isExpanded = expanded || value.length > 0;
 
   useEffect(() => {
@@ -27,6 +25,8 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
       inputRef.current?.focus();
     }
   }, [isExpanded]);
+
+  if (!enabled) return null;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -109,3 +109,15 @@
   --shadow-accent-glow: 0 0 18px rgba(14, 168, 118, 0.35);
   --shadow-pane: 0 12px 24px rgba(15, 23, 42, 0.12);
 }
+
+@keyframes seed-bar {
+  0% {
+    transform: translateX(-120%);
+  }
+  60% {
+    transform: translateX(20%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}

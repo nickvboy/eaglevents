@@ -50,6 +50,15 @@ Use this checklist to validate end-to-end user flows before release. Each item i
 - [ ] Verify Global Search appears only when signed in.
 - [ ] Verify layout hides sidebar on /login, /signup, /setup.
 
+## Database Seeding Flow
+- [ ] Open Admin > Database; verify seed panel loads.
+- [ ] Seed mode: Full (workspace + events); verify success message and logs.
+- [ ] Seed mode: Workspace only; verify success message and updated counts.
+- [ ] Seed mode: Events only with count = 0; verify no events created.
+- [ ] Seed mode: Events only with count > 0; verify events created.
+- [ ] Seed mode: Revert; verify confirmation required and data removed.
+- [ ] Set Faker seed; run seed twice; verify deterministic data.
+
 ## Global Search
 - [ ] Search by event ID; verify navigation to calendar with event focused.
 - [ ] Search by event code; verify navigation to calendar with event focused.

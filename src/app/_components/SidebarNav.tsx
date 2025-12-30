@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarIcon, HomeIcon, ReportIcon, SettingsIcon, ShieldIcon } from "./icons";
 import { AccountMenu } from "../calendar/_components/AccountMenu";
+import { api } from "~/trpc/react";
 
 type NavItem = {
   href: string;
@@ -13,13 +14,14 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/tickets", label: "Tickets", icon: ReportIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { href: "/admin", label: "Admin", icon: ShieldIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
+
+const adminNavItem: NavItem = { href: "/admin", label: "Admin", icon: ShieldIcon };
 
 type SidebarNavProps = {
   user: Session["user"] | null;
@@ -28,6 +30,9 @@ type SidebarNavProps = {
 export function SidebarNav(props: SidebarNavProps) {
   const { user } = props;
   const pathname = usePathname();
+  const permissionsQuery = api.admin.permissions.useQuery();
+  const canAccessAdmin = (permissionsQuery.data?.capabilities?.length ?? 0) > 0;
+  const navItems = canAccessAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
     <aside className="fixed bottom-0 left-0 right-0 z-40 flex h-16 w-full shrink-0 items-center border-t border-outline-muted bg-[linear-gradient(180deg,var(--color-surface-sunken),var(--color-surface-canvas))] px-2 text-ink-primary shadow-[0_-6px_18px_rgba(0,0,0,0.35)] md:sticky md:top-0 md:h-screen md:w-16 md:flex-col md:items-center md:border-t-0 md:border-r md:px-0 md:py-6 md:shadow-[2px_0_18px_rgba(0,0,0,0.55)]">

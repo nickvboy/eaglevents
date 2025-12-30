@@ -2360,8 +2360,17 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         mode: z.enum(["workspace", "events", "full", "revert"]),
-        eventCount: z.number().int().min(0).max(2000).optional(),
+        eventCount: z.number().int().min(0).max(10000).optional(),
         fakerSeed: z.number().int().optional().nullable(),
+        departmentEventTargets: z
+          .array(
+            z.object({
+              scopeType: z.enum(["department", "division"]),
+              scopeId: z.number().int().positive(),
+              eventCount: z.number().int().min(0).max(10000),
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -2411,6 +2420,7 @@ export const adminRouter = createTRPCRouter({
           mode,
           eventCount,
           fakerSeed: input.fakerSeed ?? null,
+          departmentEventTargets: input.departmentEventTargets ?? [],
         },
         {
           db: ctx.db,

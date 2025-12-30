@@ -11,10 +11,12 @@ type DatabaseEventQuery = NonNullable<RouterInputs["admin"]["databaseEvents"]>;
 type DatabaseEvent = RouterOutputs["admin"]["databaseEvents"]["events"][number];
 type DatabaseSeedInput = RouterInputs["admin"]["seedDatabase"];
 type SeedMode = DatabaseSeedInput["mode"];
+type DepartmentEventTargetInput = NonNullable<DatabaseSeedInput["departmentEventTargets"]>[number];
 
 const defaultEventQuery: DatabaseEventQuery = { limit: 50 };
 const DEFAULT_SEED_EVENT_COUNT = 15;
 const DEFAULT_FULL_SEED_EVENT_COUNT = 420;
+const MAX_SEED_EVENT_COUNT = 10000;
 const seedDefaultCounts: Record<SeedMode, number> = {
   workspace: DEFAULT_SEED_EVENT_COUNT,
   events: DEFAULT_SEED_EVENT_COUNT,
@@ -80,6 +82,7 @@ function buildEventQuery({
 export function DatabaseView() {
   const utils = api.useUtils();
   const summaryQuery = api.admin.databaseSummary.useQuery(undefined, { staleTime: 30_000 });
+  const setupStatusQuery = api.setup.status.useQuery();
   const seedMutation = api.admin.seedDatabase.useMutation();
 
   const [eventSearch, setEventSearch] = useState("");
@@ -96,6 +99,19 @@ export function DatabaseView() {
   const [seedConfirmText, setSeedConfirmText] = useState("");
   const [seedMessage, setSeedMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [seedLogs, setSeedLogs] = useState<string[]>([]);
+  const [departmentEventInputs, setDepartmentEventInputs] = useState<Record<string, string>>({});
+  const [revertQueueRunning, setRevertQueueRunning] = useState(false);
+  const [revertQueue, setRevertQueue] = useState<
+    Array<{
+      id: string;
+      status: "queued" | "running" | "success" | "error";
+      queuedAt: Date;
+      startedAt?: Date;
+      finishedAt?: Date;
+      error?: string;
+      logs?: string[];
+    }>
+  >([]);
 
   const [rangeStartDate, setRangeStartDate] = useState("");
   const [rangeEndDate, setRangeEndDate] = useState("");
@@ -137,6 +153,36 @@ export function DatabaseView() {
     },
   });
 
+  const departmentList = useMemo(() => {
+    const list = setupStatusQuery.data?.departments.flat ?? [];
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [setupStatusQuery.data]);
+
+  const departmentEventState = useMemo(() => {
+    const targets: DepartmentEventTargetInput[] = [];
+    const invalidKeys = new Set<string>();
+
+    for (const department of departmentList) {
+      const scopeType = department.isDivision ? "division" : "department";
+      const key = `${scopeType}:${department.id}`;
+      const rawValue = departmentEventInputs[key];
+      if (!rawValue || rawValue.trim() === "") continue;
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_SEED_EVENT_COUNT) {
+        invalidKeys.add(key);
+        continue;
+      }
+      if (parsed === 0) continue;
+      targets.push({
+        scopeType,
+        scopeId: department.id,
+        eventCount: Math.floor(parsed),
+      });
+    }
+
+    return { targets, invalidKeys };
+  }, [departmentEventInputs, departmentList]);
+
   const canDeleteRange =
     rangeConfirmText.trim().toUpperCase() === "DELETE" && (deleteAllChecked || Boolean(rangeInput));
   const canDeleteSelected = pendingDelete && deleteConfirmText.trim().toUpperCase() === "DELETE";
@@ -146,15 +192,23 @@ export function DatabaseView() {
   const seedEventCountValue = seedNeedsEventCount ? Number(seedEventCount) : null;
   const seedEventCountValid =
     !seedNeedsEventCount ||
-    (seedEventCountValue !== null && Number.isFinite(seedEventCountValue) && seedEventCountValue >= 0);
+    (seedEventCountValue !== null &&
+      Number.isFinite(seedEventCountValue) &&
+      seedEventCountValue >= 0 &&
+      seedEventCountValue <= MAX_SEED_EVENT_COUNT);
   const seedFakerSeedValue = seedFakerSeed.trim() ? Number(seedFakerSeed) : null;
   const seedFakerSeedValid =
     seedFakerSeed.trim() === "" || (seedFakerSeedValue !== null && Number.isFinite(seedFakerSeedValue));
+  const departmentEventCountsValid =
+    !seedNeedsEventCount || departmentEventState.invalidKeys.size === 0;
   const requiresSeedConfirm = seedMode === "revert";
   const canRunSeed =
     seedEventCountValid &&
     seedFakerSeedValid &&
+    departmentEventCountsValid &&
     (!requiresSeedConfirm || seedConfirmText.trim().toUpperCase() === "REVERT");
+  const seedControlsDisabled = seedMutation.isPending || revertQueueRunning;
+  const seedProgressActive = seedMutation.isPending;
 
   const summaryCards = useMemo(() => {
     const summary = summaryQuery.data;
@@ -173,24 +227,92 @@ export function DatabaseView() {
     setSeedLogs([]);
   };
 
+  const handleDepartmentEventInputChange = (key: string, value: string) => {
+    setDepartmentEventInputs((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const enqueueRevertJob = () => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setRevertQueue((prev) => [
+      ...prev,
+      {
+        id,
+        status: "queued",
+        queuedAt: new Date(),
+      },
+    ]);
+  };
+
+  const updateRevertJob = (id: string, updates: Partial<(typeof revertQueue)[number]>) => {
+    setRevertQueue((prev) => prev.map((job) => (job.id === id ? { ...job, ...updates } : job)));
+  };
+
+  const runRevertQueue = async () => {
+    if (revertQueueRunning) return;
+    const queuedJobs = revertQueue.filter((job) => job.status === "queued");
+    if (queuedJobs.length === 0) return;
+
+    setRevertQueueRunning(true);
+    try {
+      for (const job of queuedJobs) {
+        updateRevertJob(job.id, { status: "running", startedAt: new Date(), error: undefined });
+        try {
+          const result = await seedMutation.mutateAsync({ mode: "revert" });
+          updateRevertJob(job.id, {
+            status: "success",
+            finishedAt: new Date(),
+            logs: result.logs ?? [],
+          });
+          await utils.admin.databaseSummary.invalidate();
+          await utils.admin.databaseEvents.invalidate();
+          await utils.admin.databaseEventCount.invalidate();
+        } catch (error) {
+          updateRevertJob(job.id, {
+            status: "error",
+            finishedAt: new Date(),
+            error: error instanceof Error ? error.message : "Revert failed.",
+          });
+        }
+      }
+    } finally {
+      setRevertQueueRunning(false);
+    }
+  };
+
+  const clearCompletedRevertJobs = () => {
+    setRevertQueue((prev) => prev.filter((job) => job.status === "queued" || job.status === "running"));
+  };
+
   const handleSeedRun = async () => {
     setSeedMessage(null);
     setSeedLogs([]);
 
     if (!seedEventCountValid) {
-      setSeedMessage({ type: "error", text: "Event count must be zero or a positive number." });
+      setSeedMessage({
+        type: "error",
+        text: `Event count must be between 0 and ${MAX_SEED_EVENT_COUNT}.`,
+      });
       return;
     }
     if (!seedFakerSeedValid) {
       setSeedMessage({ type: "error", text: "Seed value must be a valid number." });
       return;
     }
+    if (!departmentEventCountsValid) {
+      setSeedMessage({
+        type: "error",
+        text: `Department event counts must be between 0 and ${MAX_SEED_EVENT_COUNT}.`,
+      });
+      return;
+    }
 
     const fakerSeed = seedFakerSeed.trim() ? Number(seedFakerSeed) : null;
+    const departmentEventTargets = seedNeedsEventCount ? departmentEventState.targets : [];
     const input: DatabaseSeedInput = {
       mode: seedMode,
       eventCount: seedNeedsEventCount ? (seedEventCountValue ?? 0) : undefined,
       fakerSeed,
+      departmentEventTargets: departmentEventTargets.length > 0 ? departmentEventTargets : undefined,
     };
 
     try {
@@ -282,15 +404,66 @@ export function DatabaseView() {
               <input
                 type="number"
                 min={0}
+                max={MAX_SEED_EVENT_COUNT}
                 value={seedEventCount}
                 disabled={!seedNeedsEventCount}
                 onChange={(event) => setSeedEventCount(event.target.value)}
                 className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
               />
               <span className="text-xs font-normal text-ink-subtle">
-                Used for events or full mode. Leave at 0 to skip event creation.
+                Used for events or full mode. Leave at 0 to skip event creation. Max {MAX_SEED_EVENT_COUNT}.
               </span>
             </label>
+
+            <div className="rounded-xl border border-outline-muted bg-surface-muted px-3 py-3">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">Department event levels</div>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Optional overrides per department or division. Counts add on top of the base event count.
+              </p>
+              {setupStatusQuery.isLoading ? (
+                <div className="mt-3 text-xs text-ink-subtle">Loading departments...</div>
+              ) : departmentList.length === 0 ? (
+                <div className="mt-3 text-xs text-ink-subtle">No departments found.</div>
+              ) : (
+                <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
+                  {departmentList.map((department) => {
+                    const scopeType = department.isDivision ? "division" : "department";
+                    const key = `${scopeType}:${department.id}`;
+                    const invalid = departmentEventState.invalidKeys.has(key);
+                    return (
+                      <label key={key} className="flex items-center justify-between gap-3 text-xs text-ink-subtle">
+                        <span className="truncate">
+                          {department.name} ({scopeType})
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={MAX_SEED_EVENT_COUNT}
+                          value={departmentEventInputs[key] ?? ""}
+                          disabled={!seedNeedsEventCount}
+                          onChange={(event) => handleDepartmentEventInputChange(key, event.target.value)}
+                          className={
+                            "w-24 rounded-lg border px-2 py-1 text-xs text-ink-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 " +
+                            (invalid ? "border-status-danger bg-status-danger-surface" : "border-outline-muted bg-surface-raised")
+                          }
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="mt-2 flex items-center justify-between text-[11px] text-ink-subtle">
+                <span>{departmentEventState.targets.length} overrides set</span>
+                <button
+                  type="button"
+                  onClick={() => setDepartmentEventInputs({})}
+                  className="text-xs font-semibold text-ink-primary hover:text-ink-primary/80 disabled:opacity-60"
+                  disabled={!seedNeedsEventCount || departmentList.length === 0}
+                >
+                  Clear overrides
+                </button>
+              </div>
+            </div>
 
             <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
               Faker seed (optional)
@@ -324,13 +497,24 @@ export function DatabaseView() {
                 Mode: <span className="font-semibold text-ink-primary">{seedMode}</span>
               </div>
             </div>
+            {seedProgressActive ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-ink-subtle">
+                  <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-ink-muted border-t-transparent" />
+                  <span>Seeding in progress</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
+                  <div className="h-full w-1/2 animate-[seed-bar_1.6s_ease-in-out_infinite] rounded-full bg-accent-strong" />
+                </div>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={() => void handleSeedRun()}
-              disabled={!canRunSeed || seedMutation.isPending}
+              disabled={!canRunSeed || seedControlsDisabled}
               className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {seedMutation.isPending ? "Seeding..." : "Run seed"}
+              {seedMutation.isPending ? "Seeding..." : revertQueueRunning ? "Queue running..." : "Run seed"}
             </button>
           </div>
         </div>
@@ -358,6 +542,71 @@ export function DatabaseView() {
             </div>
           </div>
         ) : null}
+
+        <div className="mt-6 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">Revert queue</div>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Queue up revert jobs and run them sequentially. This queue is UI-only.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={enqueueRevertJob}
+                disabled={seedControlsDisabled}
+                className="rounded-full border border-outline-muted px-3 py-1 text-xs font-semibold text-ink-primary transition hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Add revert job
+              </button>
+              <button
+                type="button"
+                onClick={() => void runRevertQueue()}
+                disabled={seedControlsDisabled || revertQueue.every((job) => job.status !== "queued")}
+                className="rounded-full bg-accent-strong px-3 py-1 text-xs font-semibold text-ink-inverted transition hover:bg-accent-default disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {revertQueueRunning ? "Running queue..." : "Run queue"}
+              </button>
+              <button
+                type="button"
+                onClick={clearCompletedRevertJobs}
+                disabled={revertQueueRunning}
+                className="rounded-full border border-outline-muted px-3 py-1 text-xs font-semibold text-ink-primary transition hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear completed
+              </button>
+            </div>
+          </div>
+
+          {revertQueue.length === 0 ? (
+            <div className="mt-3 text-xs text-ink-subtle">No queued reverts yet.</div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {revertQueue.map((job, index) => (
+                <div
+                  key={job.id}
+                  className="rounded-lg border border-outline-muted bg-surface-raised px-3 py-2 text-xs text-ink-subtle"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      Job #{index + 1} • {job.status.toUpperCase()}
+                    </span>
+                    <span>Queued {formatDateTime(job.queuedAt)}</span>
+                  </div>
+                  {job.error ? <div className="mt-1 text-status-danger">{job.error}</div> : null}
+                  {job.logs && job.logs.length > 0 ? (
+                    <div className="mt-1 space-y-1">
+                      {job.logs.map((line, logIndex) => (
+                        <div key={`${job.id}-log-${logIndex}`}>{line}</div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
