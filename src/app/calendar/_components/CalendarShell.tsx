@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CalendarSidebar } from "./CalendarSidebar";
 import { CalendarToolbar } from "./CalendarToolbar";
 import { WeekGrid } from "./WeekGrid";
@@ -32,6 +33,7 @@ function getStoredDate(key: string, fallback: Date) {
 }
 
 export function CalendarShell() {
+  const searchParams = useSearchParams();
   const initialDate = useMemo(() => startOfDay(new Date()), []);
   const [desktopView, setDesktopView] = useState<View>("workweek");
   const [mobileView, setMobileView] = useState<View>("day");
@@ -204,50 +206,22 @@ export function CalendarShell() {
     }
   }, [calendars]);
 
-  const [ticketSearchValue, setTicketSearchValue] = useState("");
-  const [ticketSearchError, setTicketSearchError] = useState<string | null>(null);
-  const [ticketSearchPending, setTicketSearchPending] = useState(false);
-
-  const handleTicketSearchSubmit = async () => {
-    const query = ticketSearchValue.trim();
-    if (query.length === 0) {
-      setTicketSearchError("Enter a ticket identifier");
-      return;
-    }
-
-    setTicketSearchPending(true);
-    setTicketSearchError(null);
-    try {
-      const result = await utils.client.event.findByIdentifier.query({ identifier: query });
-      if (!result) {
-        setTicketSearchError("Ticket not found");
-        return;
-      }
-      const eventDate = startOfDay(new Date(result.startDatetime));
-      setTicketSearchValue("");
-      setSelectedDate(eventDate);
-      setSidebarMonthDate(startOfDay(new Date(eventDate.getFullYear(), eventDate.getMonth(), 1)));
-      setMobileMonthDate(eventDate);
-      setPreviewEventId(null);
-      setEditingEventId(null);
-      setOpenNew(false);
-      setSelectedEventId(result.id);
+  const focusEvent = useCallback((eventId: number, eventDate: Date, calendarId?: number) => {
+    const normalized = startOfDay(eventDate);
+    setSelectedDate(normalized);
+    setSidebarMonthDate(startOfDay(new Date(normalized.getFullYear(), normalized.getMonth(), 1)));
+    setMobileMonthDate(normalized);
+    setPreviewEventId(null);
+    setEditingEventId(null);
+    setOpenNew(false);
+    setSelectedEventId(eventId);
+    if (calendarId) {
       setVisibleCalendarIds((prev) => {
-        if (prev.length === 0 || prev.includes(result.calendarId)) return prev;
-        return [...prev, result.calendarId];
+        if (prev.length === 0 || prev.includes(calendarId)) return prev;
+        return [...prev, calendarId];
       });
-    } catch (error) {
-      console.error(error);
-      setTicketSearchError("Search failed");
-    } finally {
-      setTicketSearchPending(false);
     }
-  };
-
-  const handleTicketSearchChange = (value: string) => {
-    setTicketSearchValue(value);
-    if (ticketSearchError) setTicketSearchError(null);
-  };
+  }, []);
 
 
   // visible range
@@ -386,6 +360,35 @@ export function CalendarShell() {
   const monthKey = selectedDate.getFullYear() * 12 + selectedDate.getMonth();
 
   useEffect(() => {
+    const eventIdParam = searchParams.get("eventId");
+    if (!eventIdParam) return;
+    const numericId = Number(eventIdParam);
+    if (!Number.isFinite(numericId) || numericId <= 0) return;
+
+    const dateParam = searchParams.get("date");
+    const calendarParam = searchParams.get("calendarId");
+    const calendarId = calendarParam ? Number(calendarParam) : undefined;
+    const parsedDate = dateParam ? new Date(dateParam) : null;
+
+    if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+      focusEvent(numericId, parsedDate, Number.isFinite(calendarId) ? calendarId : undefined);
+      return;
+    }
+
+    const runLookup = async () => {
+      try {
+        const result = await utils.client.event.findByIdentifier.query({ identifier: eventIdParam });
+        if (!result) return;
+        focusEvent(result.id, new Date(result.startDatetime), result.calendarId);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    void runLookup();
+  }, [focusEvent, searchParams, utils]);
+
+  useEffect(() => {
     const year = Math.floor(monthKey / 12);
     const month = monthKey % 12;
     const label = new Date(year, month, 1).toLocaleString(undefined, {
@@ -428,7 +431,7 @@ export function CalendarShell() {
 
   return (
     <>
-      <div className="flex h-screen flex-col overflow-hidden bg-surface-raised lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-raised lg:flex-row">
         <div className="hidden h-full lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
@@ -517,11 +520,6 @@ export function CalendarShell() {
                 onPrev={onPrev}
                 onNext={onNext}
                 onNewEvent={handleNewEventRequest}
-                ticketSearchValue={ticketSearchValue}
-                ticketSearchPending={ticketSearchPending}
-                ticketSearchError={ticketSearchError}
-                onTicketSearchChange={handleTicketSearchChange}
-                onTicketSearchSubmit={handleTicketSearchSubmit}
               />
 
                 <div className="relative flex min-h-0 flex-1 overflow-hidden">

@@ -2,7 +2,7 @@ import { faker } from "@faker-js/faker";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne, or } from "drizzle-orm";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
@@ -48,6 +48,18 @@ const userAccountSchema = z.object({
   lastName: z.string().min(1).max(100),
   phoneNumber: z.string().min(10).max(32),
   dateOfBirth: z.string().optional(),
+  roleAssignments: z.array(roleAssignmentSchema).min(1),
+});
+
+const updateUserAccountSchema = z.object({
+  userId: z.number().int().positive(),
+  username: z.string().min(3).max(50),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(255).optional(),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  phoneNumber: z.string().min(10).max(32),
+  dateOfBirth: z.string().optional().nullable(),
   roleAssignments: z.array(roleAssignmentSchema).min(1),
 });
 
@@ -130,6 +142,47 @@ export const setupRouter = createTRPCRouter({
       return getSetupStatus(ctx.db);
     }),
 
+  updateBuildings: publicProcedure
+    .input(z.object({ buildings: z.array(buildingInputSchema).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const status = await getSetupStatus(ctx.db);
+      requireActiveSetup(status);
+      if (!status.business) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Create a business before adding buildings." });
+      }
+      const businessId = status.business.id;
+      const deduped = input.buildings.map((b) => ({
+        name: b.name.trim(),
+        acronym: b.acronym.trim(),
+        rooms: Array.from(new Set(b.rooms.map((room) => room.trim()).filter((room) => room.length > 0))),
+      }));
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(buildings).where(eq(buildings.businessId, businessId));
+        for (const building of deduped) {
+          const [inserted] = await tx
+            .insert(buildings)
+            .values({
+              businessId,
+              name: building.name,
+              acronym: building.acronym,
+            })
+            .returning();
+          if (!inserted) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save building." });
+          if (building.rooms.length > 0) {
+            await tx.insert(rooms).values(
+              building.rooms.map((roomNumber) => ({
+                buildingId: inserted.id,
+                roomNumber,
+              })),
+            );
+          }
+        }
+      });
+
+      return getSetupStatus(ctx.db);
+    }),
+
   createDepartments: publicProcedure
     .input(z.object({ departments: z.array(departmentInputSchema).min(1) }))
     .mutation(async ({ ctx, input }) => {
@@ -141,6 +194,54 @@ export const setupRouter = createTRPCRouter({
 
       const businessId = status.business.id;
       await ctx.db.transaction(async (tx) => {
+        for (const dept of input.departments) {
+          const [departmentRow] = await tx
+            .insert(departments)
+            .values({ businessId, name: dept.name.trim() })
+            .returning();
+          if (!departmentRow) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save department." });
+          const divisions = dept.divisions ?? [];
+          if (divisions.length > 0) {
+            await tx.insert(departments).values(
+              divisions.map((division) => ({
+                businessId,
+                name: division.name.trim(),
+                parentDepartmentId: departmentRow.id,
+              })),
+            );
+          }
+        }
+      });
+
+      return getSetupStatus(ctx.db);
+    }),
+
+  updateDepartments: publicProcedure
+    .input(z.object({ departments: z.array(departmentInputSchema).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const status = await getSetupStatus(ctx.db);
+      requireActiveSetup(status);
+      if (!status.business) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Create a business before adding departments." });
+      }
+
+      const businessId = status.business.id;
+      const existingDepartmentIds = status.departments.flat.map((dept) => dept.id);
+
+      await ctx.db.transaction(async (tx) => {
+        if (existingDepartmentIds.length > 0) {
+          await tx
+            .delete(organizationRoles)
+            .where(
+              and(
+                inArray(organizationRoles.scopeType, ["department", "division"]),
+                inArray(organizationRoles.scopeId, existingDepartmentIds),
+              ),
+            );
+        }
+
+        await tx.delete(departments).where(eq(departments.businessId, businessId));
+
         for (const dept of input.departments) {
           const [departmentRow] = await tx
             .insert(departments)
@@ -310,6 +411,165 @@ export const setupRouter = createTRPCRouter({
 
           await ensurePrimaryCalendars(tx, insertedUser.id);
         }
+      });
+
+      return getSetupStatus(ctx.db);
+    }),
+
+  updateUserWithRoles: publicProcedure
+    .input(updateUserAccountSchema)
+    .mutation(async ({ ctx, input }) => {
+      const status = await getSetupStatus(ctx.db);
+      requireActiveSetup(status);
+      if (!status.business) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Create business details before adding users." });
+      }
+
+      const businessId = status.business.id;
+      const departmentLookup = new Map(status.departments.flat.map((dept) => [dept.id, dept]));
+
+      const normalizeAssignments = (assignments: typeof input.roleAssignments) => {
+        const seen = new Set<string>();
+        const normalized: typeof assignments = [];
+        for (const assignment of assignments) {
+          const key = `${assignment.scopeType}:${assignment.scopeId}:${assignment.roleType}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          normalized.push(assignment);
+        }
+        return normalized;
+      };
+
+      const validateScope = (assignment: z.infer<typeof roleAssignmentSchema>) => {
+        if (assignment.scopeType === "business") {
+          if (assignment.scopeId !== businessId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Business role must target the current business." });
+          }
+          return;
+        }
+        const target = departmentLookup.get(assignment.scopeId);
+        if (!target) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Department/division scope not found.",
+          });
+        }
+        const isDivision = target.parentDepartmentId !== null;
+        if (assignment.scopeType === "department" && isDivision) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Scope ${target.name} is a division, not a department.` });
+        }
+        if (assignment.scopeType === "division" && !isDivision) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Scope ${target.name} is a department, not a division.` });
+        }
+      };
+
+      const username = input.username.trim();
+      const emailLower = input.email.toLowerCase();
+      const phoneDigits = sanitizePhone(input.phoneNumber);
+      if (phoneDigits.length < 10) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Phone number must contain at least 10 digits." });
+      }
+
+      const assignments = normalizeAssignments(input.roleAssignments);
+      assignments.forEach(validateScope);
+
+      await ctx.db.transaction(async (tx) => {
+        const [existingUser] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, input.userId))
+          .limit(1);
+        if (!existingUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+        }
+
+        const [conflict] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(or(eq(users.username, username), eq(users.email, emailLower)), ne(users.id, input.userId)))
+          .limit(1);
+        if (conflict) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Username or email already exists." });
+        }
+
+        const displayName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+        const userUpdates: { username: string; email: string; displayName: string; passwordHash?: string } = {
+          username,
+          email: emailLower,
+          displayName,
+        };
+        if (input.password) {
+          userUpdates.passwordHash = await bcrypt.hash(input.password, 10);
+        }
+        await tx.update(users).set(userUpdates).where(eq(users.id, input.userId));
+
+        const [existingProfile] = await tx
+          .select({ id: profiles.id, dateOfBirth: profiles.dateOfBirth })
+          .from(profiles)
+          .where(eq(profiles.userId, input.userId))
+          .limit(1);
+
+        let dateOfBirth: string | null | undefined = existingProfile?.dateOfBirth ?? null;
+        if (input.dateOfBirth !== undefined) {
+          if (input.dateOfBirth === null || input.dateOfBirth === "") {
+            dateOfBirth = null;
+          } else {
+            const parsed = new Date(input.dateOfBirth);
+            if (Number.isNaN(parsed.getTime())) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date of birth." });
+            }
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (parsed > today) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Date of birth cannot be in the future." });
+            }
+            dateOfBirth = input.dateOfBirth;
+          }
+        }
+
+        let profileId: number | null = existingProfile?.id ?? null;
+        if (profileId) {
+          await tx
+            .update(profiles)
+            .set({
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+              email: emailLower,
+              phoneNumber: phoneDigits,
+              dateOfBirth,
+            })
+            .where(eq(profiles.id, profileId));
+        } else {
+          const [createdProfile] = await tx
+            .insert(profiles)
+            .values({
+              userId: input.userId,
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+              email: emailLower,
+              phoneNumber: phoneDigits,
+              dateOfBirth: dateOfBirth ?? null,
+            })
+            .returning({ id: profiles.id });
+          profileId = createdProfile?.id ?? null;
+        }
+
+        if (!profileId) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Profile is required to assign roles." });
+        }
+
+        await tx.delete(organizationRoles).where(eq(organizationRoles.userId, input.userId));
+        await tx.insert(organizationRoles).values(
+          assignments.map((assignment) => ({
+            userId: input.userId,
+            profileId,
+            roleType: assignment.roleType,
+            scopeType: assignment.scopeType,
+            scopeId: assignment.scopeId,
+          })),
+        );
+
+        await ensurePrimaryCalendars(tx, input.userId);
       });
 
       return getSetupStatus(ctx.db);

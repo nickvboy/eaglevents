@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
@@ -21,16 +21,40 @@ const createDraft = (): DepartmentDraft => ({
   divisionField: "",
 });
 
+const createDraftFromExisting = (dept: DepartmentTreeNode): DepartmentDraft => ({
+  id: String(dept.id),
+  name: dept.name ?? "",
+  divisions: dept.children.map((child) => child.name),
+  divisionField: "",
+});
+
 export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData; onUpdated: () => void }) {
-  const mutation = api.setup.createDepartments.useMutation({
+  const createMutation = api.setup.createDepartments.useMutation({
     onSuccess: () => {
-      setDrafts([createDraft()]);
+      setHasLocalChanges(false);
+      onUpdated();
+    },
+  });
+  const updateMutation = api.setup.updateDepartments.useMutation({
+    onSuccess: () => {
+      setHasLocalChanges(false);
       onUpdated();
     },
   });
 
-  const [drafts, setDrafts] = useState<DepartmentDraft[]>([createDraft()]);
+  const [drafts, setDrafts] = useState<DepartmentDraft[]>(() =>
+    status.departments.roots.length > 0 ? status.departments.roots.map(createDraftFromExisting) : [createDraft()],
+  );
   const [error, setError] = useState<string | null>(null);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+
+  useEffect(() => {
+    if (status.departments.roots.length > 0 && !hasLocalChanges) {
+      setDrafts(status.departments.roots.map(createDraftFromExisting));
+    } else if (drafts.length === 0) {
+      setDrafts([createDraft()]);
+    }
+  }, [status.departments.roots, drafts.length, hasLocalChanges]);
 
   const addDivision = (id: string) => {
     setDrafts((prev) =>
@@ -42,6 +66,7 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
         return { ...draft, divisions: [...draft.divisions, division], divisionField: "" };
       }),
     );
+    setHasLocalChanges(true);
   };
 
   const removeDivision = (id: string, name: string) => {
@@ -51,6 +76,7 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
         return { ...draft, divisions: draft.divisions.filter((value) => value !== name) };
       }),
     );
+    setHasLocalChanges(true);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -66,7 +92,11 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
       setError("Add at least one department with a name of at least 2 characters.");
       return;
     }
-    await mutation.mutateAsync({ departments: payload });
+    if (status.departments.roots.length > 0) {
+      await updateMutation.mutateAsync({ departments: payload });
+    } else {
+      await createMutation.mutateAsync({ departments: payload });
+    }
   };
 
   return (
@@ -75,25 +105,6 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
         <h2 className="text-xl font-semibold">Departments & divisions</h2>
         <p className="mt-1 text-sm text-ink-muted">Model reporting lines so calendars inherit permissions.</p>
       </div>
-      {status.departments.roots.length > 0 ? (
-        <div className="rounded-md border border-outline-muted bg-surface-muted p-4 text-sm">
-          <div className="text-xs uppercase text-ink-subtle">Existing</div>
-          <div className="mt-2 space-y-3">
-            {status.departments.roots.map((dept: DepartmentTreeNode) => (
-              <div key={dept.id}>
-                <div className="font-semibold">{dept.name}</div>
-                {dept.children.length > 0 ? (
-                  <div className="mt-1 text-ink-muted">
-                    Divisions: {dept.children.map((child: DepartmentTreeNode) => child.name).join(", ")}
-                  </div>
-                ) : (
-                  <div className="text-ink-subtle">No divisions yet</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
       <form onSubmit={onSubmit} className="space-y-4">
         {drafts.map((draft, index) => (
           <div key={draft.id} className="rounded-md border border-outline-muted bg-surface-muted p-4">
@@ -102,7 +113,10 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
               {drafts.length > 1 ? (
                 <button
                   type="button"
-                  onClick={() => setDrafts((prev) => prev.filter((item) => item.id !== draft.id))}
+                  onClick={() => {
+                    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
+                    setHasLocalChanges(true);
+                  }}
                   className="text-xs text-ink-subtle hover:text-ink-primary"
                 >
                   Remove
@@ -113,9 +127,12 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
               <label className="mb-1 block text-xs uppercase text-ink-subtle">Name</label>
               <input
                 value={draft.name}
-                onChange={(e) =>
-                  setDrafts((prev) => prev.map((item) => (item.id === draft.id ? { ...item, name: e.target.value } : item)))
-                }
+                onChange={(e) => {
+                  setDrafts((prev) =>
+                    prev.map((item) => (item.id === draft.id ? { ...item, name: e.target.value } : item)),
+                  );
+                  setHasLocalChanges(true);
+                }}
                 className="w-full rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                 placeholder="Event Production"
               />
@@ -125,11 +142,12 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
               <div className="flex gap-2">
                 <input
                   value={draft.divisionField}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDrafts((prev) =>
                       prev.map((item) => (item.id === draft.id ? { ...item, divisionField: e.target.value } : item)),
-                    )
-                  }
+                    );
+                    setHasLocalChanges(true);
+                  }}
                   className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                   placeholder="Broadcast Ops"
                 />
@@ -144,10 +162,17 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
               {draft.divisions.length > 0 ? (
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                   {draft.divisions.map((division) => (
-                    <span key={division} className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1">
+                    <span
+                      key={division}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1"
+                    >
                       {division}
-                      <button type="button" onClick={() => removeDivision(draft.id, division)} className="text-ink-subtle">
-                        ×
+                      <button
+                        type="button"
+                        onClick={() => removeDivision(draft.id, division)}
+                        className="text-ink-subtle"
+                      >
+                        x
                       </button>
                     </span>
                   ))}
@@ -160,19 +185,23 @@ export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData
         ))}
         <button
           type="button"
-          onClick={() => setDrafts((prev) => [...prev, createDraft()])}
+          onClick={() => {
+            setDrafts((prev) => [...prev, createDraft()]);
+            setHasLocalChanges(true);
+          }}
           className="w-full rounded-md border border-outline-muted px-4 py-2 text-sm text-ink-muted hover:border-outline-strong"
         >
           + Add another department
         </button>
         {error ? <p className="text-sm text-status-danger">{error}</p> : null}
-        {mutation.error ? <p className="text-sm text-status-danger">{mutation.error.message}</p> : null}
+        {createMutation.error ? <p className="text-sm text-status-danger">{createMutation.error.message}</p> : null}
+        {updateMutation.error ? <p className="text-sm text-status-danger">{updateMutation.error.message}</p> : null}
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={createMutation.isPending || updateMutation.isPending}
           className="rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
         >
-          {mutation.isPending ? "Saving..." : "Save departments"}
+          {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save departments"}
         </button>
       </form>
     </div>

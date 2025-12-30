@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { Geist } from "next/font/google";
 
 import { Providers } from "./providers";
-import { SidebarNav } from "./_components/SidebarNav";
+import { AppShell } from "./_components/AppShell";
 import { authOptions } from "~/server/auth";
 import { resolvePalette } from "~/server/services/theme";
 
@@ -32,10 +32,7 @@ export default async function RootLayout({
     <html lang="en" className={`${geist.variable}`}>
       <body data-theme="dark" className="bg-surface-canvas text-ink-primary antialiased">
         <Providers palette={resolvedPalette}>
-          <div className="flex min-h-screen flex-col md:flex-row">
-            <SidebarNav user={session?.user ?? null} />
-            <main className="flex-1 bg-surface-canvas pb-16 md:min-h-screen md:pb-0">{children}</main>
-          </div>
+          <AppShell user={session?.user ?? null}>{children}</AppShell>
         </Providers>
       </body>
     </html>

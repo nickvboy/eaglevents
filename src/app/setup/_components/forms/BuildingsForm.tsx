@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
@@ -17,29 +17,42 @@ function createDraft(): BuildingDraft {
   return { id: crypto.randomUUID(), name: "", acronym: "", rooms: [], roomField: "" };
 }
 
+function createDraftFromExisting(building: SetupStatusData["buildings"][number]): BuildingDraft {
+  return {
+    id: String(building.id),
+    name: building.name ?? "",
+    acronym: building.acronym ?? "",
+    rooms: building.rooms.map((room) => room.roomNumber),
+    roomField: "",
+  };
+}
+
 export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; onUpdated: () => void }) {
-  const mutation = api.setup.createBuildings.useMutation({
+  const createMutation = api.setup.createBuildings.useMutation({
     onSuccess: () => {
-      setDrafts([]);
+      setHasLocalChanges(false);
+      onUpdated();
+    },
+  });
+  const updateMutation = api.setup.updateBuildings.useMutation({
+    onSuccess: () => {
+      setHasLocalChanges(false);
       onUpdated();
     },
   });
   const [drafts, setDrafts] = useState<BuildingDraft[]>(() =>
-    status.buildings.length > 0 ? [] : [createDraft()],
+    status.buildings.length > 0 ? status.buildings.map(createDraftFromExisting) : [createDraft()],
   );
   const [error, setError] = useState<string | null>(null);
-
-  const existing = useMemo(() => status.buildings, [status.buildings]);
-  const prevExistingCount = useRef(existing.length);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
 
   useEffect(() => {
-    if (prevExistingCount.current === 0 && existing.length > 0) {
-      setDrafts([]);
-    } else if (existing.length === 0 && drafts.length === 0) {
+    if (status.buildings.length > 0 && !hasLocalChanges) {
+      setDrafts(status.buildings.map(createDraftFromExisting));
+    } else if (drafts.length === 0) {
       setDrafts([createDraft()]);
     }
-    prevExistingCount.current = existing.length;
-  }, [drafts.length, existing.length]);
+  }, [status.buildings, drafts.length, hasLocalChanges]);
 
   const addRoom = (id: string) => {
     setDrafts((prev) =>
@@ -53,6 +66,7 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
         return { ...draft, rooms: [...draft.rooms, room], roomField: "" };
       }),
     );
+    setHasLocalChanges(true);
   };
 
   const removeRoom = (id: string, room: string) => {
@@ -62,6 +76,7 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
         return { ...draft, rooms: draft.rooms.filter((value) => value !== room) };
       }),
     );
+    setHasLocalChanges(true);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -78,7 +93,11 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
       setError("Add at least one building with room numbers.");
       return;
     }
-    await mutation.mutateAsync({ buildings: payload });
+    if (status.buildings.length > 0) {
+      await updateMutation.mutateAsync({ buildings: payload });
+    } else {
+      await createMutation.mutateAsync({ buildings: payload });
+    }
   };
 
   return (
@@ -89,23 +108,13 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
           Capture every facility abbreviation and the rooms you schedule.
         </p>
       </div>
-      {existing.length > 0 ? (
-        <div className="space-y-4 rounded-md border border-outline-muted bg-surface-muted p-4 text-sm">
-          <div className="text-xs uppercase text-ink-subtle">Existing</div>
-          {existing.map((building) => (
-            <div key={building.id}>
-              <div className="font-semibold">
-                {building.name} <span className="text-ink-subtle">({building.acronym})</span>
-              </div>
-              <div className="text-ink-muted">{building.rooms.map((room) => room.roomNumber).join(", ")}</div>
-            </div>
-          ))}
-        </div>
-      ) : null}
       {drafts.length === 0 ? (
         <button
           type="button"
-          onClick={() => setDrafts([createDraft()])}
+          onClick={() => {
+            setDrafts([createDraft()]);
+            setHasLocalChanges(true);
+          }}
           className="w-full rounded-md border border-outline-muted px-4 py-2 text-sm text-ink-muted hover:border-outline-strong"
         >
           + Add another building
@@ -119,7 +128,10 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
               {drafts.length > 1 ? (
                 <button
                   type="button"
-                  onClick={() => setDrafts((prev) => prev.filter((item) => item.id !== draft.id))}
+                  onClick={() => {
+                    setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
+                    setHasLocalChanges(true);
+                  }}
                   className="text-xs text-ink-subtle hover:text-ink-primary"
                 >
                   Remove
@@ -131,7 +143,12 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                 <label className="mb-1 block text-xs uppercase text-ink-subtle">Name</label>
                 <input
                   value={draft.name}
-                  onChange={(e) => setDrafts((prev) => prev.map((item) => (item.id === draft.id ? { ...item, name: e.target.value } : item)))}
+                  onChange={(e) => {
+                    setDrafts((prev) =>
+                      prev.map((item) => (item.id === draft.id ? { ...item, name: e.target.value } : item)),
+                    );
+                    setHasLocalChanges(true);
+                  }}
                   className="w-full rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                   placeholder="Ben Hill Griffin"
                 />
@@ -140,9 +157,12 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                 <label className="mb-1 block text-xs uppercase text-ink-subtle">Acronym</label>
                 <input
                   value={draft.acronym}
-                  onChange={(e) =>
-                    setDrafts((prev) => prev.map((item) => (item.id === draft.id ? { ...item, acronym: e.target.value } : item)))
-                  }
+                  onChange={(e) => {
+                    setDrafts((prev) =>
+                      prev.map((item) => (item.id === draft.id ? { ...item, acronym: e.target.value } : item)),
+                    );
+                    setHasLocalChanges(true);
+                  }}
                   className="w-full rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase outline-none ring-accent-default/40 focus:ring"
                   placeholder="BHG"
                 />
@@ -153,9 +173,12 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
               <div className="flex gap-2">
                 <input
                   value={draft.roomField}
-                  onChange={(e) =>
-                    setDrafts((prev) => prev.map((item) => (item.id === draft.id ? { ...item, roomField: e.target.value } : item)))
-                  }
+                  onChange={(e) => {
+                    setDrafts((prev) =>
+                      prev.map((item) => (item.id === draft.id ? { ...item, roomField: e.target.value } : item)),
+                    );
+                    setHasLocalChanges(true);
+                  }}
                   className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
                   placeholder="201"
                 />
@@ -189,19 +212,23 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
         ))}
         <button
           type="button"
-          onClick={() => setDrafts((prev) => [...prev, createDraft()])}
+          onClick={() => {
+            setDrafts((prev) => [...prev, createDraft()]);
+            setHasLocalChanges(true);
+          }}
           className="w-full rounded-md border border-outline-muted px-4 py-2 text-sm text-ink-muted hover:border-outline-strong"
         >
           + Add another building
         </button>
         {error ? <p className="text-sm text-status-danger">{error}</p> : null}
-        {mutation.error ? <p className="text-sm text-status-danger">{mutation.error.message}</p> : null}
+        {createMutation.error ? <p className="text-sm text-status-danger">{createMutation.error.message}</p> : null}
+        {updateMutation.error ? <p className="text-sm text-status-danger">{updateMutation.error.message}</p> : null}
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={createMutation.isPending || updateMutation.isPending}
           className="rounded-md bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
         >
-          {mutation.isPending ? "Saving..." : "Save buildings"}
+          {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save buildings"}
         </button>
         </form>
       )}
