@@ -18,6 +18,8 @@ type Props = {
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
+const DAY_HEIGHT = 24 * 60 * MINUTE_PX;
+const PREVIEW_MAX_HEIGHT = 360;
 
 export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpenEvent, onEditEvent, calendarLookup }: Props) {
   const positioned = useMemo(() => positionEventsForDay(events), [events]);
@@ -29,9 +31,10 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
   }, []);
 
   const isToday = new Date().toDateString() === date.toDateString();
+  const previewPlacementFor = (top: number) => (top * MINUTE_PX + PREVIEW_MAX_HEIGHT > DAY_HEIGHT ? "up" : "down");
 
   return (
-    <div className="relative h-[1440px] border-l border-outline-muted bg-surface-muted">
+    <div className="relative h-full min-h-[1440px] border-l border-outline-muted bg-surface-muted">
       {/* hour lines */}
       {Array.from({ length: 24 }).map((_, i) => (
         <div
@@ -59,38 +62,42 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
       )}
 
       {/* events */}
-      {positioned.map((p, idx) => (
-        <div
-          key={idx}
-          className={"absolute p-0.5 " + (p.event.id === previewEventId ? "z-30" : "z-10")}
-          style={{
-            top: p.top * MINUTE_PX,
-            height: p.height * MINUTE_PX,
-            left: `${(p.lane * 100) / p.laneCount}%`,
-            width: `${100 / p.laneCount}%`,
-          }}
-        >
-          <div className="relative h-full w-full overflow-visible">
-            <EventCard
-              title={p.event.title}
-              location={p.event.location}
-              start={new Date(p.event.startDatetime)}
-              end={new Date(p.event.endDatetime)}
-              isSelected={p.event.id === previewEventId}
-              onClick={() => onPreviewEvent?.(p.event)}
-              onExpand={() => onOpenEvent?.(p.event)}
-              onDoubleClick={() => onOpenEvent?.(p.event)}
-            />
-            <EventPreviewFlyout
-              event={p.event}
-              calendar={calendarLookup?.get(p.event.calendarId) ?? null}
-              open={p.event.id === previewEventId}
-              onExpand={() => onOpenEvent?.(p.event)}
-              onEdit={() => onEditEvent?.(p.event)}
-            />
+      {positioned.map((p, idx) => {
+        const previewPlacement = previewPlacementFor(p.top);
+        return (
+          <div
+            key={idx}
+            className={"absolute p-0.5 " + (p.event.id === previewEventId ? "z-30" : "z-10")}
+            style={{
+              top: p.top * MINUTE_PX,
+              height: p.height * MINUTE_PX,
+              left: `${(p.lane * 100) / p.laneCount}%`,
+              width: `${100 / p.laneCount}%`,
+            }}
+          >
+            <div className="relative h-full w-full overflow-visible">
+              <EventCard
+                title={p.event.title}
+                location={p.event.location}
+                start={new Date(p.event.startDatetime)}
+                end={new Date(p.event.endDatetime)}
+                isSelected={p.event.id === previewEventId}
+                onClick={() => onPreviewEvent?.(p.event)}
+                onExpand={() => onOpenEvent?.(p.event)}
+                onDoubleClick={() => onOpenEvent?.(p.event)}
+              />
+              <EventPreviewFlyout
+                event={p.event}
+                calendar={calendarLookup?.get(p.event.calendarId) ?? null}
+                open={p.event.id === previewEventId}
+                placement={previewPlacement}
+                onExpand={() => onOpenEvent?.(p.event)}
+                onEdit={() => onEditEvent?.(p.event)}
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

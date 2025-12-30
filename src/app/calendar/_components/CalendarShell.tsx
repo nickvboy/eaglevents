@@ -430,7 +430,7 @@ export function CalendarShell() {
   return (
     <>
       <div className="flex h-screen flex-col overflow-hidden bg-surface-raised lg:flex-row">
-        <div className="hidden lg:block">
+        <div className="hidden h-full lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
             selectedDate={selectedDate}

@@ -35,7 +35,7 @@ export function WeekGrid({
   return (
     <div className={"flex h-full min-h-0 flex-1 overflow-auto " + (variant === "compact" ? "bg-surface-muted" : "")}>
       {/* Time gutter */}
-      <TimeGutter />
+      <TimeGutter variant={variant} />
       {/* Day columns */}
       {days.map((d) => (
         <div key={d.toISOString()} className="min-w-0 flex-1">
@@ -79,12 +79,15 @@ function formatHour(h: number) {
   return `${hour12} ${ampm}`;
 }
 
-function TimeGutter() {
+function TimeGutter({ variant }: { variant: "default" | "compact" }) {
+  const headerHeightClass = variant === "compact" ? "h-[52px]" : "h-10";
+  const headerClass = `sticky top-0 z-40 border-b border-outline-muted bg-surface-overlay ${headerHeightClass}`;
   return (
-    <div className="relative w-14 shrink-0 border-r border-outline-muted bg-surface-muted text-[10px] text-ink-subtle">
+    <div className="relative h-full min-h-[1440px] w-14 shrink-0 border-r border-outline-muted bg-surface-muted text-[10px] text-ink-subtle">
+      <div aria-hidden="true" className={headerClass} />
       {Array.from({ length: 24 }).map((_, i) => (
-        <div key={i} className="flex h-[60px] items-center justify-center border-b border-transparent px-1 text-center">
-          {i > 0 ? formatHour(i) : ""}
+        <div key={i} className="relative h-[60px] border-b border-transparent px-1">
+          <div className="-translate-y-2 select-none text-right">{i > 0 ? formatHour(i) : ""}</div>
         </div>
       ))}
     </div>

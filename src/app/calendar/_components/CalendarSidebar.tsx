@@ -104,7 +104,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
   return (
     <aside
       ref={containerRef}
-      className="w-64 shrink-0 overflow-hidden border-r border-outline-muted bg-surface-muted p-3 text-sm text-ink-primary"
+      className="flex h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-outline-muted bg-surface-muted p-3 text-sm text-ink-primary"
       style={{ overscrollBehavior: "contain" }}
     >
       <div className="mb-3">

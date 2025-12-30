@@ -1879,7 +1879,6 @@ export const adminRouter = createTRPCRouter({
       if (!businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
       }
-      const managerVisibleScopes = isManager ? await getVisibleScopes(ctx.db, context.userId) : null;
 
       const [ownerProfile] = await ctx.db
         .select({ id: profiles.id })
