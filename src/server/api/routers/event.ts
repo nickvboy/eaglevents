@@ -5,7 +5,6 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
   businesses,
-  calendars,
   eventCoOwners,
   eventAttendees,
   eventHourLogs,
@@ -26,8 +25,9 @@ import {
   getVisibleScopes,
 } from "~/server/services/permissions";
 import type { Session } from "next-auth";
+import type { db as dbClient } from "~/server/db";
 
-type DbClient = typeof import("~/server/db").db;
+type DbClient = typeof dbClient;
 type UserRow = typeof users.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type ProfileSummary = {
@@ -120,7 +120,7 @@ async function requireSessionProfileId(ctx: { session: Session | null; db: DbCli
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   const email = "demo@local";
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing[0]) return existing[0]!;
+  if (existing[0]) return existing[0];
   const [inserted] = await db
     .insert(users)
     .values({ username: "demo", email, displayName: "Demo User", passwordHash: await bcrypt.hash("demo", 10) })
@@ -359,17 +359,26 @@ async function getUniqueEventCode(db: DbClient) {
 
 function buildScopeCondition(visible: { business: boolean; departmentIds: number[]; divisionIds: number[] }) {
   if (visible.business) return null;
-  const conditions: any[] = [];
+  const conditions: SQL<unknown>[] = [];
   if (visible.departmentIds.length > 0) {
-    conditions.push(and(eq(events.scopeType, "department"), inArray(events.scopeId, visible.departmentIds)));
+    const departmentCondition = and(
+      eq(events.scopeType, "department"),
+      inArray(events.scopeId, visible.departmentIds),
+    );
+    if (departmentCondition) conditions.push(departmentCondition);
   }
   if (visible.divisionIds.length > 0) {
-    conditions.push(and(eq(events.scopeType, "division"), inArray(events.scopeId, visible.divisionIds)));
+    const divisionCondition = and(
+      eq(events.scopeType, "division"),
+      inArray(events.scopeId, visible.divisionIds),
+    );
+    if (divisionCondition) conditions.push(divisionCondition);
   }
   if (conditions.length === 0) return sql`false`;
-  let combined = conditions[0];
-  for (let i = 1; i < conditions.length; i += 1) {
-    combined = or(combined, conditions[i]);
+  const [first, ...rest] = conditions;
+  let combined = first;
+  for (const condition of rest) {
+    combined = or(combined, condition) ?? combined;
   }
   return combined;
 }
@@ -491,7 +500,6 @@ export const eventRouter = createTRPCRouter({
 
       let resolved: EventRow | undefined;
       for (const attempt of possibilities) {
-        // eslint-disable-next-line no-await-in-loop
         const candidate = await attempt;
         if (candidate) {
           resolved = candidate;
@@ -560,7 +568,7 @@ export const eventRouter = createTRPCRouter({
         .orderBy(desc(events.updatedAt), desc(events.id))
         .limit(limit)
         .offset(offset);
-      return buildEventResponses(ctx.db, rows as EventRow[]);
+      return buildEventResponses(ctx.db, rows);
     }),
   zendeskQueue: publicProcedure.query(async ({ ctx }) => {
     const profileId = await requireSessionProfileId(ctx);
@@ -589,9 +597,9 @@ export const eventRouter = createTRPCRouter({
     }
 
     const hourEventIds = Array.from(totals.keys());
-    let condition: any = eq(events.assigneeProfileId, profileId);
+    let condition = eq(events.assigneeProfileId, profileId);
     if (hourEventIds.length > 0) {
-      condition = or(condition, inArray(events.id, hourEventIds));
+      condition = or(condition, inArray(events.id, hourEventIds)) ?? condition;
     }
 
     const eventRows = await ctx.db
@@ -735,7 +743,7 @@ export const eventRouter = createTRPCRouter({
         .from(events)
         .where(condition)
         .orderBy(events.startDatetime);
-      return buildEventResponses(ctx.db, list as EventRow[]);
+      return buildEventResponses(ctx.db, list);
     }),
 
   create: publicProcedure
@@ -808,7 +816,7 @@ export const eventRouter = createTRPCRouter({
         const [row] = await tx
           .insert(events)
           .values({
-            calendarId: calendarId!,
+            calendarId,
             assigneeProfileId: assignee ?? null,
             ownerProfileId,
             scopeType: scope.scopeType,
@@ -900,7 +908,7 @@ export const eventRouter = createTRPCRouter({
         return row;
       });
 
-      const [result] = await buildEventResponses(ctx.db, [created as EventRow]);
+      const [result] = await buildEventResponses(ctx.db, [created]);
       if (!result) throw new Error("Failed to load created event");
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] event create refresh failed", error);
@@ -1066,7 +1074,7 @@ export const eventRouter = createTRPCRouter({
         return row;
       });
 
-      const [result] = await buildEventResponses(ctx.db, [updated as EventRow]);
+      const [result] = await buildEventResponses(ctx.db, [updated]);
       if (!result) throw new Error("Failed to load updated event");
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] event update refresh failed", error);

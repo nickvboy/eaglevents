@@ -83,7 +83,7 @@ export function ZendeskModal({ open, onClose }: Props) {
     confirmMutation.mutate(
       { eventId: activeItem.eventId },
       {
-        onSuccess: async () => {
+        onSuccess: () => {
           setReadyItems((prev) => {
             const next = prev.filter((item) => item.eventId !== activeItem.eventId);
             if (tab === "ready") {
@@ -98,7 +98,7 @@ export function ZendeskModal({ open, onClose }: Props) {
             }
             return next;
           });
-          await refetch();
+          void refetch();
         },
       },
     );

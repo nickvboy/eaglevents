@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import { ChevronDownIcon, ReportIcon, SearchIcon } from "~/app/_components/icons";
 import { ZendeskModal } from "./ZendeskModal";
 
 type TicketView = "unassigned" | "assigned" | "all";
 
-type Row = ReturnType<typeof useTicketsData>[number];
+type TicketsResponse = RouterOutputs["event"]["tickets"];
+type Row = TicketsResponse[number];
 
-function useTicketsData(search: string) {
+function useTicketsData(search: string): TicketsResponse {
   const { data } = api.event.tickets.useQuery({ search, limit: 200 });
   return data ?? [];
 }
@@ -151,7 +152,7 @@ function NavButton({
   );
 }
 
-function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: number | null; onSelect: (id: number) => void }) {
+function TicketTable({ rows, selectedId, onSelect }: { rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
   return (
     <table className="w-full min-w-full border-collapse text-sm">
       <thead className="bg-surface-overlay/60 text-ink-subtle">
@@ -192,7 +193,7 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: any[]; selectedId: 
   );
 }
 
-function StatusPill({ row }: { row: any }) {
+function StatusPill({ row }: { row: Row }) {
   const now = Date.now();
   const end = new Date(row.endDatetime).getTime();
   const assigned = !!row.assigneeProfile;
@@ -206,7 +207,7 @@ function StatusPill({ row }: { row: any }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
 }
 
-function SidePreview({ row }: { row: any | null }) {
+function SidePreview({ row }: { row: Row | null }) {
   if (!row) {
     return (
       <div className="p-4 text-sm text-ink-muted">
@@ -315,11 +316,14 @@ function MobileViewSwitcher({
   );
 }
 
-function MobileTicketList({ rows, onOpen }: { rows: any[]; onOpen: (id: number) => void }) {
+function MobileTicketList({ rows, onOpen }: { rows: Row[]; onOpen: (id: number) => void }) {
   return (
     <ul className="divide-y divide-outline-muted">
       {rows.map((row, idx) => {
-        const letter = (row.assigneeProfile?.firstName || row.title || "?").charAt(0).toUpperCase();
+        const firstName = row.assigneeProfile?.firstName?.trim();
+        const title = row.title?.trim();
+        const letterSource = firstName && firstName.length > 0 ? firstName : title && title.length > 0 ? title : "?";
+        const letter = letterSource.charAt(0).toUpperCase();
         const date = new Date(row.startDatetime);
         const dateLabel = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}`;
         const snippet = row.description ? String(row.description).slice(0, 120) : row.location ?? "";
@@ -367,7 +371,7 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
 
 function formatName(p: { firstName: string; lastName: string; email: string }) {
   const full = [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
-  return full || p.email;
+  return full.length > 0 ? full : p.email;
 }
 function formatDate(input: string | Date) {
   const d = new Date(input);

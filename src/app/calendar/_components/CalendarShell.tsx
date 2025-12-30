@@ -16,7 +16,6 @@ type View = "day" | "threeday" | "workweek" | "week" | "month";
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
-const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
 
 function getStoredDate(key: string, fallback: Date) {
   if (typeof window === "undefined") return fallback;
@@ -192,7 +191,7 @@ export function CalendarShell() {
     try {
       const raw = window.localStorage.getItem("calendar.visibleCalendars");
       if (raw) {
-        const parsed = JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const valid = parsed.filter((id: unknown) => typeof id === "number" && calendars.some((c) => c.id === id));
           setVisibleCalendarIds(valid as number[]);

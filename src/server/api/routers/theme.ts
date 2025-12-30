@@ -24,7 +24,7 @@ const paletteFieldKeys = Array.from(
   new Set(
     THEME_PALETTE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.key)),
   ),
-) as (keyof ThemePaletteMode)[];
+);
 
 const paletteModeSchema = z.object(
   Object.fromEntries(

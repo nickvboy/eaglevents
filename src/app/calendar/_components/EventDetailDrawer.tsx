@@ -34,6 +34,13 @@ const DEFAULT_TIME_VALUE = "06:30";
 const randomId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
 
+function resolvePersonDisplay(profile: { firstName?: string | null; lastName?: string | null; email?: string | null }) {
+  const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  if (name.length > 0) return name;
+  const email = profile.email?.trim();
+  return email && email.length > 0 ? email : null;
+}
+
 export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: EventDetailDrawerProps) {
   const utils = api.useUtils();
   const deleteMutation = api.event.delete.useMutation({
@@ -78,13 +85,13 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
       })) ?? [];
     setHourLogs(nextLogs);
     setHourLogError(null);
-  }, [event?.id, event?.hourLogs]);
+  }, [event]);
 
   const logBaseDate = useMemo(() => {
     const base = event ? new Date(event.startDatetime) : new Date();
     base.setHours(0, 0, 0, 0);
     return base;
-  }, [event?.startDatetime]);
+  }, [event]);
 
   const addHourLogRow = () => {
     setHourLogs((prev) => [...prev, { id: randomId(), sourceId: null, start: null, end: null }]);
@@ -99,7 +106,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   };
 
   const hourLogsInvalid = hourLogs.some((log) => log.start && log.end && log.end <= log.start);
-  const hourLogsIncomplete = hourLogs.some((log) => (log.start && !log.end) || (!log.start && log.end));
+  const hourLogsIncomplete = hourLogs.some((log) => Boolean(log.start) !== Boolean(log.end));
   const combinedLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
   const hourLogsValidationMessage =
     hourLogError ??
@@ -112,6 +119,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
 
   const handleSaveHourLogs = async () => {
     setHourLogError(null);
+    if (!event) return;
     if (!canSaveHourLogs) {
       setHourLogError("Please complete or remove invalid hour log entries.");
       return;
@@ -121,29 +129,29 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
         .filter((log) => log.start && log.end)
         .map((log) => ({
           id: log.sourceId ?? undefined,
-          startTime: log.start as Date,
-          endTime: log.end as Date,
+          startTime: log.start!,
+          endTime: log.end!,
         }));
       await updateHourLogsMutation.mutateAsync({
-        id: event!.id,
-        calendarId: event!.calendarId,
-        title: event!.title,
-        description: event!.description ?? undefined,
-        location: event!.location ?? undefined,
-        isAllDay: event!.isAllDay,
-        startDatetime: new Date(event!.startDatetime),
-        endDatetime: new Date(event!.endDatetime),
-        recurrenceRule: event!.recurrenceRule ?? undefined,
-        assigneeProfileId: event!.assigneeProfileId ?? null,
+        id: event.id,
+        calendarId: event.calendarId,
+        title: event.title,
+        description: event.description ?? undefined,
+        location: event.location ?? undefined,
+        isAllDay: event.isAllDay,
+        startDatetime: new Date(event.startDatetime),
+        endDatetime: new Date(event.endDatetime),
+        recurrenceRule: event.recurrenceRule ?? undefined,
+        assigneeProfileId: event.assigneeProfileId ?? null,
         hourLogs: payloadHourLogs,
-        participantCount: event!.participantCount ?? null,
-        technicianNeeded: event!.technicianNeeded ?? false,
-        requestCategory: event!.requestCategory ?? null,
-        equipmentNeeded: event!.equipmentNeeded ?? null,
-        eventStartTime: event!.eventStartTime ? new Date(event!.eventStartTime) : null,
-        eventEndTime: event!.eventEndTime ? new Date(event!.eventEndTime) : null,
-        setupTime: event!.setupTime ? new Date(event!.setupTime) : null,
-        zendeskTicketNumber: event!.zendeskTicketNumber ?? null,
+        participantCount: event.participantCount ?? null,
+        technicianNeeded: event.technicianNeeded ?? false,
+        requestCategory: event.requestCategory ?? null,
+        equipmentNeeded: event.equipmentNeeded ?? null,
+        eventStartTime: event.eventStartTime ? new Date(event.eventStartTime) : null,
+        eventEndTime: event.eventEndTime ? new Date(event.eventEndTime) : null,
+        setupTime: event.setupTime ? new Date(event.setupTime) : null,
+        zendeskTicketNumber: event.zendeskTicketNumber ?? null,
       });
     } catch (err) {
       setHourLogError(err instanceof Error ? err.message : "Failed to save hour logs.");
@@ -165,10 +173,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   const end = new Date(event.endDatetime);
   const dateLabel = formatDatePart(start, end);
   const timeLabel = formatTimePart(start, end);
-  const assigneeName = event.assigneeProfile
-    ? [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
-      event.assigneeProfile.email
-    : null;
+  const assigneeName = event.assigneeProfile ? resolvePersonDisplay(event.assigneeProfile) : null;
   const eventCode = event.eventCode ?? String(event.id).padStart(7, "0");
 
   return (
@@ -244,7 +249,10 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                         className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
                       >
                         <span className="font-medium">
-                          {[owner.firstName, owner.lastName].filter(Boolean).join(" ").trim() || owner.email}
+                          {(() => {
+                            const ownerName = [owner.firstName, owner.lastName].filter(Boolean).join(" ").trim();
+                            return ownerName.length > 0 ? ownerName : owner.email ?? "";
+                          })()}
                         </span>
                         <span className="text-ink-muted">{owner.email}</span>
                       </span>
@@ -277,7 +285,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                     {hourLogs.map((log, index) => {
                       const hours = diffHours(log.start, log.end);
                       const invalid = Boolean(log.start && log.end && log.end <= log.start);
-                      const incomplete = (log.start && !log.end) || (!log.start && log.end);
+                      const incomplete = Boolean(log.start) !== Boolean(log.end);
                       const pillClass = invalid
                         ? "border border-status-danger bg-status-danger-surface text-status-danger"
                         : hours > 0
@@ -655,12 +663,12 @@ function normalizeTimeInput(value: string) {
   if (!trimmed) return null;
   let numericPart = trimmed.replace(/\./g, ":");
   let meridiem: "am" | "pm" | null = null;
-  const meridiemMatch = numericPart.match(/\s*(am|pm|a|p)$/);
+  const meridiemMatch = /\s*(am|pm|a|p)$/.exec(numericPart);
   if (meridiemMatch) {
     const token = meridiemMatch[1];
     if (!token) return null;
     meridiem = token.startsWith("p") ? "pm" : "am";
-    numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0]!.length).trim();
+    numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0].length).trim();
   }
   if (!numericPart) return null;
   let hours: number | null = null;
@@ -716,6 +724,7 @@ function formatLoggedByProfile(
   profile: { firstName?: string | null; lastName?: string | null; email?: string | null } | null,
 ) {
   if (!profile) return "Unknown";
-  const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
-  return name || profile.email || "Unknown";
+  const name = resolvePersonDisplay(profile);
+  if (name) return name;
+  return "Unknown";
 }

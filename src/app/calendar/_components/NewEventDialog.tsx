@@ -46,6 +46,7 @@ const REQUEST_CATEGORY_OPTIONS = [
 
 type RequestCategoryValue = (typeof REQUEST_CATEGORY_OPTIONS)[number]["value"];
 type InfoField = "eventStart" | "eventEnd" | "setup";
+type LocationMatch = RouterOutputs["facility"]["searchRooms"][number];
 
 function makeSegment(base: Date) {
   const start = new Date(base);
@@ -89,12 +90,12 @@ function normalizeTimeInput(value: string) {
   if (!trimmed) return null;
   let numericPart = trimmed.replace(/\./g, ":");
   let meridiem: "am" | "pm" | null = null;
-  const meridiemMatch = numericPart.match(/\s*(am|pm|a|p)$/);
+  const meridiemMatch = /\s*(am|pm|a|p)$/.exec(numericPart);
   if (meridiemMatch) {
     const token = meridiemMatch[1];
     if (!token) return null;
     meridiem = token.startsWith("p") ? "pm" : "am";
-    numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0]!.length).trim();
+    numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0].length).trim();
   }
   if (!numericPart) return null;
   let hours: number | null = null;
@@ -130,23 +131,23 @@ function normalizeTimeInput(value: string) {
 
 function parseLocationInput(raw: string) {
   const value = (raw ?? "").trim();
-  if (!value) return { acronym: null as string | null, room: null as string | null };
+  if (!value) return { acronym: null, room: null };
   const upper = value.toUpperCase();
   const compact = upper.replace(/\s+|-/g, "");
   let acronym: string | null = null;
   let room: string | null = null;
-  const m1 = compact.match(/^([A-Z]{1,16})([0-9][A-Z0-9]*)$/);
+  const m1 = /^([A-Z]{1,16})([0-9][A-Z0-9]*)$/.exec(compact);
   if (m1) {
     acronym = m1[1] ?? null;
     room = m1[2] ?? null;
   } else {
-    const m2 = upper.match(/^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/);
+    const m2 = /^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
     if (m2) {
       acronym = m2[1] ?? null;
       room = m2[2] ?? null;
     } else {
-      const onlyAcr = upper.match(/^\s*([A-Z]{1,16})\s*$/);
-      const onlyRoom = upper.match(/^\s*([0-9][A-Z0-9]*)\s*$/);
+      const onlyAcr = /^\s*([A-Z]{1,16})\s*$/.exec(upper);
+      const onlyRoom = /^\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
       if (onlyAcr) acronym = onlyAcr[1] ?? null;
       if (onlyRoom) room = onlyRoom[1] ?? null;
     }
@@ -436,10 +437,10 @@ const emptyProfileDraft: ProfileDraft = {
 
 function deriveProfileDraft(raw: string): ProfileDraft {
   const trimmed = raw.trim();
-  const emailMatch = trimmed.match(/[^\s,;]+@[^\s,;]+/);
+  const emailMatch = /[^\s,;]+@[^\s,;]+/.exec(trimmed);
   const email = emailMatch?.[0] ?? "";
   const withoutEmail = email ? trimmed.replace(email, "").trim() : trimmed;
-  const phoneMatch = trimmed.match(/\+?[\d\-\s().]{7,}/);
+  const phoneMatch = /\+?[\d\-\s().]{7,}/.exec(trimmed);
   const phoneNumber = phoneMatch?.[0]?.replace(/[^\d+]/g, "") ?? "";
   const parts = withoutEmail.split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? "";
@@ -450,6 +451,24 @@ function deriveProfileDraft(raw: string): ProfileDraft {
     email,
     phoneNumber,
   };
+}
+
+function resolveProfileLabel(profile: {
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email: string;
+}) {
+  const displayName = profile.displayName?.trim();
+  if (displayName) return displayName;
+  const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  if (fullName) return fullName;
+  return profile.email;
+}
+
+function fallbackSearchLabel(value: string, fallback: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
 }
 
 export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }: Props) {
@@ -496,8 +515,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
-  const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0]!.start) : new Date(defaultDate)), [segments, defaultDate]);
-  const scopeOptions = scopeOptionsQuery.data ?? [];
+  const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
+  const scopeOptions = useMemo(() => scopeOptionsQuery.data ?? [], [scopeOptionsQuery.data]);
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -526,7 +545,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setAllDay(event.isAllDay);
       setInPerson(false);
       setLocation(event.location ?? "");
-      setSelectedBuildingId(((event as unknown) as { buildingId?: number | null }).buildingId ?? null);
+      setSelectedBuildingId(event.buildingId ?? null);
       const parsed = parseLocationInput(event.location ?? "");
       if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
       if (parsed.room) setRoomNumber(parsed.room);
@@ -534,7 +553,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setRecurring(Boolean(event.recurrenceRule));
       setParticipantCount(typeof event.participantCount === "number" ? String(event.participantCount) : "");
       setTechnicianNeeded(Boolean(event.technicianNeeded));
-      setRequestCategory((event.requestCategory as RequestCategoryValue | null) ?? "");
+      setRequestCategory(event.requestCategory ?? "");
       setEquipmentNeeded(event.equipmentNeeded ?? "");
       setZendeskTicket(event.zendeskTicketNumber ?? "");
       setEventInfoStart(event.eventStartTime ? new Date(event.eventStartTime) : null);
@@ -542,10 +561,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setSetupInfoTime(event.setupTime ? new Date(event.setupTime) : null);
       setError(null);
       if (event.assigneeProfile) {
-        const fullName = [event.assigneeProfile.firstName, event.assigneeProfile.lastName].filter(Boolean).join(" ").trim();
         setAssignee({
           profileId: event.assigneeProfile.id,
-          displayName: fullName || event.assigneeProfile.email,
+          displayName: resolveProfileLabel(event.assigneeProfile),
           email: event.assigneeProfile.email,
         });
       } else {
@@ -558,8 +576,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           event.attendees
             .filter((attendee) => attendee.profileId !== null)
             .map((attendee) => ({
-              profileId: attendee.profileId as number,
-              displayName: [attendee.firstName, attendee.lastName].filter(Boolean).join(" ").trim() || attendee.email,
+              profileId: attendee.profileId!,
+              displayName: resolveProfileLabel(attendee),
               email: attendee.email,
             })),
         );
@@ -570,7 +588,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         setSelectedCoOwners(
           event.coOwners.map((coOwner) => ({
             profileId: coOwner.profileId,
-            displayName: [coOwner.firstName, coOwner.lastName].filter(Boolean).join(" ").trim() || coOwner.email,
+            displayName: resolveProfileLabel(coOwner),
             email: coOwner.email,
           })),
         );
@@ -778,7 +796,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
 
   const segmentsInvalid = segments.some((segment) => segment.start >= segment.end);
   const isSaving = isEditing ? update.isPending : create.isPending;
-  const hourLogsIncomplete = hourLogs.some((log) => (log.start && !log.end) || (!log.start && log.end));
+  const hourLogsIncomplete = hourLogs.some((log) => Boolean(log.start) !== Boolean(log.end));
   const hourLogsInvalid = hourLogs.some((log) => log.start && log.end && log.end <= log.start);
   const trimmedParticipantCount = participantCount.trim();
   const parsedParticipantCount =
@@ -886,7 +904,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     }
   };
 
-  const handleLocationSelect = (match: { buildingId: number; acronym: string; roomNumber: string; buildingName: string }) => {
+  const handleLocationSelect = (match: LocationMatch) => {
     setSelectedBuildingId(match.buildingId);
     setSelectedBuildingAcronym(match.acronym);
     setRoomNumber(match.roomNumber);
@@ -932,7 +950,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const handleSelectAssignee = (option: RouterOutputs["profile"]["search"][number]) => {
     setAssignee({
       profileId: option.profileId,
-      displayName: option.displayName || option.email,
+      displayName: resolveProfileLabel(option),
       email: option.email,
       username: option.username,
     });
@@ -949,7 +967,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const handleAddAttendee = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
     setSelectedAttendees((prev) => {
       if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
-      const displayName = option.displayName || option.email;
+      const displayName = resolveProfileLabel(option);
       return [
         ...prev,
         {
@@ -971,7 +989,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const handleAddCoOwner = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
     setSelectedCoOwners((prev) => {
       if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
-      const displayName = option.displayName || option.email;
+      const displayName = resolveProfileLabel(option);
       return [
         ...prev,
         {
@@ -1030,10 +1048,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       }
       const selection: AssigneeSelection = {
         profileId: created.profileId,
-        displayName:
-          created.displayName ||
-          [created.firstName, created.lastName].filter(Boolean).join(" ").trim() ||
-          created.email,
+        displayName: resolveProfileLabel(created),
         email: created.email,
         username: created.username,
       };
@@ -1373,7 +1388,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("attendee")}
                         >
-                          Create new profile for "{attendeeSearch.trim() || "attendee"}"
+                          Create new profile for &quot;{fallbackSearchLabel(attendeeSearch, "attendee")}&quot;
                         </button>
                       </div>
                     </>
@@ -1385,7 +1400,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                         className="text-accent-soft hover:text-accent-strong"
                         onClick={() => openQuickCreate("attendee")}
                       >
-                        Create profile for "{attendeeSearch.trim() || "attendee"}"
+                        Create profile for &quot;{fallbackSearchLabel(attendeeSearch, "attendee")}&quot;
                       </button>
                     </div>
                   )}
@@ -1473,7 +1488,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("coOwner")}
                         >
-                          Create new profile for "{coOwnerSearch.trim() || "co-owner"}"
+                          Create new profile for &quot;{fallbackSearchLabel(coOwnerSearch, "co-owner")}&quot;
                         </button>
                       </div>
                     </>
@@ -1485,7 +1500,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                         className="text-accent-soft hover:text-accent-strong"
                         onClick={() => openQuickCreate("coOwner")}
                       >
-                        Create profile for "{coOwnerSearch.trim() || "co-owner"}"
+                        Create profile for &quot;{fallbackSearchLabel(coOwnerSearch, "co-owner")}&quot;
                       </button>
                     </div>
                   )}
@@ -1566,7 +1581,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                             className="text-accent-soft hover:text-accent-strong"
                             onClick={() => openQuickCreate("assignee")}
                           >
-                            Create new profile for "{assigneeSearch.trim() || "assignee"}"
+                            Create new profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
                           </button>
                         </div>
                       </>
@@ -1578,7 +1593,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("assignee")}
                         >
-                          Create profile for "{assigneeSearch.trim() || "assignee"}"
+                          Create profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
                         </button>
                       </div>
                     )}
@@ -1860,7 +1875,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                   {hourLogs.map((log, index) => {
                     const hours = diffHours(log.start, log.end);
                     const invalid = Boolean(log.start && log.end && log.end <= log.start);
-                    const incomplete = (log.start && !log.end) || (!log.start && log.end);
+                    const incomplete = Boolean(log.start) !== Boolean(log.end);
                     const pillClass = invalid
                       ? "border border-status-danger bg-status-danger-surface text-status-danger"
                       : hours > 0
@@ -2015,7 +2030,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                   if (locationMatches.length > 0 && locationHighlight >= 0) {
                     e.preventDefault();
                     const match = locationMatches[locationHighlight]!;
-                    handleLocationSelect(match as any);
+                    handleLocationSelect(match);
                   }
                 }
               }}
@@ -2039,7 +2054,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
                               (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
                             }
                             onMouseEnter={() => setLocationHighlight(index)}
-                            onClick={() => handleLocationSelect(match as any)}
+                            onClick={() => handleLocationSelect(match)}
                           >
                             <span>
                               <span className="font-semibold">{match.acronym}</span> {match.roomNumber}

@@ -9,14 +9,14 @@ import {
   sumSeries,
 } from "~/server/services/admin";
 
-describe("admin service helpers", () => {
-  it("computes UTC month boundaries", () => {
+void describe("admin service helpers", () => {
+  void it("computes UTC month boundaries", () => {
     const date = new Date("2024-02-15T10:30:00Z");
     const start = startOfMonth(date);
     assert.equal(start.toISOString(), "2024-02-01T00:00:00.000Z");
   });
 
-  it("builds the requested number of month buckets ending with current month", () => {
+  void it("builds the requested number of month buckets ending with current month", () => {
     const now = new Date("2024-06-05T12:00:00Z");
     const buckets = getMonthBuckets(now, 3);
     assert.equal(buckets.length, 3);
@@ -24,7 +24,7 @@ describe("admin service helpers", () => {
     assert.equal(buckets[2]?.label, "Jun");
   });
 
-  it("groups dates into their respective month buckets", () => {
+  void it("groups dates into their respective month buckets", () => {
     const now = new Date("2024-06-05T12:00:00Z");
     const dates = [
       new Date("2024-04-10T00:00:00Z"),
@@ -39,7 +39,7 @@ describe("admin service helpers", () => {
     );
   });
 
-  it("calculates trend deltas with correct direction", () => {
+  void it("calculates trend deltas with correct direction", () => {
     const deltaUp = calculateTrendDelta(10, 5);
     assert.equal(deltaUp.direction, "increase");
     assert.equal(deltaUp.delta, 5);
@@ -52,7 +52,7 @@ describe("admin service helpers", () => {
     assert.equal(neutral.direction, "neutral");
   });
 
-  it("sums series values", () => {
+  void it("sums series values", () => {
     const total = sumSeries([
       { label: "Jan", value: 1 },
       { label: "Feb", value: 2 },
@@ -60,4 +60,3 @@ describe("admin service helpers", () => {
     assert.equal(total, 3);
   });
 });
-

@@ -64,13 +64,12 @@ const GLOBAL_STATE_KEY = "__joinTableExportState";
 
 function getExportState(): JoinTableExportState {
   const globalState = globalThis as typeof globalThis & { [GLOBAL_STATE_KEY]?: JoinTableExportState };
-  if (!globalState[GLOBAL_STATE_KEY]) {
-    globalState[GLOBAL_STATE_KEY] = {
+  const state =
+    (globalState[GLOBAL_STATE_KEY] ??= {
       running: null,
       schedulerStarted: false,
-    };
-  }
-  return globalState[GLOBAL_STATE_KEY]!;
+    });
+  return state;
 }
 
 function getExportPaths() {
@@ -96,10 +95,10 @@ function formatCellValue(value: unknown): string | number | boolean | null {
     try {
       return JSON.stringify(value);
     } catch {
-      return String(value);
+      return Object.prototype.toString.call(value);
     }
   }
-  return String(value);
+  return Object.prototype.toString.call(value);
 }
 
 function collectKeys(rows: JoinTableRow[], getter: (row: JoinTableRow) => Record<string, unknown> | null) {
@@ -277,7 +276,7 @@ async function writeJoinTableExport(database: DbClient): Promise<JoinTableExport
   const worksheet = XLSX.utils.aoa_to_sheet(matrix);
   XLSX.utils.book_append_sheet(workbook, worksheet, "Join Table");
   try {
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
     await writeFile(filePath, buffer);
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
@@ -360,5 +359,7 @@ export function ensureJoinTableExportScheduler() {
   };
 
   void run();
-  setInterval(run, SCHEDULER_POLL_MS);
+  setInterval(() => {
+    void run();
+  }, SCHEDULER_POLL_MS);
 }

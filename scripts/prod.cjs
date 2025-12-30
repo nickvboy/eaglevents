@@ -13,12 +13,20 @@ if (process.env.DATABASE_URL_PROD) {
 }
 if (process.env.DEV_SERVER_PROD) {
   process.env.DEV_SERVER = process.env.DEV_SERVER_PROD;
+  if (!process.env.PORT) {
+    try {
+      const url = new URL(process.env.DEV_SERVER_PROD);
+      if (url.port) {
+        process.env.PORT = url.port;
+      }
+    } catch {}
+  }
 }
 
 let args = process.argv.slice(2);
 if (args.length === 0) {
-  // Default to running the dev server in prod mode
-  args = ["dev"];
+  // Default to a production build + start
+  args = ["preview"];
 }
 
 // Delegate to pnpm run <script> [args...]

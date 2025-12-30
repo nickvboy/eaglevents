@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { addDays, startOfDay } from "../utils/date";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
@@ -27,6 +27,7 @@ function buildMonthGrid(refDate: Date) {
 }
 
 export function CalendarSidebar(props: MonthWidgetProps) {
+  const { onMonthChange } = props;
   const days = buildMonthGrid(props.monthDate);
   const today = startOfDay(new Date());
   const selected = startOfDay(props.selectedDate);
@@ -52,11 +53,14 @@ export function CalendarSidebar(props: MonthWidgetProps) {
     return () => window.clearTimeout(id);
   }, [animateDirection]);
 
-  const applyMonthChange = (direction: number) => {
-    if (!direction) return;
-    setAnimateDirection(direction > 0 ? "forward" : "backward");
-    props.onMonthChange(direction);
-  };
+  const applyMonthChange = useCallback(
+    (direction: number) => {
+      if (!direction) return;
+      setAnimateDirection(direction > 0 ? "forward" : "backward");
+      onMonthChange(direction);
+    },
+    [onMonthChange],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -84,7 +88,7 @@ export function CalendarSidebar(props: MonthWidgetProps) {
     return () => {
       el.removeEventListener("wheel", handleWheel);
     };
-  }, [props.monthDate, props.onMonthChange, mode]);
+  }, [applyMonthChange, mode]);
 
   useEffect(() => {
     if (mode === "month") {

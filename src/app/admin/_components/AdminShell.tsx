@@ -69,7 +69,7 @@ const tabs: TabDefinition[] = [
 
 export function AdminShell() {
   const permissionsQuery = api.admin.permissions.useQuery();
-  const capabilities = permissionsQuery.data?.capabilities ?? [];
+  const capabilities = useMemo(() => permissionsQuery.data?.capabilities ?? [], [permissionsQuery.data?.capabilities]);
   const visibleTabs = useMemo(
     () => tabs.filter((tab) => capabilities.includes(tab.requiredCapability)),
     [capabilities],

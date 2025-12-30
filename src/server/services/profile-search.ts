@@ -3,8 +3,9 @@ import { and, eq, ilike, inArray, or, isNull } from "drizzle-orm";
 
 import { env } from "~/env";
 import { profiles, users } from "~/server/db/schema";
+import type { db as dbClient } from "~/server/db";
 
-type DbClient = typeof import("~/server/db").db;
+type DbClient = typeof dbClient;
 
 export type ProfileSearchResult = {
   id: number;

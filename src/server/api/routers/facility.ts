@@ -31,18 +31,18 @@ export const facilityRouter = createTRPCRouter({
       let parsedRoom: string | null = null;
 
       const compact = upper.replace(/\s+|-/g, "");
-      const matchAcrRoom = compact.match(/^([A-Z]{1,16})([0-9][A-Z0-9]*)$/);
+      const matchAcrRoom = /^([A-Z]{1,16})([0-9][A-Z0-9]*)$/.exec(compact);
       if (matchAcrRoom) {
         parsedAcronym = matchAcronymSafe(matchAcrRoom[1] ?? null);
         parsedRoom = matchAcrRoom[2] ?? null;
       } else {
-        const m2 = upper.match(/^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/);
+        const m2 = /^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
         if (m2) {
           parsedAcronym = matchAcronymSafe(m2[1] ?? null);
           parsedRoom = m2[2] ?? null;
         } else {
-          const onlyAcr = upper.match(/^\s*([A-Z]{1,16})\s*$/);
-          const onlyRoom = upper.match(/^\s*([0-9][A-Z0-9]*)\s*$/);
+          const onlyAcr = /^\s*([A-Z]{1,16})\s*$/.exec(upper);
+          const onlyRoom = /^\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
           if (onlyAcr) parsedAcronym = matchAcronymSafe(onlyAcr[1] ?? null);
           if (onlyRoom) parsedRoom = onlyRoom[1] ?? null;
         }
@@ -98,4 +98,3 @@ function matchAcronymSafe(input: string | null): string | null {
   if (!/^[A-Z]{1,16}$/.test(trimmed)) return null;
   return trimmed;
 }
-

@@ -47,13 +47,12 @@ const GLOBAL_STATE_KEY = "__hourLogExportState";
 
 function getExportState(): HourLogExportState {
   const globalState = globalThis as typeof globalThis & { [GLOBAL_STATE_KEY]?: HourLogExportState };
-  if (!globalState[GLOBAL_STATE_KEY]) {
-    globalState[GLOBAL_STATE_KEY] = {
+  const state =
+    (globalState[GLOBAL_STATE_KEY] ??= {
       running: null,
       schedulerStarted: false,
-    };
-  }
-  return globalState[GLOBAL_STATE_KEY]!;
+    });
+  return state;
 }
 
 function getExportPaths() {
@@ -158,13 +157,17 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
     const profile = log.loggedByProfileId ? profileMap.get(log.loggedByProfileId) ?? null : null;
     const user = profile?.userId ? userMap.get(profile.userId) ?? null : null;
 
-    const displayName = user?.displayName || (profile ? `${profile.firstName} ${profile.lastName}`.trim() : "");
-    const sheetKey = formatSheetName(displayName || profile?.email || "Unknown");
+    const userDisplayName = user?.displayName?.trim();
+    const profileName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
+    const displayName = userDisplayName && userDisplayName.length > 0 ? userDisplayName : profileName;
+    const profileEmail = profile?.email?.trim();
+    const sheetLabel = displayName && displayName.length > 0 ? displayName : profileEmail ?? "Unknown";
+    const sheetKey = formatSheetName(sheetLabel);
     const rows = grouped.get(sheetKey) ?? [];
 
     rows.push([
       log.id,
-      displayName || "Unknown",
+      displayName && displayName.length > 0 ? displayName : "Unknown",
       user?.email ?? "",
       profile?.email ?? "",
       profile?.phoneNumber ?? "",
@@ -230,7 +233,7 @@ async function writeHourLogExport(database: DbClient): Promise<HourLogExportResu
   const data = await loadHourLogData(database);
   const { workbook, rowCount } = buildWorkbook(data);
   try {
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
     await writeFile(filePath, buffer);
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
@@ -313,5 +316,7 @@ export function ensureHourLogExportScheduler() {
   };
 
   void run();
-  setInterval(run, SCHEDULER_POLL_MS);
+  setInterval(() => {
+    void run();
+  }, SCHEDULER_POLL_MS);
 }

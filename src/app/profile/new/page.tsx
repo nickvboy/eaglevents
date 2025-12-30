@@ -132,12 +132,16 @@ export default function CreateProfilePage() {
           firstName,
           lastName,
           phoneNumber: digits,
-          dateOfBirth: dateOfBirth || undefined,
+          dateOfBirth: dateOfBirth.trim() ? dateOfBirth : undefined,
         }),
       });
       if (!res.ok) {
-        const payload = await res.json().catch(() => null);
-        setError(payload?.error ?? "Failed to save profile.");
+        const payload: unknown = await res.json().catch(() => null);
+        const message =
+          payload && typeof payload === "object" && "error" in payload && typeof (payload as { error?: unknown }).error === "string"
+            ? (payload as { error: string }).error
+            : null;
+        setError(message ?? "Failed to save profile.");
         return;
       }
       router.push(callbackUrl);

@@ -71,11 +71,6 @@ export function PaletteManager() {
 
   const workspacePaletteId = workspaceProfile?.paletteId ?? null;
 
-  const editingPalette = useMemo(
-    () => palettes.find((p) => p.id === selectedPaletteId),
-    [palettes, selectedPaletteId],
-  );
-
   const handleEdit = (paletteId: number) => {
     const palette = palettes.find((p) => p.id === paletteId);
     if (!palette) return;
@@ -109,7 +104,7 @@ export function PaletteManager() {
       if (selectedPaletteId === paletteId) {
         handleCreate();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to delete palette");
     }
   };
@@ -138,7 +133,7 @@ export function PaletteManager() {
       }
       setModalOpen(false);
       void utils.theme.current.invalidate();
-    } catch (error) {
+    } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to save palette");
     }
   };
@@ -152,7 +147,7 @@ export function PaletteManager() {
       });
       setStatusMessage("Assignment updated");
       void utils.theme.current.invalidate();
-    } catch (error) {
+    } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to update assignment");
     }
   };

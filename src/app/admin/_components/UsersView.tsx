@@ -104,6 +104,11 @@ function formatPhoneInput(value: string) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+function resolveDisplayName(user: Pick<AdminUser, "displayName" | "username">) {
+  const trimmed = user.displayName?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : user.username;
+}
+
 export function UsersView() {
   const { data: session } = useSession();
   const { data: permissions } = api.admin.permissions.useQuery();
@@ -164,7 +169,7 @@ export function UsersView() {
   const [grantScopeKey, setGrantScopeKey] = useState("");
   const [grantReason, setGrantReason] = useState("");
 
-  const users = data?.users ?? [];
+  const users = useMemo(() => data?.users ?? [], [data?.users]);
   const scopeOptions = useMemo(() => {
     if (!companyOverview) return [];
     const options: Array<{ value: string; label: string }> = [];
@@ -184,7 +189,7 @@ export function UsersView() {
       });
     }
     return options.sort((a, b) => a.label.localeCompare(b.label));
-  }, [companyOverview, hasBusinessAdmin]);
+  }, [companyOverview, hasBusinessAdmin, hasBusinessCoAdmin]);
 
   useEffect(() => {
     if (users.length === 0) {
@@ -219,7 +224,7 @@ export function UsersView() {
   const selectedUser = filteredUsers.find((user) => user.id === selectedUserId) ?? users.find((user) => user.id === selectedUserId) ?? null;
   const sessionUserId = session?.user?.id;
   const currentUserId = sessionUserId && Number.isFinite(Number(sessionUserId)) ? Number(sessionUserId) : null;
-  const isSelfSelected = selectedUser && currentUserId !== null && selectedUser.id === currentUserId;
+  const isSelfSelected = Boolean(selectedUser && currentUserId !== null && selectedUser.id === currentUserId);
   const isDeactivated = selectedUser ? !selectedUser.isActive : false;
 
   useEffect(() => {
@@ -257,6 +262,7 @@ export function UsersView() {
 
     try {
       const primaryRole = canEditRoles ? formState.primaryRole : undefined;
+      const trimmedDateOfBirth = formState.dateOfBirth.trim();
       await mutation.mutateAsync({
         userId: selectedUser.id,
         displayName: formState.displayName.trim(),
@@ -266,7 +272,7 @@ export function UsersView() {
               lastName: formState.lastName.trim(),
               email: formState.profileEmail.trim(),
               phoneNumber: formState.phoneNumber.trim(),
-              dateOfBirth: formState.dateOfBirth || null,
+              dateOfBirth: trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : null,
             }
           : undefined,
         primaryRole,
@@ -289,6 +295,7 @@ export function UsersView() {
     setFeedback(null);
 
     try {
+      const trimmedDateOfBirth = createFormState.dateOfBirth.trim();
       await createMutation.mutateAsync({
         username: createFormState.username.trim(),
         email: createFormState.email.trim(),
@@ -296,7 +303,7 @@ export function UsersView() {
         firstName: createFormState.firstName.trim(),
         lastName: createFormState.lastName.trim(),
         phoneNumber: createFormState.phoneNumber.trim(),
-        dateOfBirth: createFormState.dateOfBirth || undefined,
+        dateOfBirth: trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : undefined,
         primaryRole: createFormState.primaryRole,
       });
       setIsCreateOpen(false);
@@ -327,11 +334,12 @@ export function UsersView() {
     const scopeId = Number(scopeIdRaw);
     if (!scopeType || !Number.isFinite(scopeId)) return;
     try {
+      const trimmedReason = grantReason.trim();
       await addGrantMutation.mutateAsync({
         userId: selectedUser.id,
         scopeType: scopeType as "business" | "department" | "division",
         scopeId,
-        reason: grantReason.trim() || undefined,
+        reason: trimmedReason.length > 0 ? trimmedReason : undefined,
       });
       setGrantScopeKey("");
       setGrantReason("");
@@ -428,7 +436,7 @@ export function UsersView() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="font-medium text-ink-primary">{user.displayName || user.username}</span>
+                        <span className="font-medium text-ink-primary">{resolveDisplayName(user)}</span>
                         <span className="text-xs text-ink-faint">Created {user.createdAt.toLocaleDateString()}</span>
                         {!user.isActive ? (
                           <span className="text-xs font-semibold uppercase tracking-wide text-status-danger">Deactivated</span>
@@ -728,7 +736,7 @@ export function UsersView() {
             <h3 className="text-lg font-semibold text-ink-primary">Deactivate user account</h3>
             <p className="mt-2 text-sm text-ink-muted">
               This will remove{" "}
-              <span className="font-semibold text-ink-primary">{selectedUser.displayName || selectedUser.username}</span>
+              <span className="font-semibold text-ink-primary">{resolveDisplayName(selectedUser)}</span>
               {" "}from the platform while keeping their events and history intact.
             </p>
             <div className="mt-4 rounded-xl border border-status-danger/40 bg-status-danger-surface px-3 py-2 text-xs text-status-danger">

@@ -5,15 +5,16 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { calendars, users, businesses } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import type { db as dbClient } from "~/server/db";
 
-type DbClient = typeof import("~/server/db").db;
+type DbClient = typeof dbClient;
 type UserRow = typeof users.$inferSelect;
 
 async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
   // In absence of authentication, ensure a demo user exists so the app works out-of-the-box
   const email = "demo@local";
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing[0]) return existing[0]!;
+  if (existing[0]) return existing[0];
   const [inserted] = await db
     .insert(users)
     .values({ username: "demo", email, displayName: "Demo User", passwordHash: await bcrypt.hash("demo", 10) })

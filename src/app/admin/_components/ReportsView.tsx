@@ -99,7 +99,7 @@ export function ReportsView() {
   });
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [parameterValues, setParameterValues] = useState<Record<string, ParameterValuesMap>>({});
-  const exportReports = data?.exportReports ?? [];
+  const exportReports = useMemo(() => data?.exportReports ?? [], [data?.exportReports]);
 
   useEffect(() => {
     if (exportReports.length === 0) {
@@ -122,7 +122,7 @@ export function ReportsView() {
         if (!overrides) continue;
         const sanitized = sanitizeParameterValues(report, overrides);
         if (sanitized !== overrides) {
-          if (!nextState) nextState = { ...prev };
+          nextState ??= { ...prev };
           nextState[report.id] = sanitized;
         }
       }
@@ -224,7 +224,7 @@ export function ReportsView() {
       id: "zendesk",
       label: "Zendesk coverage",
       value: `${formatNumber(data.summary.zendesk.coveragePercent)}%`,
-      helper: `${data.summary.zendesk.confirmed}/${data.summary.zendesk.ticketed || 0} confirmed`,
+      helper: `${data.summary.zendesk.confirmed}/${data.summary.zendesk.ticketed ?? 0} confirmed`,
       icon: ReportIcon,
     },
   ];
@@ -452,7 +452,7 @@ export function ReportsView() {
                 </button>
               </div>
             </div>
-            {selectedReport && selectedReport.parameters && selectedReport.parameters.length > 0 && resolvedParameterValues ? (
+            {selectedReport?.parameters?.length && resolvedParameterValues ? (
               <ParameterControls
                 report={selectedReport}
                 values={resolvedParameterValues}
@@ -820,12 +820,11 @@ function SimpleTable({ report }: { report: SimpleTableReport }) {
 }
 
 function sanitizeParameterValues(report: ParameterCarrier, overrides: ParameterValuesMap): ParameterValuesMap {
-  const parameters = (report.parameters ?? []) as any[];
+  const parameters = report.parameters ?? [];
   if (parameters.length === 0) return overrides;
   let changed = false;
   const nextValues: ParameterValuesMap = { ...overrides };
-  for (const raw of parameters) {
-    const parameter = raw as any;
+  for (const parameter of parameters) {
     const current = overrides[parameter.id];
     if (parameter.type === "select" && parameter.options) {
       const normalized = String(current ?? parameter.defaultValue ?? "");
@@ -836,10 +835,7 @@ function sanitizeParameterValues(report: ParameterCarrier, overrides: ParameterV
         changed = true;
       }
     } else if (parameter.type === "number") {
-      const fallback =
-        typeof parameter.defaultValue === "number"
-          ? parameter.defaultValue
-          : Number(parameter.defaultValue ?? 0);
+      const fallback = parameter.defaultValue;
       const numericValue = getNumericValue(current, fallback);
       const min = parameter.min ?? Number.MIN_SAFE_INTEGER;
       const max = parameter.max ?? Number.MAX_SAFE_INTEGER;
@@ -849,8 +845,7 @@ function sanitizeParameterValues(report: ParameterCarrier, overrides: ParameterV
         changed = true;
       }
     } else if (parameter.type === "toggle") {
-      const fallback =
-        typeof parameter.defaultValue === "boolean" ? parameter.defaultValue : Boolean(parameter.defaultValue);
+      const fallback = parameter.defaultValue;
       const boolValue = getBooleanValue(current, fallback);
       if (boolValue !== current) {
         nextValues[parameter.id] = boolValue;
@@ -868,7 +863,7 @@ function resolveParameterValues(report: ExportReport, overrides?: ParameterValue
 }
 
 function getParameterDefaults(report: ParameterCarrier): ParameterValuesMap {
-  const parameters = (report.parameters ?? []) as BaseReportParameter[];
+  const parameters = report.parameters ?? [];
   if (parameters.length === 0) return {};
   return Object.fromEntries(parameters.map((parameter) => [parameter.id, parameter.defaultValue]));
 }
@@ -893,7 +888,7 @@ function applyReportParameters(report: ExportReport, values: ParameterValuesMap)
       if (!isSimpleTableReport(report)) return report;
       {
         const includeUnassigned = getBooleanValue(values.includeUnassigned, true);
-        const limit = Math.max(1, Math.round(getNumericValue(values.limit, report.rows.length || 1)));
+        const limit = Math.max(1, Math.round(getNumericValue(values.limit, report.rows.length)));
         const filteredRows = report.rows.filter((row) => includeUnassigned || !isUnassignedLabel(row[0]));
         return { ...report, rows: filteredRows.slice(0, limit) };
       }
@@ -981,7 +976,8 @@ function downloadCsv(filename: string, matrix: TableMatrix) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.setAttribute("download", `${filename || "report"}.csv`);
+  const safeFilename = filename.trim().length > 0 ? filename : "report";
+  link.setAttribute("download", `${safeFilename}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -996,7 +992,8 @@ function downloadExcel(filename: string, matrix: TableMatrix) {
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
-  XLSX.writeFile(workbook, `${filename || "report"}.xlsx`);
+  const safeFilename = filename.trim().length > 0 ? filename : "report";
+  XLSX.writeFile(workbook, `${safeFilename}.xlsx`);
 }
 
 function slugify(value: string) {

@@ -32,7 +32,7 @@ export function endOfMonth(date: Date): Date {
 export function getMonthBuckets(endDate: Date, count: number): MonthBucket[] {
   if (count <= 0) return [];
   const buckets: MonthBucket[] = [];
-  let cursor = startOfMonth(clone(endDate));
+  const cursor = startOfMonth(clone(endDate));
   for (let i = count - 1; i >= 0; i--) {
     const start = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - i, 1));
     const end = endOfMonth(start);
@@ -48,7 +48,7 @@ export function getMonthBuckets(endDate: Date, count: number): MonthBucket[] {
 export function bucketizeByMonth(dates: Date[], bucketCount: number, endDate = new Date()): SeriesPoint[] {
   const buckets = getMonthBuckets(endDate, bucketCount);
   if (buckets.length === 0) return [];
-  const counts = Array(buckets.length).fill(0);
+  const counts = Array.from({ length: buckets.length }, () => 0);
   for (const date of dates) {
     const time = date.getTime();
     for (let index = buckets.length - 1; index >= 0; index--) {
@@ -82,4 +82,3 @@ export function calculateTrendDelta(current: number, previous: number): TrendDel
 export function sumSeries(series: SeriesPoint[]): number {
   return series.reduce((acc, point) => acc + point.value, 0);
 }
-

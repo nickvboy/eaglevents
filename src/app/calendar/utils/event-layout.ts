@@ -58,19 +58,19 @@ export function positionEventsForDay(events: CalendarEvent[]): PositionedEvent[]
   let maxConcurrency = 0;
 
   const flushGroup = (fromIdx: number, toExclusive: number, columns: number) => {
-      for (let i = fromIdx; i < toExclusive; i++) {
-        const { e, start, end } = items[i]!;
-        const top = minutesSinceStartOfDay(start);
-        const height = Math.max(15, (end.getTime() - start.getTime()) / 60000);
-        const lane = (result[i]?.lane ?? 0);
-        result[i] = {
-          event: e as CalendarEvent,
-          top,
-          height,
-          lane,
-          laneCount: Math.max(columns, 1),
-        };
-      }
+    for (let i = fromIdx; i < toExclusive; i++) {
+      const { e, start, end } = items[i]!;
+      const top = minutesSinceStartOfDay(start);
+      const height = Math.max(15, (end.getTime() - start.getTime()) / 60000);
+      const lane = result[i]?.lane ?? 0;
+      result[i] = {
+        event: e,
+        top,
+        height,
+        lane,
+        laneCount: Math.max(columns, 1),
+      };
+    }
   };
 
   for (let i = 0; i < items.length; i++) {
@@ -93,12 +93,12 @@ export function positionEventsForDay(events: CalendarEvent[]): PositionedEvent[]
     maxConcurrency = Math.max(maxConcurrency, active.length);
     // store lane so we can flush later
     result[i] = {
-      event: cur.e as CalendarEvent,
+      event: cur.e,
       top: 0,
       height: 0,
       lane,
       laneCount: 1,
-    } as PositionedEvent;
+    };
   }
 
   // flush remaining

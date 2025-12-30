@@ -20,43 +20,47 @@ function resolveBaseUrl(baseUrl: string) {
   return explicit ?? baseUrl;
 }
 
+const resolvedBaseUrl = resolveBaseUrl("http://localhost:3000");
+const useSecureCookies = env.NODE_ENV === "production" && resolvedBaseUrl.startsWith("https://");
+
 export const authOptions: NextAuthOptions = {
   secret: env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
+  useSecureCookies,
   cookies: {
     sessionToken: {
       name:
-        env.NODE_ENV === "production"
+        useSecureCookies
           ? "__Secure-t3app.session-token"
           : "t3app.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: env.NODE_ENV === "production",
+        secure: useSecureCookies,
       },
     },
     csrfToken: {
       name: "t3app.csrf-token",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: env.NODE_ENV === "production" },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     nonce: {
       name: "t3app.nonce",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: env.NODE_ENV === "production" },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     state: {
       name: "t3app.state",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: env.NODE_ENV === "production" },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     pkceCodeVerifier: {
       name: "t3app.pkce",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: env.NODE_ENV === "production" },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     callbackUrl: {
       name: "t3app.callback-url",
-      options: { sameSite: "lax", path: "/", secure: env.NODE_ENV === "production" },
+      options: { sameSite: "lax", path: "/", secure: useSecureCookies },
     },
   },
   pages: {
@@ -74,7 +78,7 @@ export const authOptions: NextAuthOptions = {
         if (!parsed.success) return null;
         const { identifier, password } = parsed.data;
 
-        const isEmail = /@/.test(identifier);
+        const isEmail = identifier.includes("@");
 
         const rows = await db
           .select()
@@ -104,7 +108,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id as string;
+        token.id = typeof user.id === "string" ? user.id : String(user.id);
         token.name = user.name;
         token.email = user.email;
       }
@@ -112,9 +116,11 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user && token) {
-        session.user.id = token.id as string;
+        if (token.id) {
+          session.user.id = token.id;
+        }
         session.user.name = token.name;
-        session.user.email = token.email as string | null;
+        session.user.email = typeof token.email === "string" ? token.email : null;
       }
       return session;
     },

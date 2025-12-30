@@ -2,9 +2,10 @@ import { faker } from "@faker-js/faker";
 import type { Session } from "next-auth";
 
 import type { db } from "~/server/db";
+import type { appRouter } from "~/server/api/root";
 
 type DbClient = typeof db;
-type Caller = ReturnType<(typeof import("~/server/api/root"))["appRouter"]["createCaller"]>;
+type Caller = ReturnType<typeof appRouter.createCaller>;
 
 export type SeedMode = "workspace" | "events" | "full" | "revert";
 
@@ -48,7 +49,7 @@ export function getDefaultEventCount(mode: SeedMode) {
 }
 
 export async function runSeed(options: SeedRunOptions, runtime: SeedRuntime): Promise<SeedRunResult> {
-  const log = runtime.log ?? (() => {});
+  const log = runtime.log ?? (() => undefined);
 
   if (options.mode === "revert") {
     await revertSeededData(runtime.db, log);

@@ -35,8 +35,12 @@ export default function SignupPage() {
         body: JSON.stringify({ username, email, password }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? "Failed to sign up");
+        const payload: unknown = await res.json().catch(() => null);
+        const message =
+          payload && typeof payload === "object" && "error" in payload && typeof (payload as { error?: unknown }).error === "string"
+            ? (payload as { error: string }).error
+            : null;
+        setError(message ?? "Failed to sign up");
         return;
       }
       const login = await signIn("credentials", {

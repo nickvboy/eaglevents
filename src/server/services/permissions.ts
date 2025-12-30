@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or, type SQL } from "drizzle-orm";
 import type { Session } from "next-auth";
 
 import {
@@ -383,18 +383,27 @@ export async function getAllowedUserScopeIds(dbClient: DbClient, userId: number)
 }
 
 export async function getUsersInScopes(dbClient: DbClient, scopeIds: { departmentIds: number[]; divisionIds: number[] }) {
-  const scopeConditions: any[] = [];
+  const scopeConditions: SQL<unknown>[] = [];
   if (scopeIds.departmentIds.length > 0) {
-    scopeConditions.push(and(eq(organizationRoles.scopeType, "department"), inArray(organizationRoles.scopeId, scopeIds.departmentIds)));
+    const departmentCondition = and(
+      eq(organizationRoles.scopeType, "department"),
+      inArray(organizationRoles.scopeId, scopeIds.departmentIds),
+    );
+    if (departmentCondition) scopeConditions.push(departmentCondition);
   }
   if (scopeIds.divisionIds.length > 0) {
-    scopeConditions.push(and(eq(organizationRoles.scopeType, "division"), inArray(organizationRoles.scopeId, scopeIds.divisionIds)));
+    const divisionCondition = and(
+      eq(organizationRoles.scopeType, "division"),
+      inArray(organizationRoles.scopeId, scopeIds.divisionIds),
+    );
+    if (divisionCondition) scopeConditions.push(divisionCondition);
   }
   if (scopeConditions.length === 0) return [];
 
-  let condition = scopeConditions[0]!;
-  for (let i = 1; i < scopeConditions.length; i += 1) {
-    condition = or(condition, scopeConditions[i]!);
+  const [first, ...rest] = scopeConditions;
+  let condition = first;
+  for (const scopeCondition of rest) {
+    condition = or(condition, scopeCondition) ?? condition;
   }
 
   const rows = await dbClient

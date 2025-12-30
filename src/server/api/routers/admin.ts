@@ -52,8 +52,9 @@ import {
   requireAdminCapability,
 } from "~/server/services/permissions";
 import bcrypt from "bcryptjs";
+import type { db as dbClient } from "~/server/db";
 
-type DbClient = typeof import("~/server/db").db;
+type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
 type DbExecutor = Pick<DbClient, "execute">;
 
@@ -572,11 +573,6 @@ async function findDefaultDepartmentScope(db: DbReader, businessId: number) {
     .limit(1);
   if (!department) return null;
   return { scopeType: "department" as const, scopeId: department.id };
-}
-
-async function requireAdminOrManager(ctx: { db: DbClient; session: Session | null }) {
-  const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
-  return { userId: context.userId, roleType: context.primaryRole };
 }
 
 function wouldCreateDepartmentCycle(
@@ -1288,21 +1284,30 @@ export const adminRouter = createTRPCRouter({
     let scopeCondition = and(gte(events.startDatetime, windowStart), lt(events.startDatetime, now));
     const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
     if (!visibleScopes.business) {
-      const scopeFilters: unknown[] = [];
+      const scopeFilters: SQL<unknown>[] = [];
       if (visibleScopes.departmentIds.length > 0) {
-        scopeFilters.push(and(eq(events.scopeType, "department"), inArray(events.scopeId, visibleScopes.departmentIds)));
+        const departmentCondition = and(
+          eq(events.scopeType, "department"),
+          inArray(events.scopeId, visibleScopes.departmentIds),
+        );
+        if (departmentCondition !== undefined) scopeFilters.push(departmentCondition);
       }
       if (visibleScopes.divisionIds.length > 0) {
-        scopeFilters.push(and(eq(events.scopeType, "division"), inArray(events.scopeId, visibleScopes.divisionIds)));
+        const divisionCondition = and(
+          eq(events.scopeType, "division"),
+          inArray(events.scopeId, visibleScopes.divisionIds),
+        );
+        if (divisionCondition !== undefined) scopeFilters.push(divisionCondition);
       }
       if (scopeFilters.length === 0) {
         scopeCondition = and(scopeCondition, sql`false`);
       } else {
-        let scopeCombined = scopeFilters[0] as any;
-        for (let i = 1; i < scopeFilters.length; i += 1) {
-          scopeCombined = or(scopeCombined, scopeFilters[i] as any);
+        const [first, ...rest] = scopeFilters;
+        let scopeCombined = first;
+        for (const filter of rest) {
+          scopeCombined = or(scopeCombined, filter) ?? scopeCombined;
         }
-        scopeCondition = and(scopeCondition, scopeCombined);
+        scopeCondition = and(scopeCondition, scopeCombined) ?? scopeCondition;
       }
     }
 
@@ -1591,7 +1596,7 @@ export const adminRouter = createTRPCRouter({
     const zendeskQueue = Array.from(queueMap.values())
       .filter((item) => !item.hasConfirmation)
       .slice(0, 6)
-      .map(({ hasConfirmation, ...rest }) => rest);
+      .map(({ hasConfirmation: _hasConfirmation, ...rest }) => rest);
 
     const yearOptions = monthlyReportYears.map((year) => ({
       label: String(year.year),
@@ -2832,7 +2837,7 @@ export const adminRouter = createTRPCRouter({
           .from(departments)
           .where(eq(departments.id, parentId))
           .limit(1);
-        if (!parentRow || parentRow.businessId !== businessId) {
+        if (parentRow?.businessId !== businessId) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
         }
       }
@@ -2867,7 +2872,7 @@ export const adminRouter = createTRPCRouter({
         .from(departments)
         .where(eq(departments.id, input.departmentId))
         .limit(1);
-      if (!departmentRow || departmentRow.businessId !== businessId) {
+      if (departmentRow?.businessId !== businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
       }
 
@@ -2887,7 +2892,7 @@ export const adminRouter = createTRPCRouter({
             .from(departments)
             .where(eq(departments.id, parentId))
             .limit(1);
-          if (!parentRow || parentRow.businessId !== businessId) {
+          if (parentRow?.businessId !== businessId) {
             throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
           }
         }
@@ -2920,7 +2925,7 @@ export const adminRouter = createTRPCRouter({
         .from(departments)
         .where(eq(departments.id, input.departmentId))
         .limit(1);
-      if (!departmentRow || departmentRow.businessId !== businessId) {
+      if (departmentRow?.businessId !== businessId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
       }
       await ctx.db.delete(departments).where(eq(departments.id, input.departmentId));
@@ -2989,7 +2994,7 @@ export const adminRouter = createTRPCRouter({
           .from(departments)
           .where(eq(departments.id, input.scopeId))
           .limit(1);
-        if (!departmentRow || departmentRow.businessId !== businessId) {
+        if (departmentRow?.businessId !== businessId) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Department scope not found." });
         }
         const isDivision = departmentRow.parentDepartmentId !== null;
@@ -3340,6 +3345,8 @@ export const adminRouter = createTRPCRouter({
         }
         dateOfBirth = input.dateOfBirth;
       }
+
+      const managerVisibleScopes = isManager ? await getVisibleScopes(ctx.db, context.userId) : null;
 
       return ctx.db.transaction(async (tx) => {
         const [existingUser] = await tx

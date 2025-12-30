@@ -87,11 +87,9 @@ export async function resolvePalette(
     }
   }
 
-  if (!paletteRow) {
-    paletteRow = await fetchProfilePalette(database, businessId, "business", businessId);
-  }
+  paletteRow ??= await fetchProfilePalette(database, businessId, "business", businessId);
 
-  if (!paletteRow || !paletteRow.paletteId || !paletteRow.paletteTokens) {
+  if (!paletteRow?.paletteId || !paletteRow?.paletteTokens) {
     return {
       paletteId: null,
       tokens: DEFAULT_THEME_PALETTE,

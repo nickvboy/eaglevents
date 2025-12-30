@@ -368,7 +368,6 @@ export const setupRouter = createTRPCRouter({
     ] as const;
 
     const defaultUsers = status.missingAdmins.flatMap((missing) => {
-      const scopeLabel = slugify(missing.label) || "scope";
       const scopeSuffix = String(missing.scopeId).padStart(4, "0").slice(-4);
 
       return roleVariants.map((variant) => {
