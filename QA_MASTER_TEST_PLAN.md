@@ -51,13 +51,21 @@ Use this checklist to validate end-to-end user flows before release. Each item i
 - [ ] Verify layout hides sidebar on /login, /signup, /setup.
 
 ## Database Seeding Flow
-- [ ] Open Admin > Database; verify seed panel loads.
-- [ ] Seed mode: Full (workspace + events); verify success message and logs.
-- [ ] Seed mode: Workspace only; verify success message and updated counts.
-- [ ] Seed mode: Events only with count = 0; verify no events created.
-- [ ] Seed mode: Events only with count > 0; verify events created.
-- [ ] Seed mode: Revert; verify confirmation required and data removed.
-- [ ] Set Faker seed; run seed twice; verify deterministic data.
+- [ ] Open Admin > Database; verify seed panel loads with mode options (Full, Workspace, Events, Revert).
+- [ ] Full mode: run with default count (~420); verify success, logs, and historical events spanning 7 years.
+- [ ] Full mode: verify events include Zendesk tickets, hour logs, attendees, and varied properties.
+- [ ] Workspace mode: run seed; verify business, buildings, departments, users created; no events.
+- [ ] Workspace mode: run again; verify idempotent (logs show "already exists" messages).
+- [ ] Events mode: set count = 0; verify no events created.
+- [ ] Events mode: set count = 15; verify 15 events in next 90 days with existing users.
+- [ ] Events mode: verify error if workspace not initialized.
+- [ ] Department targets: add specific department/division counts; verify events created for those scopes.
+- [ ] Faker seed: set seed value; run twice; verify deterministic data (identical results).
+- [ ] Revert mode: enter confirmation; verify all workspace data removed and setup reset.
+- [ ] Revert mode: run on clean database; verify "already clean" message.
+- [ ] Verify event count validation (0-10000) and Faker seed validation (numeric).
+- [ ] Verify seeded events use real buildings/rooms and have realistic times and properties.
+- [ ] Verify seed logs display during operation and show detailed progress.
 
 ## Global Search
 - [ ] Search by event ID; verify navigation to calendar with event focused.

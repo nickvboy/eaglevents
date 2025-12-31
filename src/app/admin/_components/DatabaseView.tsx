@@ -116,7 +116,7 @@ export function DatabaseView() {
   const [rangeStartDate, setRangeStartDate] = useState("");
   const [rangeEndDate, setRangeEndDate] = useState("");
   const [rangeConfirmText, setRangeConfirmText] = useState("");
-  const [deleteAllChecked, setDeleteAllChecked] = useState(false);
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false);
 
   const eventsQuery = api.admin.databaseEvents.useQuery(eventQuery);
   const rangeInput = useMemo(() => {
@@ -127,7 +127,7 @@ export function DatabaseView() {
     return { start, end };
   }, [rangeEndDate, rangeStartDate]);
   const rangeCountQuery = api.admin.databaseEventCount.useQuery(rangeInput ?? skipToken, {
-    enabled: Boolean(rangeInput) && !deleteAllChecked,
+    enabled: Boolean(rangeInput),
   });
 
   const deleteMutation = api.admin.deleteEvent.useMutation({
@@ -152,6 +152,7 @@ export function DatabaseView() {
       await utils.admin.databaseEventCount.invalidate();
     },
   });
+
 
   const departmentList = useMemo(() => {
     const list = setupStatusQuery.data?.departments.flat ?? [];
@@ -183,11 +184,12 @@ export function DatabaseView() {
     return { targets, invalidKeys };
   }, [departmentEventInputs, departmentList]);
 
-  const canDeleteRange =
-    rangeConfirmText.trim().toUpperCase() === "DELETE" && (deleteAllChecked || Boolean(rangeInput));
+  const deleteConfirmReady = rangeConfirmText.trim().toUpperCase() === "DELETE";
   const canDeleteSelected = pendingDelete && deleteConfirmText.trim().toUpperCase() === "DELETE";
   const totalEvents = summaryQuery.data?.counts.events ?? 0;
-  const rangeCountValue = deleteAllChecked ? totalEvents : rangeCountQuery.data?.count ?? 0;
+  const rangeCountValue = rangeCountQuery.data?.count ?? 0;
+  const isDeleteAllMode = !rangeInput;
+  const canDeleteRange = deleteConfirmReady;
   const seedNeedsEventCount = seedMode === "events" || seedMode === "full";
   const seedEventCountValue = seedNeedsEventCount ? Number(seedEventCount) : null;
   const seedEventCountValid =
@@ -795,20 +797,9 @@ export function DatabaseView() {
         <header className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold text-status-danger">Bulk delete events</h2>
           <p className="text-sm text-status-danger">
-            Remove events that start within a date range. This cannot be undone.
+            Remove events that overlap a date range, or leave it empty to delete everything. This cannot be undone.
           </p>
         </header>
-        <div className="mt-4 rounded-xl border border-status-danger bg-surface-raised px-4 py-3 text-sm text-status-danger">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={deleteAllChecked}
-              onChange={(event) => setDeleteAllChecked(event.target.checked)}
-              className="h-4 w-4 accent-status-danger"
-            />
-            Delete all events (ignore date range)
-          </label>
-        </div>
         <div className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm font-semibold text-status-danger">
@@ -817,7 +808,6 @@ export function DatabaseView() {
                 type="date"
                 value={rangeStartDate}
                 onChange={(event) => setRangeStartDate(event.target.value)}
-                disabled={deleteAllChecked}
                 className="rounded-lg border border-status-danger bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
               />
             </label>
@@ -827,7 +817,6 @@ export function DatabaseView() {
                 type="date"
                 value={rangeEndDate}
                 onChange={(event) => setRangeEndDate(event.target.value)}
-                disabled={deleteAllChecked}
                 className="rounded-lg border border-status-danger bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
               />
             </label>
@@ -835,11 +824,7 @@ export function DatabaseView() {
           <div className="flex flex-col justify-between gap-2 rounded-xl border border-status-danger bg-surface-raised px-4 py-3 text-xs text-status-danger">
             <span className="uppercase tracking-[0.2em]">Range summary</span>
             <span className="text-sm font-semibold">
-              {deleteAllChecked
-                ? `${rangeCountValue} events matched`
-                : rangeInput
-                  ? `${rangeCountValue} events matched`
-                  : "Choose a range"}
+              {rangeInput ? `${rangeCountValue} events matched` : `${totalEvents} events total`}
             </span>
             <span className="text-xs text-ink-subtle">End date is inclusive.</span>
           </div>
@@ -866,24 +851,21 @@ export function DatabaseView() {
           <div className="flex flex-col justify-end gap-2 rounded-xl border border-status-danger bg-surface-raised p-4">
             <button
               type="button"
-              disabled={
-                !canDeleteRange || deleteRangeMutation.isPending || deleteAllMutation.isPending
-              }
+              disabled={!canDeleteRange || deleteRangeMutation.isPending || deleteAllMutation.isPending}
               onClick={async () => {
-                if (deleteAllChecked) {
-                  await deleteAllMutation.mutateAsync();
-                } else {
-                  if (!rangeInput) return;
-                  await deleteRangeMutation.mutateAsync(rangeInput);
+                if (isDeleteAllMode) {
+                  setDeleteAllModalOpen(true);
+                  return;
                 }
+                if (!rangeInput) return;
+                await deleteRangeMutation.mutateAsync(rangeInput);
                 setRangeConfirmText("");
-                setDeleteAllChecked(false);
               }}
               className="rounded-full bg-status-danger px-4 py-2 text-sm font-semibold text-white transition hover:bg-status-danger/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {deleteRangeMutation.isPending || deleteAllMutation.isPending
                 ? "Deleting..."
-                : deleteAllChecked
+                : isDeleteAllMode
                   ? "Delete all events"
                   : "Delete events in range"}
             </button>
@@ -891,6 +873,37 @@ export function DatabaseView() {
           </div>
         </div>
       </section>
+      {deleteAllModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+            <h3 className="text-lg font-semibold text-status-danger">Confirm delete all events</h3>
+            <p className="mt-2 text-sm text-ink-muted">
+              This removes all events and related records across the system. This cannot be undone.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteAllModalOpen(false)}
+                className="rounded-full border border-outline-muted px-4 py-2 text-sm font-semibold text-ink-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteAllMutation.isPending}
+                onClick={async () => {
+                  await deleteAllMutation.mutateAsync();
+                  setDeleteAllModalOpen(false);
+                  setRangeConfirmText("");
+                }}
+                className="rounded-full bg-status-danger px-4 py-2 text-sm font-semibold text-white transition hover:bg-status-danger/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteAllMutation.isPending ? "Deleting..." : "Delete all events"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

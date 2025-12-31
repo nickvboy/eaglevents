@@ -6,6 +6,7 @@ import type { appRouter } from "~/server/api/root";
 
 type DbClient = typeof db;
 type Caller = ReturnType<typeof appRouter.createCaller>;
+type EventCreateInput = Parameters<Caller["event"]["create"]>[0];
 
 export type SeedMode = "workspace" | "events" | "full" | "revert";
 
@@ -48,6 +49,7 @@ const FULL_SEED_MONTHS = FULL_SEED_YEARS * 12;
 const FULL_MODE_EVENTS_PER_MONTH = 5;
 export const DEFAULT_FULL_EVENT_COUNT = FULL_SEED_MONTHS * FULL_MODE_EVENTS_PER_MONTH;
 export const DEFAULT_EVENT_COUNT = 15;
+const MAX_CONCURRENT_EVENT_REQUESTS = 6;
 
 export function getDefaultEventCount(mode: SeedMode) {
   if (mode === "full") return DEFAULT_FULL_EVENT_COUNT;
@@ -253,24 +255,42 @@ export async function seedEvents({
       return 0;
     }
 
-    const createdEvents: Array<{ id: number; summary: string }> = [];
     const startDates = buildStartDates(targetEventCount);
 
-    for (const start of startDates) {
-      const owner = faker.helpers.arrayElement(ownerPool);
-      const session = buildSession(owner);
-      const userCaller = await createCallerForSession(session);
-      const calendarId = await ensureCalendarId(owner.userId);
+    const callerCache = new Map<number, Promise<Caller>>();
+    const calendarCache = new Map<number, Promise<number>>();
 
+    const getCallerForOwner = (owner: { userId: number; name: string; email: string }) => {
+      let cached = callerCache.get(owner.userId);
+      if (!cached) {
+        cached = createCallerForSession(buildSession(owner));
+        callerCache.set(owner.userId, cached);
+      }
+      return cached;
+    };
+
+    const getCalendarIdForOwner = (owner: { userId: number; name: string; email: string }) => {
+      let cached = calendarCache.get(owner.userId);
+      if (!cached) {
+        cached = ensureCalendarId(owner.userId);
+        calendarCache.set(owner.userId, cached);
+      }
+      return cached;
+    };
+
+    const seedSpecs = startDates.map((start) => {
+      const owner = faker.helpers.arrayElement(ownerPool);
       const durationHours = faker.number.int({ min: 1, max: 4 });
       const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
 
       const building = buildingPool.length > 0 ? faker.helpers.arrayElement(buildingPool) : null;
       const room = building && building.rooms.length > 0 ? faker.helpers.arrayElement(building.rooms) : null;
-      const attendeeIds = faker.helpers.arrayElements(
-        profilePool.filter((profile) => profile.profileId !== owner.profileId),
-        faker.number.int({ min: 0, max: 3 }),
-      ).map((profile) => profile.profileId);
+      const attendeeIds = faker.helpers
+        .arrayElements(
+          profilePool.filter((profile) => profile.profileId !== owner.profileId),
+          faker.number.int({ min: 0, max: 3 }),
+        )
+        .map((profile) => profile.profileId);
 
       const includeHours = faker.number.int({ min: 0, max: 99 }) < 65;
       const hourLogs =
@@ -286,11 +306,16 @@ export async function seedEvents({
             })()
           : undefined;
 
-      const zendeskTicketNumber = faker.number.int({ min: 0, max: 99 }) < 40 ? `ZD${faker.string.numeric(6)}` : undefined;
+      const zendeskTicketNumber =
+        faker.number.int({ min: 0, max: 99 }) < 40 ? `ZD${faker.string.numeric(6)}` : undefined;
       const description = faker.lorem.paragraph();
-      const event = await userCaller.event.create({
-        calendarId,
-        title: `${faker.company.buzzAdjective()} ${faker.word.words({ count: { min: 1, max: 3 } })}`.replace(/\b\w/g, (c) => c.toUpperCase()),
+      const confirmZendesk = Boolean(hourLogs) && faker.number.int({ min: 0, max: 99 }) < 50;
+
+      const eventInputBase: Omit<EventCreateInput, "calendarId"> = {
+        title: `${faker.company.buzzAdjective()} ${faker.word.words({ count: { min: 1, max: 3 } })}`.replace(
+          /\b\w/g,
+          (c) => c.toUpperCase(),
+        ),
         description,
         location: building && room ? `${building.acronym} ${room.roomNumber}` : faker.location.streetAddress(),
         buildingId: building?.id ?? null,
@@ -309,17 +334,37 @@ export async function seedEvents({
         zendeskTicketNumber,
         hourLogs,
         ...(scopeType && scopeId ? { scopeType, scopeId } : {}),
+      };
+
+      return {
+        owner,
+        eventInputBase,
+        confirmZendesk,
+      };
+    });
+
+    let createdCount = 0;
+
+    await runWithConcurrency(seedSpecs, MAX_CONCURRENT_EVENT_REQUESTS, async (spec) => {
+      const [userCaller, calendarId] = await Promise.all([
+        getCallerForOwner(spec.owner),
+        getCalendarIdForOwner(spec.owner),
+      ]);
+
+      const event = await userCaller.event.create({
+        ...spec.eventInputBase,
+        calendarId,
       });
 
-      createdEvents.push({ id: event.id, summary: event.title });
+      createdCount += 1;
 
-      if (hourLogs && faker.number.int({ min: 0, max: 99 }) < 50) {
+      if (spec.confirmZendesk) {
         await userCaller.event.confirmZendesk({ eventId: event.id });
       }
-    }
+    });
 
-    log(`Seeded ${createdEvents.length} events${label ? ` for ${label}` : ""}`);
-    return createdEvents.length;
+    log(`Seeded ${createdCount} events${label ? ` for ${label}` : ""}`);
+    return createdCount;
   };
 
   let seededEvents = 0;
@@ -478,7 +523,8 @@ function buildUpcomingStartDates(eventCount: number): Date[] {
     const bucket = weekdayBuckets.get(weekday) ?? [];
     const candidate =
       bucket.length > 0
-        ? bucket.splice(faker.number.int({ min: 0, max: bucket.length - 1 }), 1)[0]
+        ? bucket.splice(faker.number.int({ min: 0, max: bucket.length - 1 }), 1)[0] ??
+          faker.helpers.arrayElement(candidateDates)
         : faker.helpers.arrayElement(candidateDates);
     const jitterHours = faker.number.int({ min: 0, max: 4 });
     const jitterMinutes = faker.number.int({ min: 0, max: 59 });
@@ -519,4 +565,25 @@ function pickDateForWeekdayInRange(start: Date, end: Date, weekday: number) {
   }
   if (candidates.length === 0) return null;
   return faker.helpers.arrayElement(candidates);
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) return;
+  const safeLimit = Math.max(1, Math.min(limit, items.length));
+  let index = 0;
+
+  const runners = Array.from({ length: safeLimit }, async () => {
+    while (true) {
+      const current = index;
+      index += 1;
+      if (current >= items.length) break;
+      await worker(items[current] as T);
+    }
+  });
+
+  await Promise.all(runners);
 }

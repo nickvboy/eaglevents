@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
@@ -529,11 +529,18 @@ function parseDateOnly(value: string | Date | null) {
 
 function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?: Date }) {
   const conditions: SQL<unknown>[] = [];
-  if (input?.start) {
-    conditions.push(gte(events.startDatetime, input.start));
-  }
-  if (input?.end) {
-    conditions.push(lt(events.startDatetime, input.end));
+  if (input?.start && input?.end) {
+    const overlapCondition = and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start));
+    if (overlapCondition) {
+      conditions.push(overlapCondition);
+    }
+  } else {
+    if (input?.start) {
+      conditions.push(gte(events.startDatetime, input.start));
+    }
+    if (input?.end) {
+      conditions.push(lt(events.startDatetime, input.end));
+    }
   }
   if (input?.search) {
     const trimmed = input.search.trim();
@@ -2533,7 +2540,7 @@ export const adminRouter = createTRPCRouter({
       const [row] = await ctx.db
         .select({ count: sql<number>`count(*)::int` })
         .from(events)
-        .where(and(gte(events.startDatetime, input.start), lt(events.startDatetime, input.end)));
+        .where(and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start)));
       return { count: row?.count ?? 0 };
     }),
 
@@ -2578,7 +2585,7 @@ export const adminRouter = createTRPCRouter({
       const eventRows = await ctx.db
         .select({ id: events.id })
         .from(events)
-        .where(and(gte(events.startDatetime, input.start), lt(events.startDatetime, input.end)));
+        .where(and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start)));
       const eventIds = eventRows.map((row) => row.id);
       if (eventIds.length === 0) return { deleted: 0 };
 
