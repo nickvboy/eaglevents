@@ -16,7 +16,6 @@ db.sqlite
 # next.js
 /.next/
 /out/
-next-env.d.ts
 
 # production
 /build
@@ -24,16 +23,28 @@ next-env.d.ts
 # misc
 .DS_Store
 *.pem
-*.xls
-*.xlsx
-*.xlsm
-*.xlsb
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Application logs
+/logs
+*.log
+!/logs/
+!/logs/.gitkeep
+
+# Export files (generated dynamically)
+/exports/**/*.xlsx
+/exports/**/*.xls
+/exports/**/*.xlsm
+/exports/**/*.xlsb
+/exports/**/backups
+
+# Keep export directory structure
+!/exports/.gitkeep
 
 # local env files
 # do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
