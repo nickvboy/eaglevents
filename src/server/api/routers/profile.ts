@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { indexProfile, searchProfiles } from "~/server/services/profile-search";
 import { profiles } from "~/server/db/schema";
 
@@ -26,7 +26,7 @@ export const profileRouter = createTRPCRouter({
         displayName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
       }));
     }),
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z
         .object({

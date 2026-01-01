@@ -3,7 +3,7 @@ import { and, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type SQL } from "d
 import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   auditLogs,
   buildings,
@@ -1033,7 +1033,7 @@ async function resetIdentitySequences(db: DbExecutor) {
 }
 
 export const adminRouter = createTRPCRouter({
-  dashboard: publicProcedure.query(async ({ ctx }) => {
+  dashboard: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "dashboard:view");
     const now = new Date();
     const trendRangeStart = startOfMonth(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (MONTHS_IN_TREND - 1), 1)));
@@ -1283,7 +1283,7 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  reports: publicProcedure.query(async ({ ctx }) => {
+  reports: protectedProcedure.query(async ({ ctx }) => {
     const context = await requireAdminCapability(ctx.db, ctx.session, "reports:view");
     const now = new Date();
     const windowStart = new Date(now.getTime() - REPORT_WINDOW_DAYS * MS_IN_DAY);
@@ -1760,12 +1760,12 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  joinTableExportStatus: publicProcedure.query(async ({ ctx }) => {
+  joinTableExportStatus: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
     return getJoinTableExportStatus();
   }),
 
-  refreshJoinTableExport: publicProcedure
+  refreshJoinTableExport: protectedProcedure
     .input(
       z
         .object({
@@ -1783,12 +1783,12 @@ export const adminRouter = createTRPCRouter({
       };
   }),
 
-  hourLogExportStatus: publicProcedure.query(async ({ ctx }) => {
+  hourLogExportStatus: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
     return getHourLogExportStatus();
   }),
 
-  refreshHourLogExport: publicProcedure
+  refreshHourLogExport: protectedProcedure
     .input(
       z
         .object({
@@ -1806,7 +1806,7 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  exportSnapshot: publicProcedure
+  exportSnapshot: protectedProcedure
     .input(z.object({ note: z.string().max(500).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
@@ -1858,7 +1858,7 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  importIcsEvents: publicProcedure
+  importIcsEvents: protectedProcedure
     .input(
       z.object({
         calendarId: z.number().int().positive(),
@@ -1934,7 +1934,7 @@ export const adminRouter = createTRPCRouter({
       return { inserted: values.length };
     }),
 
-  importSnapshot: publicProcedure
+  importSnapshot: protectedProcedure
     .input(snapshotSchema)
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
@@ -2302,7 +2302,7 @@ export const adminRouter = createTRPCRouter({
       };
   }),
 
-  databaseSummary: publicProcedure.query(async ({ ctx }) => {
+  databaseSummary: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "database:manage");
     const [
       eventsCount,
@@ -2363,7 +2363,7 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  seedDatabase: publicProcedure
+  seedDatabase: protectedProcedure
     .input(
       z.object({
         mode: z.enum(["workspace", "events", "full", "revert"]),
@@ -2443,7 +2443,7 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  databaseEvents: publicProcedure
+  databaseEvents: protectedProcedure
     .input(
       z
         .object({
@@ -2528,7 +2528,7 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  databaseEventCount: publicProcedure
+  databaseEventCount: protectedProcedure
     .input(
       z.object({
         start: z.coerce.date(),
@@ -2544,7 +2544,7 @@ export const adminRouter = createTRPCRouter({
       return { count: row?.count ?? 0 };
     }),
 
-  deleteEvent: publicProcedure
+  deleteEvent: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "database:manage");
@@ -2571,7 +2571,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.id };
     }),
 
-  deleteEventsByRange: publicProcedure
+  deleteEventsByRange: protectedProcedure
     .input(
       z
         .object({
@@ -2607,7 +2607,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: eventIds.length };
     }),
 
-  deleteAllEvents: publicProcedure.mutation(async ({ ctx }) => {
+  deleteAllEvents: protectedProcedure.mutation(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "database:manage");
     const [countRow] = await ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
     const total = countRow?.count ?? 0;
@@ -2631,7 +2631,7 @@ export const adminRouter = createTRPCRouter({
     return { deleted: total };
   }),
 
-  companyOverview: publicProcedure.query(async ({ ctx }) => {
+  companyOverview: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "company:manage");
     const status = await getSetupStatus(ctx.db);
     return {
@@ -2641,7 +2641,7 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  updateBusiness: publicProcedure
+  updateBusiness: protectedProcedure
     .input(z.object({ name: z.string().min(2).max(255), type: z.enum(businessTypeValues) }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2657,7 +2657,7 @@ export const adminRouter = createTRPCRouter({
       return { id: status.business.id };
     }),
 
-  createBuilding: publicProcedure
+  createBuilding: protectedProcedure
     .input(
       z.object({
         name: z.string().min(2).max(255),
@@ -2697,7 +2697,7 @@ export const adminRouter = createTRPCRouter({
       return { id: buildingRow.id };
     }),
 
-  updateBuilding: publicProcedure
+  updateBuilding: protectedProcedure
     .input(
       z
         .object({
@@ -2732,7 +2732,7 @@ export const adminRouter = createTRPCRouter({
       return { id: input.buildingId };
     }),
 
-  deleteBuilding: publicProcedure
+  deleteBuilding: protectedProcedure
     .input(z.object({ buildingId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2752,7 +2752,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.buildingId };
     }),
 
-  createRoom: publicProcedure
+  createRoom: protectedProcedure
     .input(z.object({ buildingId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2782,7 +2782,7 @@ export const adminRouter = createTRPCRouter({
       return { id: roomRow.id };
     }),
 
-  updateRoom: publicProcedure
+  updateRoom: protectedProcedure
     .input(z.object({ roomId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2814,7 +2814,7 @@ export const adminRouter = createTRPCRouter({
       return { id: input.roomId };
     }),
 
-  deleteRoom: publicProcedure
+  deleteRoom: protectedProcedure
     .input(z.object({ roomId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2839,7 +2839,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.roomId };
     }),
 
-  createDepartment: publicProcedure
+  createDepartment: protectedProcedure
     .input(z.object({ name: z.string().min(2).max(255), parentDepartmentId: z.number().int().positive().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2868,7 +2868,7 @@ export const adminRouter = createTRPCRouter({
       return { id: departmentRow.id };
     }),
 
-  updateDepartment: publicProcedure
+  updateDepartment: protectedProcedure
     .input(
       z
         .object({
@@ -2929,7 +2929,7 @@ export const adminRouter = createTRPCRouter({
       return { id: input.departmentId };
     }),
 
-  deleteDepartment: publicProcedure
+  deleteDepartment: protectedProcedure
     .input(z.object({ departmentId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2949,7 +2949,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.departmentId };
     }),
 
-  permissions: publicProcedure.query(async ({ ctx }) => {
+  permissions: protectedProcedure.query(async ({ ctx }) => {
     const context = await getPermissionContext(ctx.db, ctx.session);
     return {
       primaryRole: context.primaryRole,
@@ -2958,7 +2958,7 @@ export const adminRouter = createTRPCRouter({
     };
   }),
 
-  users: publicProcedure.query(async ({ ctx }) => {
+  users: protectedProcedure.query(async ({ ctx }) => {
     const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
     const hasBusinessAdmin = context.roles.some((role) => role.scopeType === "business");
     if (hasBusinessAdmin) {
@@ -2980,7 +2980,7 @@ export const adminRouter = createTRPCRouter({
     return { users: await fetchUsers(ctx.db, scopedUserIds) };
   }),
 
-  addVisibilityGrant: publicProcedure
+  addVisibilityGrant: protectedProcedure
     .input(
       z.object({
         userId: z.number().int().positive(),
@@ -3063,7 +3063,7 @@ export const adminRouter = createTRPCRouter({
       return { id: grantRow?.id ?? null, created: true };
     }),
 
-  removeVisibilityGrant: publicProcedure
+  removeVisibilityGrant: protectedProcedure
     .input(z.object({ grantId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const context = await requireAdminCapability(ctx.db, ctx.session, "visibility_grants:manage");
@@ -3099,7 +3099,7 @@ export const adminRouter = createTRPCRouter({
       return { deleted: input.grantId };
     }),
 
-  updateUser: publicProcedure
+  updateUser: protectedProcedure
     .input(
       z
         .object({
@@ -3303,7 +3303,7 @@ export const adminRouter = createTRPCRouter({
       });
     }),
 
-  createUser: publicProcedure
+  createUser: protectedProcedure
     .input(
       z.object({
         username: z.string().min(3).max(50),
@@ -3465,7 +3465,7 @@ export const adminRouter = createTRPCRouter({
       });
     }),
 
-  deleteUser: publicProcedure
+  deleteUser: protectedProcedure
     .input(z.object({ userId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");

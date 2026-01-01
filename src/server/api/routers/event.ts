@@ -2,7 +2,7 @@
 import { and, desc, eq, ilike, inArray, isNull, lt, gt, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import {
   businesses,
   eventCoOwners,
@@ -672,7 +672,7 @@ export const eventRouter = createTRPCRouter({
 
     return { ready, needsLogging };
   }),
-  confirmZendesk: publicProcedure
+  confirmZendesk: protectedProcedure
     .input(z.object({ eventId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const profileId = await requireSessionProfileId(ctx);
@@ -746,7 +746,7 @@ export const eventRouter = createTRPCRouter({
       return buildEventResponses(ctx.db, list);
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         calendarId: z.number().optional(),
@@ -919,7 +919,7 @@ export const eventRouter = createTRPCRouter({
       return result;
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(
       z.object({
         id: z.number(),
@@ -1085,7 +1085,7 @@ export const eventRouter = createTRPCRouter({
       return result;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const [existing] = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);

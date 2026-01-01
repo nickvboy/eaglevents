@@ -1,20 +1,25 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
-const authMiddleware = withAuth({
-  callbacks: {
-    authorized: ({ token }) => !!token,
-  },
-  // Keep cookie names unique to this app to avoid conflicts with other localhost apps
-  cookies: {
-    sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-t3app.session-token"
-          : "t3app.session-token",
-    },
-  },
-});
+const authCallbacks = {
+  authorized: ({ token }: { token?: unknown }) => !!token,
+};
+
+function resolveBaseUrl(baseUrl: string) {
+  const explicit =
+    process.env.NODE_ENV === "production"
+      ? process.env.DEV_SERVER_PROD ?? process.env.NEXTAUTH_URL ?? process.env.DEV_SERVER
+      : process.env.DEV_SERVER ?? process.env.NEXTAUTH_URL;
+  return explicit ?? baseUrl;
+}
+
+function getSessionCookieName(baseUrl: string) {
+  const useSecureCookies =
+    process.env.NODE_ENV === "production" && baseUrl.startsWith("https://");
+  return useSecureCookies
+    ? "__Secure-t3app.session-token"
+    : "t3app.session-token";
+}
 
 async function fetchSetupStatus(url: URL) {
   try {
@@ -75,6 +80,17 @@ export default async function middleware(req: Request & { nextUrl: URL }) {
   if (isSetupRoute || isAuthRoute || (isTrpc && status.needsSetup)) {
     return NextResponse.next();
   }
+
+  const resolvedBaseUrl = resolveBaseUrl(req.nextUrl.origin);
+  const authMiddleware = withAuth({
+    callbacks: authCallbacks,
+    // Keep cookie names unique to this app to avoid conflicts with other localhost apps
+    cookies: {
+      sessionToken: {
+        name: getSessionCookieName(resolvedBaseUrl),
+      },
+    },
+  });
 
   // Delegate to NextAuth middleware for auth protection
   // @ts-expect-error - Next's Request types differ between edge/node

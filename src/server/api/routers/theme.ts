@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { asc, and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import {
   departments,
   themePalettes,
@@ -111,7 +111,7 @@ export const themeRouter = createTRPCRouter({
     };
   }),
 
-  create: publicProcedure.input(upsertPaletteSchema).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure.input(upsertPaletteSchema).mutation(async ({ ctx, input }) => {
     const businessId = await requireBusinessId(ctx.db);
     const [inserted] = await ctx.db
       .insert(themePalettes)
@@ -130,7 +130,7 @@ export const themeRouter = createTRPCRouter({
     return inserted ?? null;
   }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(upsertPaletteSchema.extend({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const businessId = await requireBusinessId(ctx.db);
@@ -160,7 +160,7 @@ export const themeRouter = createTRPCRouter({
       return updated ?? null;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const businessId = await requireBusinessId(ctx.db);
@@ -179,7 +179,7 @@ export const themeRouter = createTRPCRouter({
       return true;
     }),
 
-  setProfile: publicProcedure.input(setProfileSchema).mutation(async ({ ctx, input }) => {
+  setProfile: protectedProcedure.input(setProfileSchema).mutation(async ({ ctx, input }) => {
     const businessId = await requireBusinessId(ctx.db);
     const scopeType = input.scopeType;
     const scopeId = scopeType === "business" ? businessId : input.scopeId;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { calendars, users, businesses } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
@@ -37,7 +37,7 @@ export const calendarRouter = createTRPCRouter({
       return list;
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({ name: z.string().min(1), color: z.string().min(1).default("#22c55e"), isPrimary: z.boolean().optional() }),
     )
