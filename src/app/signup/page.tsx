@@ -23,6 +23,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -33,6 +34,7 @@ export default function SignupPage() {
     }
     setLoading(true);
     setError(null);
+    setRetryAt(null);
     try {
       const res = await fetch("/api/signup", {
         method: "POST",
@@ -45,7 +47,12 @@ export default function SignupPage() {
           payload && typeof payload === "object" && "error" in payload && typeof (payload as { error?: unknown }).error === "string"
             ? (payload as { error: string }).error
             : null;
+        const retry =
+          payload && typeof payload === "object" && "retryAt" in payload && typeof (payload as { retryAt?: unknown }).retryAt === "number"
+            ? (payload as { retryAt: number }).retryAt
+            : null;
         setError(message ?? "Failed to sign up");
+        setRetryAt(retry);
         return;
       }
       const login = await signIn("credentials", {
@@ -137,7 +144,12 @@ export default function SignupPage() {
                 minLength={8}
               />
             </div>
-            {error ? <p className="text-sm text-status-danger">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-status-danger">
+                {error}
+                {retryAt ? ` Try again at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : null}
+              </p>
+            ) : null}
             <button
               type="submit"
               disabled={loading}

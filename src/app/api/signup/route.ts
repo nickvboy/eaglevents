@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "~/server/db";
 import { users } from "~/server/db/schema";
 import { eq, or } from "drizzle-orm";
+import { getClientIp, signupLimiter } from "~/server/rate-limit";
 
 const bodySchema = z.object({
   username: z.string().min(3).max(50),
@@ -12,6 +13,26 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const rateLimit = signupLimiter.check(ip);
+  if (!rateLimit.success) {
+    const retryAfterSeconds = rateLimit.retryAfterMs
+      ? Math.ceil(rateLimit.retryAfterMs / 1000)
+      : undefined;
+    const response = NextResponse.json(
+      {
+        error: "Too many signup attempts. Please try again later.",
+        retryAt: rateLimit.resetAt,
+      },
+      { status: 429 },
+    );
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+    if (retryAfterSeconds) {
+      response.headers.set("Retry-After", String(retryAfterSeconds));
+    }
+    return response;
+  }
+
   const json: unknown = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {

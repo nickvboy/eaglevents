@@ -6,6 +6,7 @@ import { db } from "~/server/db";
 import { users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { env } from "~/env";
+import { getClientIp, loginLimiter } from "~/server/rate-limit";
 
 const credentialsSchema = z.object({
   identifier: z.string().min(1, "Required"), // username or email
@@ -73,7 +74,17 @@ export const authOptions: NextAuthOptions = {
         identifier: { label: "Username or Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (raw) => {
+      authorize: async (raw, req) => {
+        if (req?.headers) {
+          const headers = new Headers(req.headers as HeadersInit);
+          const ip = getClientIp(headers);
+          const rateLimit = loginLimiter.check(ip);
+          if (!rateLimit.success) {
+            console.warn(`Rate limit exceeded for IP: ${ip}`);
+            throw new Error(`RateLimit:${rateLimit.resetAt ?? Date.now()}`);
+          }
+        }
+
         const parsed = credentialsSchema.safeParse(raw ?? {});
         if (!parsed.success) return null;
         const { identifier, password } = parsed.data;

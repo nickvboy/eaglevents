@@ -21,12 +21,14 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setRetryAt(null);
     try {
       const res = await signIn("credentials", {
         redirect: false,
@@ -35,7 +37,17 @@ export default function LoginPage() {
         callbackUrl,
       });
       if (res?.error) {
-        setError("Invalid credentials");
+        const errorCode = decodeURIComponent(res.error);
+        if (errorCode.startsWith("RateLimit:")) {
+          const raw = errorCode.slice("RateLimit:".length);
+          const parsed = Number(raw);
+          const fallback = Date.now() + 15 * 60 * 1000;
+          const target = Number.isFinite(parsed) ? parsed : fallback;
+          setRetryAt(target);
+          setError("Too many login attempts.");
+        } else {
+          setError("Invalid credentials");
+        }
       } else if (res?.ok) {
         router.push(callbackUrl);
       }
@@ -83,7 +95,12 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error ? <p className="text-sm text-status-danger">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-status-danger">
+                {error}
+                {retryAt ? ` Try again at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : null}
+              </p>
+            ) : null}
             <button
               type="submit"
               disabled={loading}
