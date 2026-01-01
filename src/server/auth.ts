@@ -102,11 +102,11 @@ export const authOptions: NextAuthOptions = {
           .limit(1);
 
         const user = rows[0];
-        if (!user) return null;
-        if (!user.isActive) return null;
+        const dummyHash = "$2b$10$eV8z6zkkBOi9LzmHtW9.cOoZKjheUBdLPUi03Kmt/2Tl5ilgn7tz6";
+        const hashToCompare = user?.passwordHash ?? dummyHash;
 
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
+        const ok = await bcrypt.compare(password, hashToCompare);
+        if (!user || !user.isActive || !ok) return null;
 
         return {
           id: String(user.id),
