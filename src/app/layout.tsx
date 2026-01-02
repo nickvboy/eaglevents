@@ -29,8 +29,8 @@ export default async function RootLayout({
   });
 
   return (
-    <html lang="en" className={`${geist.variable}`}>
-      <body data-theme="dark" className="bg-surface-canvas text-ink-primary antialiased">
+    <html lang="en" className={`${geist.variable} h-full`}>
+      <body data-theme="dark" className="h-full bg-surface-canvas text-ink-primary antialiased">
         <Providers palette={resolvedPalette}>
           <AppShell user={session?.user ?? null}>{children}</AppShell>
         </Providers>

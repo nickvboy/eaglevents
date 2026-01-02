@@ -30,6 +30,7 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   useEffect(() => {
     if (!isExpanded) {
       setSearchQuery("");
+      setError(null);
       return;
     }
     const handle = setTimeout(() => {
@@ -77,7 +78,11 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   };
 
   return (
-    <header className="sticky top-0 z-[9999] flex h-16 items-start border-b border-outline-muted bg-surface-canvas/90 px-4 pt-2 backdrop-blur">
+    <header
+      className={
+        "sticky top-0 z-[9999] flex h-16 items-start border-b border-outline-muted bg-surface-canvas/90 px-4 pt-2 backdrop-blur"
+      }
+    >
       <div className="flex w-full items-start justify-end">
         <form className="flex flex-col items-end" onSubmit={handleSubmit}>
           <div className="relative">
@@ -164,16 +169,6 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
               </div>
             ) : null}
           </div>
-          <p
-            className={
-              "mt-1 w-[320px] text-right text-[11px] leading-tight transition-opacity sm:w-[380px] " +
-              (isExpanded ? "opacity-100" : "opacity-0") +
-              " " +
-              (error ? "text-status-danger" : "text-ink-subtle")
-            }
-          >
-            {error ?? "Enter ticket ID, event code, or Zendesk #"}
-          </p>
         </form>
       </div>
     </header>

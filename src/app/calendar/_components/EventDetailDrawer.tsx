@@ -167,6 +167,24 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("[data-scroll-lock='allow']")) return;
+      event.preventDefault();
+    };
+    const options: AddEventListenerOptions = { passive: false, capture: true };
+    window.addEventListener("wheel", handler, options);
+    window.addEventListener("touchmove", handler, options);
+    return () => {
+      window.removeEventListener("wheel", handler, options);
+      window.removeEventListener("touchmove", handler, options);
+    };
+  }, [open]);
+
+
+
   if (!open || !event) return null;
 
   const start = new Date(event.startDatetime);
@@ -177,7 +195,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   const eventCode = event.eventCode ?? String(event.id).padStart(7, "0");
 
   return (
-    <div className="fixed inset-x-0 top-16 bottom-16 z-30 flex flex-col bg-surface-raised text-ink-primary md:left-16 md:bottom-0">
+    <div className="fixed inset-x-0 top-16 bottom-16 z-50 flex flex-col bg-surface-raised text-ink-primary md:left-16 md:bottom-0">
       <header className="flex items-center gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3">
         <button
           type="button"
@@ -189,7 +207,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
         </button>
         <div className="text-sm uppercase tracking-wide text-ink-muted">Meeting details</div>
       </header>
-      <main className="flex-1 overflow-y-auto px-5 pb-16 pt-6">
+      <main data-scroll-lock="allow" className="flex-1 overflow-y-auto px-5 pb-16 pt-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
           <section className="space-y-2">
             <h1 className="text-2xl font-semibold">{event.title}</h1>
@@ -571,6 +589,7 @@ function ManualTimeEntryButton({ value, onChange, allowEmpty = false, label = "M
         createPortal(
           <div
             ref={panelRef}
+            data-scroll-lock="allow"
             className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 p-4 backdrop-blur-sm"
             onMouseDown={(e) => {
               if (panelRef.current && !panelRef.current.contains(e.target as Node)) close();

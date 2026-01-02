@@ -440,8 +440,8 @@ export function CalendarShell() {
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-raised lg:flex-row">
-        <div className="hidden h-full lg:block">
+      <div className="flex h-full min-h-0 flex-1 flex-col bg-surface-raised lg:flex-row">
+        <div className="hidden h-full shrink-0 lg:block">
           <CalendarSidebar
             monthDate={sidebarMonthDate}
             selectedDate={selectedDate}
@@ -468,74 +468,38 @@ export function CalendarShell() {
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col">
           {business?.name && (
-            <div className="border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
+            <div className="shrink-0 border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
               <h1 className="text-xl font-semibold text-ink-primary lg:text-2xl">{business.name}</h1>
             </div>
           )}
           {isMobile ? (
             <>
-              <MobileToolbar onToday={goToToday} view={activeView} onViewChange={setActiveView} />
-              <MobileDateHeader
-                selectedDate={selectedDate}
-                today={today}
-                weekDays={mobileHeaderDays}
-                monthDays={mobileMonthDays}
-                calendarOpen={mobileCalendarOpen}
-                monthDisplayDate={mobileMonthDate}
-                onCalendarOpenChange={handleCalendarOpenChange}
-                onPrevDay={goPrevDay}
-                onNextDay={goNextDay}
-                onPrevMonth={() => setMobileMonthDate((prev) => addMonths(prev, -1))}
-                onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
+              <div className="shrink-0">
+                <MobileToolbar onToday={goToToday} view={activeView} onViewChange={setActiveView} />
+              </div>
+              <div className="shrink-0">
+                <MobileDateHeader
+                  selectedDate={selectedDate}
+                  today={today}
+                  weekDays={mobileHeaderDays}
+                  monthDays={mobileMonthDays}
+                  calendarOpen={mobileCalendarOpen}
+                  monthDisplayDate={mobileMonthDate}
+                  onCalendarOpenChange={handleCalendarOpenChange}
+                  onPrevDay={goPrevDay}
+                  onNextDay={goNextDay}
+                  onPrevMonth={() => setMobileMonthDate((prev) => addMonths(prev, -1))}
+                  onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
                 onSelectDate={(d) => setSelectedDate(startOfDay(d))}
               />
-                <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                  {monthOverlay}
-                  {activeView === "month" ? (
-                    <MonthGrid
-                      days={monthViewDays}
-                      events={events}
-                      selectedMonth={selectedDate.getMonth()}
-                    onSelectDay={(d) => {
-                      setSelectedDate(startOfDay(d));
-                      setActiveView("week");
-                    }}
-                  />
-                  ) : (
-                    <WeekGrid
-                      days={days}
-                      events={events as CalendarEvent[]}
-                      variant="compact"
-                      previewedEventId={previewEventId}
-                      onPreviewEvent={handlePreviewEvent}
-                      onOpenEvent={handleOpenEvent}
-                      onEditEvent={handleEditEvent}
-                      calendarLookup={calendarLookup}
-                    />
-                  )}
-                <NewEventFab onClick={handleNewEventRequest} />
-              </div>
-            </>
-          ) : (
-            <>
-              <CalendarToolbar
-                view={activeView}
-                rangeStart={range.start}
-                rangeEnd={range.end}
-                onViewChange={setActiveView}
-                onToday={goToToday}
-                onPrev={onPrev}
-                onNext={onNext}
-                onNewEvent={handleNewEventRequest}
-              />
-
-                <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                  {monthOverlay}
-                  {activeView === "month" ? (
-                    <MonthGrid
-                      days={monthViewDays}
+            </div>
+              <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                {monthOverlay}
+                {activeView === "month" ? (
+                  <MonthGrid
+                    days={monthViewDays}
                     events={events}
                     selectedMonth={selectedDate.getMonth()}
                     onSelectDay={(d) => {
@@ -543,6 +507,48 @@ export function CalendarShell() {
                       setActiveView("week");
                     }}
                   />
+                ) : (
+                  <WeekGrid
+                    days={days}
+                    events={events as CalendarEvent[]}
+                    variant="compact"
+                    previewedEventId={previewEventId}
+                    onPreviewEvent={handlePreviewEvent}
+                    onOpenEvent={handleOpenEvent}
+                    onEditEvent={handleEditEvent}
+                    calendarLookup={calendarLookup}
+                  />
+                )}
+                <NewEventFab onClick={handleNewEventRequest} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="shrink-0">
+                <CalendarToolbar
+                  view={activeView}
+                  rangeStart={range.start}
+                  rangeEnd={range.end}
+                  onViewChange={setActiveView}
+                  onToday={goToToday}
+                  onPrev={onPrev}
+                  onNext={onNext}
+                  onNewEvent={handleNewEventRequest}
+              />
+            </div>
+
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                  {monthOverlay}
+                  {activeView === "month" ? (
+                    <MonthGrid
+                      days={monthViewDays}
+                      events={events}
+                      selectedMonth={selectedDate.getMonth()}
+                      onSelectDay={(d) => {
+                        setSelectedDate(startOfDay(d));
+                        setActiveView("week");
+                      }}
+                    />
                   ) : (
                     <WeekGrid
                       days={days}
@@ -554,7 +560,7 @@ export function CalendarShell() {
                       calendarLookup={calendarLookup}
                     />
                   )}
-              </div>
+                </div>
             </>
           )}
         </div>
