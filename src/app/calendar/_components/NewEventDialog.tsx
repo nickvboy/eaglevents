@@ -1260,7 +1260,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4" onMouseDown={handleBackdropMouseDown}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4" onMouseDown={handleBackdropMouseDown}>
       <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-lg font-semibold">{dialogTitle}</div>

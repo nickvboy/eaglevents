@@ -35,7 +35,7 @@ export function SidebarNav(props: SidebarNavProps) {
   const navItems = canAccessAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
-    <aside className="fixed bottom-0 left-0 right-0 z-40 flex h-16 w-full shrink-0 items-center border-t border-outline-muted bg-[linear-gradient(180deg,var(--color-surface-sunken),var(--color-surface-canvas))] px-2 text-ink-primary shadow-[0_-6px_18px_rgba(0,0,0,0.35)] md:sticky md:top-0 md:h-screen md:w-16 md:flex-col md:items-center md:border-t-0 md:border-r md:px-0 md:py-6 md:shadow-[2px_0_18px_rgba(0,0,0,0.55)]">
+    <aside className="fixed bottom-0 left-0 right-0 z-60 flex h-16 w-full shrink-0 items-center border-t border-outline-muted bg-[linear-gradient(180deg,var(--color-surface-sunken),var(--color-surface-canvas))] px-2 text-ink-primary shadow-[0_-6px_18px_rgba(0,0,0,0.35)] md:sticky md:top-0 md:h-screen md:w-16 md:flex-col md:items-center md:border-t-0 md:border-r md:px-0 md:py-6 md:shadow-[2px_0_18px_rgba(0,0,0,0.55)]">
       <nav className="flex w-full flex-1 items-center justify-between gap-0 md:flex-col md:justify-start md:gap-4" aria-label="Main">
         {navItems.map((item) => {
           const isActive =

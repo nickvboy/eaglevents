@@ -300,10 +300,12 @@ export function CalendarShell() {
     [events, selectedEventId],
   );
   const resolvedSelectedEvent = selectedEvent ?? lookupQuery.data ?? null;
-  const editingEvent = useMemo(
-    () => events.find((e) => e.id === editingEventId) ?? null,
-    [events, editingEventId],
-  );
+  const editingEvent = useMemo(() => {
+    const fromList = events.find((e) => e.id === editingEventId) ?? null;
+    if (fromList) return fromList;
+    if (editingEventId && resolvedSelectedEvent?.id === editingEventId) return resolvedSelectedEvent;
+    return null;
+  }, [events, editingEventId, resolvedSelectedEvent]);
   useEffect(() => {
     if (!eventsQuery.isFetching && selectedEventId && !selectedEvent) {
       setSelectedEventId(null);

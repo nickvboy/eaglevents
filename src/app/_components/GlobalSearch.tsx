@@ -77,9 +77,9 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   };
 
   return (
-    <header className="sticky top-0 z-[9999] border-b border-outline-muted bg-surface-canvas/90 px-4 py-2 backdrop-blur">
-      <div className="flex w-full items-center justify-end">
-        <form className="flex flex-col items-end gap-1" onSubmit={handleSubmit}>
+    <header className="sticky top-0 z-[9999] flex h-16 items-start border-b border-outline-muted bg-surface-canvas/90 px-4 pt-2 backdrop-blur">
+      <div className="flex w-full items-start justify-end">
+        <form className="flex flex-col items-end" onSubmit={handleSubmit}>
           <div className="relative">
             <div
               className={
@@ -166,8 +166,8 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
           </div>
           <p
             className={
-              "text-xs transition-all duration-200 " +
-              (isExpanded ? "max-h-6 opacity-100" : "max-h-0 opacity-0") +
+              "mt-1 w-[320px] text-right text-[11px] leading-tight transition-opacity sm:w-[380px] " +
+              (isExpanded ? "opacity-100" : "opacity-0") +
               " " +
               (error ? "text-status-danger" : "text-ink-subtle")
             }
