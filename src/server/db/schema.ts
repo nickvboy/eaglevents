@@ -7,15 +7,19 @@ import { sql as psql } from "drizzle-orm";
 
 // Drizzle column builders
 import { varchar, integer, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
+import { withDbTablePrefix } from "~/config/app";
 import type { ThemePaletteTokens } from "~/types/theme";
 
 /**
- * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
- * database instance for multiple projects.
+ * Multi-project schema feature from Drizzle ORM.
+ *
+ * Table prefix: t3-app-template_
+ * Note: This prefix is retained for backward compatibility with existing databases.
+ * Update DB_TABLE_PREFIX in src/config/app.js only after migrating existing data.
  *
  * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
  */
-export const createTable = pgTableCreator((name) => `t3-app-template_${name}`);
+export const createTable = pgTableCreator((name) => withDbTablePrefix(name));
 
 export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofit", "corporation", "government", "venue", "other"]);
 export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "co_admin", "manager", "employee"]);

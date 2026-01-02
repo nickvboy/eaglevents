@@ -1,5 +1,6 @@
 import { type Config } from "drizzle-kit";
 
+import { DB_TABLE_PREFIX } from "~/config/app";
 import { env } from "~/env";
 
 // Select database URL based on target. When running via scripts/prod.cjs,
@@ -13,5 +14,5 @@ export default {
   dbCredentials: {
     url: dbUrl,
   },
-  tablesFilter: ["t3-app-template_*"],
+  tablesFilter: [`${DB_TABLE_PREFIX}_*`],
 } satisfies Config;

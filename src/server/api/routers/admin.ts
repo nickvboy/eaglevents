@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { withDbTablePrefix } from "~/config/app";
 import {
   auditLogs,
   buildings,
@@ -1001,26 +1002,26 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
 
 async function resetIdentitySequences(db: DbExecutor) {
   const tableNames = [
-    "t3-app-template_user",
-    "t3-app-template_post",
-    "t3-app-template_profile",
-    "t3-app-template_business",
-    "t3-app-template_building",
-    "t3-app-template_room",
-    "t3-app-template_department",
-    "t3-app-template_theme_palette",
-    "t3-app-template_theme_profile",
-    "t3-app-template_organization_role",
-    "t3-app-template_calendar",
-    "t3-app-template_event",
-    "t3-app-template_event_co_owner",
-    "t3-app-template_event_attendee",
-    "t3-app-template_event_reminder",
-    "t3-app-template_event_hour_log",
-    "t3-app-template_event_zendesk_confirmation",
-    "t3-app-template_visibility_grant",
-    "t3-app-template_audit_log",
-  ];
+    "user",
+    "post",
+    "profile",
+    "business",
+    "building",
+    "room",
+    "department",
+    "theme_palette",
+    "theme_profile",
+    "organization_role",
+    "calendar",
+    "event",
+    "event_co_owner",
+    "event_attendee",
+    "event_reminder",
+    "event_hour_log",
+    "event_zendesk_confirmation",
+    "visibility_grant",
+    "audit_log",
+  ].map(withDbTablePrefix);
 
   for (const tableName of tableNames) {
     const quoted = `"${tableName}"`;

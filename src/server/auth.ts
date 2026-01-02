@@ -7,6 +7,7 @@ import { users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { env } from "~/env";
 import { getClientIp, loginLimiter } from "~/server/rate-limit";
+import { authCookieNames } from "~/config/app";
 
 const credentialsSchema = z.object({
   identifier: z.string().min(1, "Required"), // username or email
@@ -32,10 +33,7 @@ export const authOptions: NextAuthOptions = {
   useSecureCookies,
   cookies: {
     sessionToken: {
-      name:
-        useSecureCookies
-          ? "__Secure-t3app.session-token"
-          : "t3app.session-token",
+      name: authCookieNames.sessionToken(useSecureCookies),
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -44,23 +42,23 @@ export const authOptions: NextAuthOptions = {
       },
     },
     csrfToken: {
-      name: "t3app.csrf-token",
+      name: authCookieNames.csrfToken,
       options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     nonce: {
-      name: "t3app.nonce",
+      name: authCookieNames.nonce,
       options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     state: {
-      name: "t3app.state",
+      name: authCookieNames.state,
       options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     pkceCodeVerifier: {
-      name: "t3app.pkce",
+      name: authCookieNames.pkceCodeVerifier,
       options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     callbackUrl: {
-      name: "t3app.callback-url",
+      name: authCookieNames.callbackUrl,
       options: { sameSite: "lax", path: "/", secure: useSecureCookies },
     },
   },

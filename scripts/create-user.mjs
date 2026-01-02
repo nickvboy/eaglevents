@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import bcrypt from 'bcryptjs';
+import { withDbTablePrefix } from '../src/config/app.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -33,10 +34,11 @@ const run = async () => {
   const hash = await bcrypt.hash(password, 10);
   const sql = postgres(url);
   try {
-    await sql`
-      insert into "t3-app-template_user" ("username", "email", "passwordHash")
-      values (${usernameArg}, ${emailArg.toLowerCase()}, ${hash})
-    `;
+    const tableName = withDbTablePrefix('user');
+    await sql.unsafe(
+      `insert into "${tableName}" ("username", "email", "passwordHash") values ($1, $2, $3)`,
+      [usernameArg, emailArg.toLowerCase(), hash],
+    );
     console.log('Created user', usernameArg, emailArg);
   } catch (err) {
     console.error('Failed to create user:', err);

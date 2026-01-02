@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { getSessionCookieName } from "~/config/app";
 
 const authCallbacks = {
   authorized: ({ token }: { token?: unknown }) => !!token,
@@ -11,14 +12,6 @@ function resolveBaseUrl(baseUrl: string) {
       ? process.env.DEV_SERVER_PROD ?? process.env.NEXTAUTH_URL ?? process.env.DEV_SERVER
       : process.env.DEV_SERVER ?? process.env.NEXTAUTH_URL;
   return explicit ?? baseUrl;
-}
-
-function getSessionCookieName(baseUrl: string) {
-  const useSecureCookies =
-    process.env.NODE_ENV === "production" && baseUrl.startsWith("https://");
-  return useSecureCookies
-    ? "__Secure-t3app.session-token"
-    : "t3app.session-token";
 }
 
 async function fetchSetupStatus(url: URL) {
@@ -82,12 +75,14 @@ export default async function middleware(req: Request & { nextUrl: URL }) {
   }
 
   const resolvedBaseUrl = resolveBaseUrl(req.nextUrl.origin);
+  const useSecureCookies =
+    process.env.NODE_ENV === "production" && resolvedBaseUrl.startsWith("https://");
   const authMiddleware = withAuth({
     callbacks: authCallbacks,
     // Keep cookie names unique to this app to avoid conflicts with other localhost apps
     cookies: {
       sessionToken: {
-        name: getSessionCookieName(resolvedBaseUrl),
+        name: getSessionCookieName(useSecureCookies),
       },
     },
   });

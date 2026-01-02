@@ -1,6 +1,18 @@
 {
-  "name": "t3-app-template",
-  "version": "0.1.0",
+  "name": "eaglevents",
+  "version": "1.0.0",
+  "description": "Event management system for facilities and venue scheduling",
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/eaglevents"
+  },
+  "keywords": ["events", "scheduling", "facilities", "venue-management"],
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "private": true,
   "type": "module",
   "scripts": {
