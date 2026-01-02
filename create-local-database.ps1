@@ -16,6 +16,8 @@
 
 param(
   [switch]$Diag,
+  [ValidateSet('dev','prod','both')]
+  [string]$Target = 'both',
   # If set, will try to start a local Postgres container on the requested port when nothing is listening there.
   # Disabled by default since your setup may not use Docker/Podman.
   [switch]$UseContainers,
@@ -405,16 +407,20 @@ $devUrl = if ($env:DATABASE_URL) { $env:DATABASE_URL } elseif ($env:POSTGRES_URL
 $prodUrl = $env:DATABASE_URL_PROD
 
 $ok = $true
-if ($devUrl -or $defName) {
-  if (-not (Ensure-DbFromUrl -Label 'dev' -Url $devUrl -DefaultHost $defHost -DefaultPort $defPort -DefaultUser $defUser -DefaultPass $defPass -DefaultName $defName)) { $ok = $false }
-} else {
-  Write-Info "[dev] No DATABASE_URL and no PGDATABASE provided; skipping dev database."
+if ($Target -in @('dev','both')) {
+  if ($devUrl -or $defName) {
+    if (-not (Ensure-DbFromUrl -Label 'dev' -Url $devUrl -DefaultHost $defHost -DefaultPort $defPort -DefaultUser $defUser -DefaultPass $defPass -DefaultName $defName)) { $ok = $false }
+  } else {
+    Write-Info "[dev] No DATABASE_URL and no PGDATABASE provided; skipping dev database."
+  }
 }
 
-if ($prodUrl) {
-  if (-not (Ensure-DbFromUrl -Label 'prod' -Url $prodUrl -DefaultHost $defHost -DefaultPort $defPort -DefaultUser $defUser -DefaultPass $defPass -DefaultName $null)) { $ok = $false }
-} else {
-  Write-Diag "[prod] No DATABASE_URL_PROD provided; skipping prod database."
+if ($Target -in @('prod','both')) {
+  if ($prodUrl) {
+    if (-not (Ensure-DbFromUrl -Label 'prod' -Url $prodUrl -DefaultHost $defHost -DefaultPort $defPort -DefaultUser $defUser -DefaultPass $defPass -DefaultName $null)) { $ok = $false }
+  } else {
+    Write-Diag "[prod] No DATABASE_URL_PROD provided; skipping prod database."
+  }
 }
 
 if ($ok) { exit 0 } else { exit 1 }

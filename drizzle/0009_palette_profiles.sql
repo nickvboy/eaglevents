@@ -1,4 +1,9 @@
-CREATE TYPE "t3-app-template_theme_profile_scope" AS ENUM ('business', 'department');
+DO $$
+BEGIN
+  CREATE TYPE "t3-app-template_theme_profile_scope" AS ENUM ('business', 'department');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "t3-app-template_theme_palette" (
   "id" serial PRIMARY KEY NOT NULL,

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarSidebar } from "./CalendarSidebar";
 import { CalendarToolbar } from "./CalendarToolbar";
 import { WeekGrid } from "./WeekGrid";
@@ -33,6 +33,7 @@ function getStoredDate(key: string, fallback: Date) {
 }
 
 export function CalendarShell() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialDate = useMemo(() => startOfDay(new Date()), []);
   const [desktopView, setDesktopView] = useState<View>("workweek");
@@ -161,7 +162,6 @@ export function CalendarShell() {
 
   // calendars
   const { data: calendars } = api.calendar.listMine.useQuery(undefined);
-  const utils = api.useUtils();
   const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
@@ -174,6 +174,12 @@ export function CalendarShell() {
     });
     return map;
   }, [calendars]);
+
+  const eventIdParam = searchParams.get("eventId")?.trim() ?? "";
+  const lookupQuery = api.event.findByIdentifier.useQuery(
+    { identifier: eventIdParam },
+    { enabled: eventIdParam.length > 0 },
+  );
 
   // Persist visible calendars selection
   useEffect(() => {
@@ -293,6 +299,7 @@ export function CalendarShell() {
     () => events.find((e) => e.id === selectedEventId) ?? null,
     [events, selectedEventId],
   );
+  const resolvedSelectedEvent = selectedEvent ?? lookupQuery.data ?? null;
   const editingEvent = useMemo(
     () => events.find((e) => e.id === editingEventId) ?? null,
     [events, editingEventId],
@@ -360,7 +367,6 @@ export function CalendarShell() {
   const monthKey = selectedDate.getFullYear() * 12 + selectedDate.getMonth();
 
   useEffect(() => {
-    const eventIdParam = searchParams.get("eventId");
     if (!eventIdParam) return;
     const numericId = Number(eventIdParam);
     if (!Number.isFinite(numericId) || numericId <= 0) return;
@@ -375,18 +381,10 @@ export function CalendarShell() {
       return;
     }
 
-    const runLookup = async () => {
-      try {
-        const result = await utils.client.event.findByIdentifier.query({ identifier: eventIdParam });
-        if (!result) return;
-        focusEvent(result.id, new Date(result.startDatetime), result.calendarId);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    void runLookup();
-  }, [focusEvent, searchParams, utils]);
+    if (lookupQuery.data) {
+      focusEvent(lookupQuery.data.id, new Date(lookupQuery.data.startDatetime), lookupQuery.data.calendarId);
+    }
+  }, [eventIdParam, focusEvent, lookupQuery.data, searchParams]);
 
   useEffect(() => {
     const year = Math.floor(monthKey / 12);
@@ -415,6 +413,15 @@ export function CalendarShell() {
       }
     };
   }, [monthKey]);
+
+  const clearEventParams = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("eventId");
+    params.delete("date");
+    params.delete("calendarId");
+    const next = params.toString();
+    router.replace(next ? `/calendar?${next}` : "/calendar");
+  }, [router, searchParams]);
 
   const monthOverlay = (
     <div
@@ -552,10 +559,13 @@ export function CalendarShell() {
       </div>
 
       <EventDetailDrawer
-        open={!!selectedEvent}
-        event={selectedEvent}
-        calendar={selectedEvent ? calendarLookup.get(selectedEvent.calendarId) ?? null : null}
-        onClose={() => setSelectedEventId(null)}
+        open={!!resolvedSelectedEvent}
+        event={resolvedSelectedEvent}
+        calendar={resolvedSelectedEvent ? calendarLookup.get(resolvedSelectedEvent.calendarId) ?? null : null}
+        onClose={() => {
+          setSelectedEventId(null);
+          clearEventParams();
+        }}
         onEdit={handleEditEvent}
       />
 

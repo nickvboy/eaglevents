@@ -20,10 +20,10 @@ async function fetchSetupStatus(url: URL) {
       headers: { "x-setup-check": "1" },
       cache: "no-store",
     });
-    if (!response.ok) return { needsSetup: false };
+    if (!response.ok) return { needsSetup: true };
     return (await response.json()) as { needsSetup: boolean };
   } catch {
-    return { needsSetup: false };
+    return { needsSetup: true };
   }
 }
 
@@ -54,13 +54,28 @@ export default async function middleware(req: Request & { nextUrl: URL }) {
   // TRPC paths are like /api/trpc/setup.status or /api/trpc/setup.createBusiness
   const isSetupTrpc = isTrpc && pathname.includes("/setup.");
 
-  if (isSetupApi || isSignupApi || isSetupTrpc) {
+  if (isSetupApi || isSetupTrpc) {
     return NextResponse.next();
   }
 
   const status = await fetchSetupStatus(req.nextUrl);
 
+  if (status.needsSetup && isSignupApi) {
+    return NextResponse.json(
+      { error: "Signup is disabled until setup is complete." },
+      { status: 403 },
+    );
+  }
+  if (isSignupApi) {
+    return NextResponse.next();
+  }
+
   if (status.needsSetup && !isSetupRoute && !pathname.startsWith("/api/")) {
+    const url = new URL("/setup", req.url);
+    return NextResponse.redirect(url);
+  }
+
+  if (status.needsSetup && isAuthRoute) {
     const url = new URL("/setup", req.url);
     return NextResponse.redirect(url);
   }
