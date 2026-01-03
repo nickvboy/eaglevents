@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
+import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
 
 type ScopeOption = {
   label: string;
@@ -55,6 +56,7 @@ export function UserAccountsForm({
   onRememberCredential: (credentials: Credential | null) => void;
   rememberedCredential: Credential | null;
 }) {
+  const handleSetupCompleted = useSetupCompletionRedirect();
   const scopeOptions = useMemo<ScopeOption[]>(() => {
     if (!status.business) return [];
     const base: ScopeOption[] = [
@@ -125,6 +127,9 @@ export function UserAccountsForm({
         };
       });
     },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
+    },
   });
 
   const updateMutation = api.setup.updateUserWithRoles.useMutation({
@@ -149,6 +154,9 @@ export function UserAccountsForm({
         };
       });
     },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
+    },
   });
 
   const createDefaultUsersMutation = api.setup.createDefaultUsers.useMutation({
@@ -158,6 +166,9 @@ export function UserAccountsForm({
         setGeneratedDefaults(data.generatedUsers);
       }
     },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
+    },
   });
 
   const clearAccountsMutation = api.setup.clearAllAccounts.useMutation({
@@ -165,6 +176,9 @@ export function UserAccountsForm({
       onUpdated();
       onRememberCredential(null);
       setGeneratedDefaults([]);
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
 

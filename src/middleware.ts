@@ -20,10 +20,11 @@ async function fetchSetupStatus(url: URL) {
       headers: { "x-setup-check": "1" },
       cache: "no-store",
     });
-    if (!response.ok) return { needsSetup: true };
-    return (await response.json()) as { needsSetup: boolean };
+    if (!response.ok) return { needsSetup: false, statusKnown: false };
+    const data = (await response.json()) as { needsSetup: boolean };
+    return { ...data, statusKnown: true };
   } catch {
-    return { needsSetup: true };
+    return { needsSetup: false, statusKnown: false };
   }
 }
 
@@ -60,7 +61,7 @@ export default async function middleware(req: Request & { nextUrl: URL }) {
 
   const status = await fetchSetupStatus(req.nextUrl);
 
-  if (status.needsSetup && isSignupApi) {
+  if (status.statusKnown && status.needsSetup && isSignupApi) {
     return NextResponse.json(
       { error: "Signup is disabled until setup is complete." },
       { status: 403 },
@@ -70,22 +71,22 @@ export default async function middleware(req: Request & { nextUrl: URL }) {
     return NextResponse.next();
   }
 
-  if (status.needsSetup && !isSetupRoute && !pathname.startsWith("/api/")) {
+  if (status.statusKnown && status.needsSetup && !isSetupRoute && !pathname.startsWith("/api/")) {
     const url = new URL("/setup", req.url);
     return NextResponse.redirect(url);
   }
 
-  if (status.needsSetup && isAuthRoute) {
+  if (status.statusKnown && status.needsSetup && isAuthRoute) {
     const url = new URL("/setup", req.url);
     return NextResponse.redirect(url);
   }
 
-  if (!status.needsSetup && isSetupRoute) {
+  if (status.statusKnown && !status.needsSetup && isSetupRoute) {
     const url = new URL("/", req.url);
     return NextResponse.redirect(url);
   }
 
-  if (isSetupRoute || isAuthRoute || (isTrpc && status.needsSetup)) {
+  if (isSetupRoute || isAuthRoute || (isTrpc && status.statusKnown && status.needsSetup)) {
     return NextResponse.next();
   }
 

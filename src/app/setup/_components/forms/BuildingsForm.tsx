@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
+import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
 
 type BuildingDraft = {
   id: string;
@@ -28,16 +29,23 @@ function createDraftFromExisting(building: SetupStatusData["buildings"][number])
 }
 
 export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; onUpdated: () => void }) {
+  const handleSetupCompleted = useSetupCompletionRedirect();
   const createMutation = api.setup.createBuildings.useMutation({
     onSuccess: () => {
       setHasLocalChanges(false);
       onUpdated();
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
   const updateMutation = api.setup.updateBuildings.useMutation({
     onSuccess: () => {
       setHasLocalChanges(false);
       onUpdated();
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
   const [drafts, setDrafts] = useState<BuildingDraft[]>(() =>

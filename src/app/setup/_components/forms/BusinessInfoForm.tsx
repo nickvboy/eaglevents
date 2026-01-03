@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
+import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
 
 const businessTypes = [
   { value: "university", label: "University" },
@@ -15,9 +16,13 @@ const businessTypes = [
 ] as const;
 
 export function BusinessInfoForm({ status, onUpdated }: { status: SetupStatusData; onUpdated: () => void }) {
+  const handleSetupCompleted = useSetupCompletionRedirect();
   const mutation = api.setup.createBusiness.useMutation({
     onSuccess: () => {
       onUpdated();
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
   const [name, setName] = useState("");

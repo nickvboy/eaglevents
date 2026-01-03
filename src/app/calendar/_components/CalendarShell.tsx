@@ -820,8 +820,8 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
       {props.calendarOpen && (
         <div className="px-4 pb-3">
           <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] uppercase text-ink-subtle">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
-              <span key={d}>{d}</span>
+            {["S", "M", "T", "W", "T", "F", "S"].map((d, index) => (
+              <span key={`${d}-${index}`}>{d}</span>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
@@ -885,7 +885,6 @@ function buildMonthGrid(refDate: Date) {
 function isSameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
-
 
 
 

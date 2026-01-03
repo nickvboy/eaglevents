@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
+import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
 
 type DepartmentTreeNode = SetupStatusData["departments"]["roots"][number];
 
@@ -29,16 +30,23 @@ const createDraftFromExisting = (dept: DepartmentTreeNode): DepartmentDraft => (
 });
 
 export function DepartmentsForm({ status, onUpdated }: { status: SetupStatusData; onUpdated: () => void }) {
+  const handleSetupCompleted = useSetupCompletionRedirect();
   const createMutation = api.setup.createDepartments.useMutation({
     onSuccess: () => {
       setHasLocalChanges(false);
       onUpdated();
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
   const updateMutation = api.setup.updateDepartments.useMutation({
     onSuccess: () => {
       setHasLocalChanges(false);
       onUpdated();
+    },
+    onError: (error) => {
+      handleSetupCompleted(error.message);
     },
   });
 
