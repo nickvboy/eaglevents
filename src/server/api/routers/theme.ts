@@ -2,7 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { asc, and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import type { createTRPCContext } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
   departments,
   themePalettes,
@@ -13,6 +14,7 @@ import {
   resolvePalette,
   verifyDepartmentBelongsToBusiness,
 } from "~/server/services/theme";
+import { getSetupStatus } from "~/server/services/setup";
 import type { ThemePaletteMode } from "~/types/theme";
 import { DEFAULT_THEME_PALETTE, THEME_PALETTE_FIELD_GROUPS } from "~/types/theme";
 
@@ -55,6 +57,18 @@ async function requireBusinessId(db: Parameters<typeof getPrimaryBusinessId>[0])
     throw new TRPCError({ code: "BAD_REQUEST", message: "Workspace has not been created yet." });
   }
   return businessId;
+}
+
+type TrpcContext = Awaited<ReturnType<typeof createTRPCContext>>;
+
+async function requireThemeWriteAccess(ctx: TrpcContext) {
+  if (ctx.session?.user) {
+    return;
+  }
+  const status = await getSetupStatus(ctx.db);
+  if (!status.needsSetup) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+  }
 }
 
 export const themeRouter = createTRPCRouter({
@@ -111,7 +125,8 @@ export const themeRouter = createTRPCRouter({
     };
   }),
 
-  create: protectedProcedure.input(upsertPaletteSchema).mutation(async ({ ctx, input }) => {
+  create: publicProcedure.input(upsertPaletteSchema).mutation(async ({ ctx, input }) => {
+    await requireThemeWriteAccess(ctx);
     const businessId = await requireBusinessId(ctx.db);
     const [inserted] = await ctx.db
       .insert(themePalettes)
@@ -130,9 +145,10 @@ export const themeRouter = createTRPCRouter({
     return inserted ?? null;
   }),
 
-  update: protectedProcedure
+  update: publicProcedure
     .input(upsertPaletteSchema.extend({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireThemeWriteAccess(ctx);
       const businessId = await requireBusinessId(ctx.db);
       const [existing] = await ctx.db
         .select({ id: themePalettes.id })
@@ -160,9 +176,10 @@ export const themeRouter = createTRPCRouter({
       return updated ?? null;
     }),
 
-  delete: protectedProcedure
+  delete: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await requireThemeWriteAccess(ctx);
       const businessId = await requireBusinessId(ctx.db);
       const assignmentRows = await ctx.db
         .select({ totalAssignments: count() })
@@ -179,7 +196,8 @@ export const themeRouter = createTRPCRouter({
       return true;
     }),
 
-  setProfile: protectedProcedure.input(setProfileSchema).mutation(async ({ ctx, input }) => {
+  setProfile: publicProcedure.input(setProfileSchema).mutation(async ({ ctx, input }) => {
+    await requireThemeWriteAccess(ctx);
     const businessId = await requireBusinessId(ctx.db);
     const scopeType = input.scopeType;
     const scopeId = scopeType === "business" ? businessId : input.scopeId;
