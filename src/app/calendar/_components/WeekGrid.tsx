@@ -33,7 +33,9 @@ export function WeekGrid({
   }
 
   const headerHeight = variant === "compact" ? 52 : 40;
-  const gridCols = `56px repeat(${days.length}, 1fr)`;
+  const gutterWidth = variant === "compact" ? 36 : 56;
+  const minColWidth = variant === "compact" ? 40 : 0;
+  const gridCols = `${gutterWidth}px repeat(${days.length}, minmax(${minColWidth}px, 1fr))`;
 
   return (
     <div className="flex h-full w-full flex-1 flex-col overflow-hidden">
@@ -49,10 +51,17 @@ export function WeekGrid({
           {/* Time gutter header spacer */}
           <div className="border-r border-outline-muted" />
           {/* Day headers */}
-          {days.map((d) => (
+          {days.map((d, idx) => {
+            const isLast = idx === days.length - 1;
+            return (
             <div key={d.toISOString()}>
               {variant === "default" ? (
-                <div className="border-l border-outline-muted px-2 py-1 text-xs text-ink-primary">
+                <div
+                  className={
+                    "h-full border-l border-outline-muted px-2 py-1 text-xs text-ink-primary" +
+                    (isLast ? " border-r border-outline-muted" : "")
+                  }
+                >
                   <div className="font-medium">
                     {d.toLocaleDateString(undefined, { weekday: "long" })}
                   </div>
@@ -61,25 +70,31 @@ export function WeekGrid({
                   </div>
                 </div>
               ) : (
-                <div className="border-l border-outline-muted px-3 py-2 text-sm text-ink-primary">
+                <div
+                  className={
+                    "h-full border-l border-outline-muted px-2 py-1.5 text-xs text-ink-primary" +
+                    (isLast ? " border-r border-outline-muted" : "")
+                  }
+                >
                   <div className="font-semibold">
-                    {d.toLocaleDateString(undefined, { weekday: "long" })}
-                  </div>
-                  <div className="text-xs text-ink-muted">
-                    {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })}
                   </div>
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
         {/* Scrollable body */}
         <div className="grid" style={{ gridTemplateColumns: gridCols }}>
           {/* Time gutter */}
-          <TimeGutter />
+          <TimeGutter variant={variant} />
           {/* Day columns */}
-          {days.map((d) => (
-            <div key={d.toISOString()}>
+          {days.map((d, idx) => (
+            <div
+              key={d.toISOString()}
+              className={idx === days.length - 1 ? "border-r border-outline-muted" : ""}
+            >
               <DayColumn
                 date={d}
                 events={eventsByDay.get(startOfDay(d).toISOString()) ?? []}
@@ -103,9 +118,14 @@ function formatHour(h: number) {
   return `${hour12} ${ampm}`;
 }
 
-function TimeGutter() {
+function TimeGutter({ variant = "default" }: { variant?: "default" | "compact" }) {
   return (
-    <div className="relative h-full min-h-[1440px] w-14 shrink-0 border-r border-outline-muted bg-surface-muted text-[10px] text-ink-subtle">
+    <div
+      className={
+        "relative h-full min-h-[1440px] shrink-0 border-r border-outline-muted bg-surface-muted text-[10px] text-ink-subtle " +
+        (variant === "compact" ? "w-9" : "w-14")
+      }
+    >
       {Array.from({ length: 24 }).map((_, i) => (
         <div key={i} className="relative h-[60px] border-b border-transparent px-1">
           <div className="-translate-y-2 select-none text-right">{i > 0 ? formatHour(i) : ""}</div>

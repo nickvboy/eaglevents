@@ -16,6 +16,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 type View = "day" | "threeday" | "workweek" | "week" | "month";
 
 const MOBILE_QUERY = "(max-width: 768px)";
+const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
 const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
 
 function getStoredDate(key: string, fallback: Date) {
@@ -29,6 +30,11 @@ function getStoredDate(key: string, fallback: Date) {
   } catch {
     // ignore storage errors
   }
+  return fallback;
+}
+
+function getStoredView(value: string | null, fallback: View) {
+  if (value && VALID_VIEWS.includes(value as View)) return value as View;
   return fallback;
 }
 
@@ -67,10 +73,8 @@ export function CalendarShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const saved = window.localStorage.getItem("calendar.view.desktop");
-      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
-        setDesktopView(saved as View);
-      }
+      const saved = getStoredView(window.localStorage.getItem("calendar.view.desktop"), "workweek");
+      setDesktopView(saved);
     } catch {
       // ignore storage errors
     } finally {
@@ -81,20 +85,19 @@ export function CalendarShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!desktopViewHydrated.current) return;
+    if (isMobile) return;
     try {
       window.localStorage.setItem("calendar.view.desktop", desktopView);
     } catch {
       // ignore storage errors
     }
-  }, [desktopView]);
+  }, [desktopView, isMobile]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const saved = window.localStorage.getItem("calendar.view.mobile");
-      if (saved === "day" || saved === "threeday" || saved === "workweek" || saved === "week" || saved === "month") {
-        setMobileView(saved as View);
-      }
+      const saved = getStoredView(window.localStorage.getItem("calendar.view.mobile"), "day");
+      setMobileView(saved);
     } catch {
       // ignore storage errors
     } finally {
@@ -105,12 +108,13 @@ export function CalendarShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!mobileViewHydrated.current) return;
+    if (!isMobile) return;
     try {
       window.localStorage.setItem("calendar.view.mobile", mobileView);
     } catch {
       // ignore storage errors
     }
-  }, [mobileView]);
+  }, [mobileView, isMobile]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -706,21 +710,21 @@ type MobileToolbarProps = {
 function MobileToolbar({ onToday, view, onViewChange }: MobileToolbarProps) {
   const views: View[] = ["day", "threeday", "workweek", "week", "month"];
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3 text-ink-primary">
+    <div className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-outline-muted bg-surface-overlay px-3 py-2 text-ink-primary">
       <button
-        className="shrink-0 rounded-md border border-outline-muted px-3 py-1.5 text-sm font-medium hover:bg-surface-muted"
+        className="shrink-0 rounded-md border border-outline-muted px-2 py-1 text-xs font-medium hover:bg-surface-muted"
         onClick={onToday}
       >
         Today
       </button>
-      <div className="flex flex-1 justify-center">
+      <div className="flex flex-1 items-center justify-center overflow-x-auto">
         <div className="inline-flex items-center gap-px rounded-lg border border-outline-muted bg-surface-sunken/50 p-1">
           {views.map((v) => (
             <button
               key={v}
               onClick={() => onViewChange(v)}
               className={
-                "rounded-md px-2 py-1 text-xs font-medium capitalize transition " +
+                "rounded-md px-1.5 py-1 text-[11px] font-medium capitalize transition " +
                 (view === v ? "bg-accent-strong text-ink-inverted shadow" : "text-ink-subtle hover:bg-surface-muted")
               }
             >
@@ -885,7 +889,4 @@ function buildMonthGrid(refDate: Date) {
 function isSameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
-
-
-
 
