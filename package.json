@@ -37,7 +37,8 @@
     "seed:workspace": "pnpm seed -- --mode workspace",
     "seed:events": "pnpm seed -- --mode events",
     "seed:full": "pnpm seed -- --mode full",
-    "seed:revert": "pnpm seed -- --mode revert"
+    "seed:revert": "pnpm seed -- --mode revert",
+    "seed:dev": "pnpm seed -- --target dev"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.19.1",

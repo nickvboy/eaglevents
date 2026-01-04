@@ -8,6 +8,7 @@ import {
   ensurePrimaryCalendars,
   getCalendarAccess,
   listAccessibleCalendars,
+  listManageableCalendars,
   suggestPersonalCalendarName,
 } from "~/server/services/calendar";
 import { getElevatedScopeOptions, requireSessionUserId, resolvePrimaryScopeForUser } from "~/server/services/permissions";
@@ -26,6 +27,11 @@ export const calendarRouter = createTRPCRouter({
     const userId = requireSessionUserId(ctx.session);
     await ensurePrimaryCalendars(ctx.db, userId);
     return listAccessibleCalendars(ctx.db, userId);
+  }),
+  listManageable: protectedProcedure.query(async ({ ctx }) => {
+    const userId = requireSessionUserId(ctx.session);
+    await ensurePrimaryCalendars(ctx.db, userId);
+    return listManageableCalendars(ctx.db, userId);
   }),
 
   scopeOptions: protectedProcedure.query(async ({ ctx }) => {
@@ -184,7 +190,27 @@ export const calendarRouter = createTRPCRouter({
       if (!access || !access.canManage) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete this calendar." });
       }
-      await ctx.db.delete(calendars).where(eq(calendars.id, input.calendarId));
+      await ctx.db.transaction(async (tx) => {
+        await tx
+          .update(calendars)
+          .set({ isArchived: true, isPrimary: false })
+          .where(eq(calendars.id, input.calendarId));
+        await tx.update(events).set({ isArchived: true }).where(eq(events.calendarId, input.calendarId));
+      });
       return { deleted: input.calendarId };
+    }),
+  restore: protectedRateLimitedProcedure
+    .input(z.object({ calendarId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = requireSessionUserId(ctx.session);
+      const access = await getCalendarAccess(ctx.db, userId, input.calendarId, { includeArchived: true });
+      if (!access || !access.canManage) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to restore this calendar." });
+      }
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(calendars).set({ isArchived: false }).where(eq(calendars.id, input.calendarId));
+        await tx.update(events).set({ isArchived: false }).where(eq(events.calendarId, input.calendarId));
+      });
+      return { restored: input.calendarId };
     }),
 });

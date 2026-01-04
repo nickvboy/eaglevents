@@ -266,6 +266,7 @@ export const calendars = createTable(
     color: d.varchar({ length: 32 }).default("#22c55e").notNull(),
     isPrimary: d.boolean().default(false).notNull(),
     isPersonal: d.boolean().default(true).notNull(),
+    isArchived: d.boolean().default(false).notNull(),
     scopeType: organizationScopeTypeEnum().notNull(),
     scopeId: d.integer().notNull(),
     createdAt: d
@@ -306,6 +307,7 @@ export const events = createTable(
     eventEndTime: d.timestamp({ withTimezone: true }),
     setupTime: d.timestamp({ withTimezone: true }),
     zendeskTicketNumber: d.varchar({ length: 64 }),
+    isArchived: d.boolean().default(false).notNull(),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)

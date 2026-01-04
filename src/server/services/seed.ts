@@ -1,12 +1,17 @@
 import { faker } from "@faker-js/faker";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Session } from "next-auth";
 
 import type { db } from "~/server/db";
 import type { appRouter } from "~/server/api/root";
+import { calendars } from "~/server/db/schema";
+import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 type DbClient = typeof db;
 type Caller = ReturnType<typeof appRouter.createCaller>;
 type EventCreateInput = Parameters<Caller["event"]["create"]>[0];
+type SetupStatus = Awaited<ReturnType<Caller["setup"]["status"]>>;
+type SeedRoleSummary = SetupStatus["roles"][number];
 
 export type SeedMode = "workspace" | "events" | "full" | "revert";
 
@@ -49,7 +54,18 @@ const FULL_SEED_MONTHS = FULL_SEED_YEARS * 12;
 const FULL_MODE_EVENTS_PER_MONTH = 5;
 export const DEFAULT_FULL_EVENT_COUNT = FULL_SEED_MONTHS * FULL_MODE_EVENTS_PER_MONTH;
 export const DEFAULT_EVENT_COUNT = 15;
-const MAX_CONCURRENT_EVENT_REQUESTS = 6;
+const MAX_CONCURRENT_EVENT_REQUESTS = 2;
+const CALENDAR_COLORS = ["#22c55e", "#0ea5e9", "#f97316", "#e11d48", "#a855f7", "#14b8a6"];
+const PERSONAL_CALENDAR_SAMPLE_RATE = 0.1;
+const PERSONAL_CALENDAR_SAMPLE_MAX = 3;
+const RATE_LIMIT_RETRY_ATTEMPTS = 6;
+const RATE_LIMIT_BACKOFF_MS = 1500;
+const ROLE_PRIORITY: Record<SeedRoleSummary["roleType"], number> = {
+  admin: 4,
+  co_admin: 3,
+  manager: 2,
+  employee: 1,
+};
 
 export function getDefaultEventCount(mode: SeedMode) {
   if (mode === "full") return DEFAULT_FULL_EVENT_COUNT;
@@ -70,12 +86,13 @@ export async function runSeed(options: SeedRunOptions, runtime: SeedRuntime): Pr
   }
 
   if (options.mode === "workspace" || options.mode === "full") {
-    await seedWorkspace(runtime.createCallerForSession, log);
+    await seedWorkspace(runtime.db, runtime.createCallerForSession, log);
   }
 
   let seededEvents = 0;
   if (options.mode === "events" || options.mode === "full") {
     seededEvents = await seedEvents({
+      db: runtime.db,
       createCallerForSession: runtime.createCallerForSession,
       ensureCalendarId: runtime.ensureCalendarId,
       eventCount: options.eventCount,
@@ -122,6 +139,7 @@ export async function revertSeededData(dbClient: DbClient, log: (message: string
 }
 
 export async function seedWorkspace(
+  dbClient: DbClient,
   createCallerForSession: (session?: Session | null) => Promise<Caller>,
   log: (message: string) => void,
 ) {
@@ -164,6 +182,9 @@ export async function seedWorkspace(
     log("All scopes already have admins");
   }
 
+  await ensureDepartmentCalendars(dbClient, status, log);
+  await ensureSamplePersonalCalendars(dbClient, status, log);
+
   if (status.needsSetup && status.readyForCompletion) {
     log("Completing setup");
     await caller.setup.completeSetup(undefined);
@@ -175,6 +196,7 @@ export async function seedWorkspace(
 }
 
 export async function seedEvents({
+  db,
   createCallerForSession,
   ensureCalendarId,
   eventCount,
@@ -182,6 +204,7 @@ export async function seedEvents({
   mode,
   log,
 }: {
+  db: DbClient;
   createCallerForSession: (session?: Session | null) => Promise<Caller>;
   ensureCalendarId: (userId: number) => Promise<number>;
   eventCount: number;
@@ -224,10 +247,22 @@ export async function seedEvents({
   }
 
   const profilePool = Array.from(profilePoolMap.values());
+  const businessAdminPool = status.roles
+    .filter(
+      (role) =>
+        role.scopeType === "business" &&
+        (role.roleType === "admin" || role.roleType === "co_admin") &&
+        role.profile,
+    )
+    .map((role) => profilePoolMap.get(role.profile!.id))
+    .filter(Boolean) as Array<{ profileId: number; userId: number; name: string; email: string }>;
 
   if (profilePool.length === 0) {
     throw new Error("No profiles linked to users were found.");
   }
+
+  const departmentCalendars = await ensureDepartmentCalendars(db, status, log);
+  await ensureSamplePersonalCalendars(db, status, log);
 
   const buildingPool = status.buildings;
   const departmentLookup = new Map(status.departments.flat.map((dept) => [dept.id, dept]));
@@ -236,15 +271,13 @@ export async function seedEvents({
   const createEventsForScope = async ({
     ownerPool,
     targetEventCount,
-    scopeType,
-    scopeId,
     label,
+    calendarId,
   }: {
     ownerPool: Array<{ profileId: number; userId: number; name: string; email: string }>;
     targetEventCount: number;
-    scopeType?: "department" | "division";
-    scopeId?: number;
     label?: string;
+    calendarId?: number;
   }) => {
     if (targetEventCount === 0) {
       log(`Skipping event seeding${label ? ` for ${label}` : ""} (requested count 0)`);
@@ -270,6 +303,7 @@ export async function seedEvents({
     };
 
     const getCalendarIdForOwner = (owner: { userId: number; name: string; email: string }) => {
+      if (calendarId) return Promise.resolve(calendarId);
       let cached = calendarCache.get(owner.userId);
       if (!cached) {
         cached = ensureCalendarId(owner.userId);
@@ -345,20 +379,24 @@ export async function seedEvents({
     let createdCount = 0;
 
     await runWithConcurrency(seedSpecs, MAX_CONCURRENT_EVENT_REQUESTS, async (spec) => {
-      const [userCaller, calendarId] = await Promise.all([
+      const [userCaller, resolvedCalendarId] = await Promise.all([
         getCallerForOwner(spec.owner),
         getCalendarIdForOwner(spec.owner),
       ]);
 
-      const event = await userCaller.event.create({
-        ...spec.eventInputBase,
-        calendarId,
-      });
+      const event = await withRateLimitRetry(
+        () =>
+          userCaller.event.create({
+            ...spec.eventInputBase,
+            calendarId: resolvedCalendarId,
+          }),
+        log,
+      );
 
       createdCount += 1;
 
       if (spec.confirmZendesk) {
-        await userCaller.event.confirmZendesk({ eventId: event.id });
+        await withRateLimitRetry(() => userCaller.event.confirmZendesk({ eventId: event.id }), log);
       }
     });
 
@@ -384,19 +422,25 @@ export async function seedEvents({
       continue;
     }
 
-    const scopeKey = `${scopeType}:${target.scopeId}`;
+    const scopeKey = buildScopeKey(scopeType, target.scopeId);
     const scopeProfiles = Array.from(scopeProfileMap.get(scopeKey)?.values() ?? []);
-    if (scopeProfiles.length === 0) {
+    const ownerPool = scopeProfiles.length > 0 ? scopeProfiles : businessAdminPool;
+    if (ownerPool.length === 0) {
       log(`Skipping ${department.name} (${scopeType}) (no eligible users)`);
       continue;
     }
 
+    const calendarEntry = departmentCalendars.get(scopeKey);
+    if (!calendarEntry) {
+      log(`Skipping ${department.name} (${scopeType}) (calendar not found)`);
+      continue;
+    }
+
     seededEvents += await createEventsForScope({
-      ownerPool: scopeProfiles,
+      ownerPool,
       targetEventCount: target.eventCount,
-      scopeType,
-      scopeId: target.scopeId,
       label: `${department.name} (${scopeType})`,
+      calendarId: calendarEntry.calendarId,
     });
   }
 
@@ -406,13 +450,189 @@ export async function seedEvents({
   }
 
   if (eventCount > 0) {
-    seededEvents += await createEventsForScope({
-      ownerPool: profilePool,
-      targetEventCount: eventCount,
-    });
+    const calendarTargets = Array.from(departmentCalendars.values())
+      .map((entry) => {
+        const scopeKey = buildScopeKey(entry.scopeType, entry.scopeId);
+        const scopeProfiles = Array.from(scopeProfileMap.get(scopeKey)?.values() ?? []);
+        const ownerPool = scopeProfiles.length > 0 ? scopeProfiles : businessAdminPool;
+        if (ownerPool.length === 0) {
+          log(`Skipping ${entry.label} (${entry.scopeType}) (no eligible users)`);
+          return null;
+        }
+        return {
+          ...entry,
+          ownerPool,
+        };
+      })
+      .filter(Boolean) as Array<{
+      calendarId: number;
+      scopeType: "department" | "division";
+      scopeId: number;
+      label: string;
+      ownerPool: Array<{ profileId: number; userId: number; name: string; email: string }>;
+    }>;
+
+    if (calendarTargets.length > 0) {
+      const baseCount = Math.floor(eventCount / calendarTargets.length);
+      const remainder = eventCount % calendarTargets.length;
+      for (const [index, target] of calendarTargets.entries()) {
+        const count = baseCount + (index < remainder ? 1 : 0);
+        if (count === 0) continue;
+        seededEvents += await createEventsForScope({
+          ownerPool: target.ownerPool,
+          targetEventCount: count,
+          label: `${target.label} (${target.scopeType})`,
+          calendarId: target.calendarId,
+        });
+      }
+    } else {
+      seededEvents += await createEventsForScope({
+        ownerPool: profilePool,
+        targetEventCount: eventCount,
+      });
+    }
   }
 
   return seededEvents;
+}
+
+function buildScopeKey(scopeType: "department" | "division", scopeId: number) {
+  return `${scopeType}:${scopeId}`;
+}
+
+function pickRoleUserId(roles: SeedRoleSummary[], fallbackUserId: number | null) {
+  if (roles.length === 0) return fallbackUserId;
+  const sorted = roles
+    .slice()
+    .filter((role) => role.userId)
+    .sort((a, b) => (ROLE_PRIORITY[b.roleType] ?? 0) - (ROLE_PRIORITY[a.roleType] ?? 0));
+  return sorted[0]?.userId ?? fallbackUserId;
+}
+
+async function ensureDepartmentCalendars(
+  dbClient: DbClient,
+  status: SetupStatus,
+  log: (message: string) => void,
+) {
+  const scopes = new Map<string, { scopeType: "department" | "division"; scopeId: number; label: string }>();
+  for (const department of status.departments.flat) {
+    const scopeType = department.parentDepartmentId === null ? "department" : "division";
+    const scopeKey = buildScopeKey(scopeType, department.id);
+    if (!scopes.has(scopeKey)) {
+      scopes.set(scopeKey, { scopeType, scopeId: department.id, label: department.name });
+    }
+  }
+
+  if (scopes.size === 0) {
+    log("No departments found; skipping department calendars.");
+    return new Map<string, { calendarId: number; scopeType: "department" | "division"; scopeId: number; label: string }>();
+  }
+
+  const existing = await dbClient
+    .select({
+      id: calendars.id,
+      scopeType: calendars.scopeType,
+      scopeId: calendars.scopeId,
+    })
+    .from(calendars)
+    .where(and(eq(calendars.isPersonal, false), inArray(calendars.scopeType, ["department", "division"])));
+
+  const byScope = new Map<string, { calendarId: number; scopeType: "department" | "division"; scopeId: number; label: string }>();
+  for (const row of existing) {
+    if (row.scopeType !== "department" && row.scopeType !== "division") continue;
+    const scopeKey = buildScopeKey(row.scopeType, row.scopeId);
+    const scope = scopes.get(scopeKey);
+    if (!scope) continue;
+    byScope.set(scopeKey, { calendarId: row.id, scopeType: row.scopeType, scopeId: row.scopeId, label: scope.label });
+  }
+
+  const rolesByScope = new Map<string, SeedRoleSummary[]>();
+  for (const role of status.roles) {
+    if (role.scopeType !== "department" && role.scopeType !== "division") continue;
+    const key = buildScopeKey(role.scopeType, role.scopeId);
+    const bucket = rolesByScope.get(key);
+    if (bucket) {
+      bucket.push(role);
+    } else {
+      rolesByScope.set(key, [role]);
+    }
+  }
+
+  const fallbackUserId =
+    status.roles.find((role) => role.scopeType === "business" && role.roleType === "admin")?.userId ??
+    status.roles.find((role) => role.scopeType === "business" && role.roleType === "co_admin")?.userId ??
+    status.roles[0]?.userId ??
+    null;
+
+  let createdCount = 0;
+
+  for (const [scopeKey, scope] of scopes) {
+    if (byScope.has(scopeKey)) continue;
+    const ownerUserId = pickRoleUserId(rolesByScope.get(scopeKey) ?? [], fallbackUserId);
+    if (!ownerUserId) {
+      log(`Skipping calendar for ${scope.label} (${scope.scopeType}) (no eligible user)`);
+      continue;
+    }
+    const calendarName =
+      scope.scopeType === "division" ? `${scope.label} Division Calendar` : `${scope.label} Calendar`;
+    const [created] = await dbClient
+      .insert(calendars)
+      .values({
+        userId: ownerUserId,
+        name: calendarName,
+        color: faker.helpers.arrayElement(CALENDAR_COLORS),
+        isPrimary: false,
+        isPersonal: false,
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+      })
+      .returning({ id: calendars.id });
+    if (created) {
+      byScope.set(scopeKey, {
+        calendarId: created.id,
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        label: scope.label,
+      });
+      createdCount += 1;
+    }
+  }
+
+  if (createdCount > 0) {
+    log(`Created ${createdCount} department calendars.`);
+  }
+
+  return byScope;
+}
+
+async function ensureSamplePersonalCalendars(
+  dbClient: DbClient,
+  status: SetupStatus,
+  log: (message: string) => void,
+) {
+  const userIds = Array.from(new Set(status.roles.map((role) => role.userId)));
+  if (userIds.length === 0) return;
+
+  const targetCount = Math.min(
+    userIds.length,
+    Math.max(1, Math.min(PERSONAL_CALENDAR_SAMPLE_MAX, Math.round(userIds.length * PERSONAL_CALENDAR_SAMPLE_RATE))),
+  );
+
+  const existing = await dbClient
+    .select({ userId: calendars.userId })
+    .from(calendars)
+    .where(and(eq(calendars.isPersonal, true), inArray(calendars.userId, userIds)));
+  const existingSet = new Set(existing.map((row) => row.userId));
+  const candidates = userIds.filter((userId) => !existingSet.has(userId));
+  if (candidates.length === 0) return;
+
+  const selected = faker.helpers.shuffle(candidates).slice(0, targetCount);
+  if (selected.length === 0) return;
+
+  for (const userId of selected) {
+    await ensurePrimaryCalendars(dbClient, userId);
+  }
+  log(`Ensured personal calendars for ${selected.length} users.`);
 }
 
 function createBuildingInputs() {
@@ -585,4 +805,33 @@ async function runWithConcurrency<T>(
   });
 
   await Promise.all(runners);
+}
+
+async function withRateLimitRetry<T>(action: () => Promise<T>, log: (message: string) => void) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await action();
+    } catch (error) {
+      attempt += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      const retrySeconds = parseRetryAfterSeconds(message);
+      const shouldRetry = message.toLowerCase().includes("too many requests") && attempt <= RATE_LIMIT_RETRY_ATTEMPTS;
+      if (!shouldRetry) throw error;
+      const delayMs = retrySeconds ? retrySeconds * 1000 : RATE_LIMIT_BACKOFF_MS * attempt;
+      log(`Rate limit hit; retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt}).`);
+      await sleep(delayMs);
+    }
+  }
+}
+
+function parseRetryAfterSeconds(message: string) {
+  const match = message.match(/try again in (\d+)s/i);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[1] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

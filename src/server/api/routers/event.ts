@@ -410,7 +410,7 @@ export const eventRouter = createTRPCRouter({
           ctx.db
             .select()
             .from(events)
-            .where(eq(events.id, numericId))
+            .where(and(eq(events.id, numericId), eq(events.isArchived, false)))
             .limit(1)
             .then((rows) => rows[0]),
         );
@@ -420,7 +420,7 @@ export const eventRouter = createTRPCRouter({
         ctx.db
           .select()
           .from(events)
-          .where(eq(events.eventCode, trimmed))
+          .where(and(eq(events.eventCode, trimmed), eq(events.isArchived, false)))
           .limit(1)
           .then((rows) => rows[0]),
       );
@@ -431,7 +431,7 @@ export const eventRouter = createTRPCRouter({
           ctx.db
             .select()
             .from(events)
-            .where(eq(events.zendeskTicketNumber, zendesk))
+            .where(and(eq(events.zendeskTicketNumber, zendesk), eq(events.isArchived, false)))
             .limit(1)
             .then((rows) => rows[0]),
         );
@@ -483,6 +483,7 @@ export const eventRouter = createTRPCRouter({
       const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, userId);
       if (accessibleCalendarIds.length === 0) return [];
       conditions.push(inArray(events.calendarId, accessibleCalendarIds));
+      conditions.push(eq(events.isArchived, false));
 
       const visible = await getVisibleScopes(ctx.db, context.userId);
       const scopeCondition = buildScopeCondition(visible);
@@ -559,7 +560,7 @@ export const eventRouter = createTRPCRouter({
         eventCode: events.eventCode,
       })
       .from(events)
-      .where(condition)
+      .where(and(condition, eq(events.isArchived, false)))
       .orderBy(desc(events.startDatetime));
 
     const confirmationRows = await ctx.db
@@ -629,7 +630,7 @@ export const eventRouter = createTRPCRouter({
           assigneeProfileId: events.assigneeProfileId,
         })
         .from(events)
-        .where(eq(events.id, input.eventId))
+        .where(and(eq(events.id, input.eventId), eq(events.isArchived, false)))
         .limit(1);
       const eventRow = eventRows[0];
       if (!eventRow) {
@@ -674,6 +675,7 @@ export const eventRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
       let condition = and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start));
+      condition = and(condition, eq(events.isArchived, false));
       const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, userId);
       if (accessibleCalendarIds.length === 0) return [];
       const visibleCalendarIds =
@@ -901,7 +903,11 @@ export const eventRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
-      const existing = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);
+      const existing = await ctx.db
+        .select()
+        .from(events)
+        .where(and(eq(events.id, input.id), eq(events.isArchived, false)))
+        .limit(1);
       const current = existing[0];
       if (!current) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
@@ -1042,7 +1048,11 @@ export const eventRouter = createTRPCRouter({
   delete: protectedRateLimitedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const [existing] = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);
+      const [existing] = await ctx.db
+        .select()
+        .from(events)
+        .where(and(eq(events.id, input.id), eq(events.isArchived, false)))
+        .limit(1);
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }

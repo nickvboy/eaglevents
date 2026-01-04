@@ -22,7 +22,7 @@ export async function ensurePrimaryCalendars(dbClient: DbExecutor, userId: numbe
   const existing = await dbClient
     .select()
     .from(calendars)
-    .where(and(eq(calendars.userId, userId), eq(calendars.isPersonal, true)));
+    .where(and(eq(calendars.userId, userId), eq(calendars.isPersonal, true), eq(calendars.isArchived, false)));
   if (existing.length === 0) {
     const [userRow] = await dbClient
       .select({ id: users.id, displayName: users.displayName, username: users.username })
@@ -82,7 +82,7 @@ export async function suggestPersonalCalendarName(dbClient: DbExecutor, userId: 
   const [countRow] = await dbClient
     .select({ count: sql<number>`count(*)` })
     .from(calendars)
-    .where(and(eq(calendars.userId, userId), eq(calendars.isPersonal, true)));
+    .where(and(eq(calendars.userId, userId), eq(calendars.isPersonal, true), eq(calendars.isArchived, false)));
   const count = Number(countRow?.count ?? 0);
   const nextIndex = Number.isFinite(count) ? count + 1 : 1;
   return buildPersonalCalendarName(userRow.displayName, userRow.username, nextIndex);
@@ -133,7 +133,15 @@ function isScopeVisible(
   return false;
 }
 
-export async function listAccessibleCalendars(dbClient: DbExecutor, userId: number): Promise<CalendarAccess[]> {
+type ListOptions = {
+  includeArchived?: boolean;
+};
+
+export async function listAccessibleCalendars(
+  dbClient: DbExecutor,
+  userId: number,
+  options: ListOptions = {},
+): Promise<CalendarAccess[]> {
   const [visibleScopes, elevatedScopes] = await Promise.all([
     getVisibleScopes(dbClient as typeof db, userId),
     getElevatedVisibleScopes(dbClient as typeof db, userId),
@@ -161,6 +169,9 @@ export async function listAccessibleCalendars(dbClient: DbExecutor, userId: numb
   let whereCondition: SQL<unknown> | null = first ?? null;
   for (const condition of rest) {
     whereCondition = whereCondition ? (or(whereCondition, condition) ?? whereCondition) : condition;
+  }
+  if (!options.includeArchived) {
+    whereCondition = and(whereCondition ?? sql`true`, eq(calendars.isArchived, false));
   }
 
   const rows = await dbClient
@@ -199,7 +210,21 @@ export async function listAccessibleCalendars(dbClient: DbExecutor, userId: numb
   });
 }
 
-export async function getCalendarAccess(dbClient: DbExecutor, userId: number, calendarId: number) {
+export async function listManageableCalendars(dbClient: DbExecutor, userId: number) {
+  const calendars = await listAccessibleCalendars(dbClient, userId, { includeArchived: true });
+  return calendars.filter((calendar) => calendar.canManage);
+}
+
+type AccessOptions = {
+  includeArchived?: boolean;
+};
+
+export async function getCalendarAccess(
+  dbClient: DbExecutor,
+  userId: number,
+  calendarId: number,
+  options: AccessOptions = {},
+) {
   const [visibleScopes, elevatedScopes] = await Promise.all([
     getVisibleScopes(dbClient as typeof db, userId),
     getElevatedVisibleScopes(dbClient as typeof db, userId),
@@ -213,6 +238,7 @@ export async function getCalendarAccess(dbClient: DbExecutor, userId: number, ca
     .where(eq(calendars.id, calendarId))
     .limit(1);
   if (!row) return null;
+  if (!options.includeArchived && row.calendar.isArchived) return null;
   const calendar = row.calendar;
   const canManage = calendar.isPersonal
     ? calendar.userId === userId || isScopeVisible(calendar, elevatedScopes)
