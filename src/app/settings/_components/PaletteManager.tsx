@@ -67,7 +67,7 @@ export function PaletteManager() {
   }, [statusMessage]);
 
   const palettes = data?.palettes ?? [];
-  const profiles = data?.profiles ?? [];
+  const profiles = useMemo(() => data?.profiles ?? [], [data?.profiles]);
   const departments = data?.departments ?? [];
   const workspaceProfile = profiles.find((p) => p.scopeType === "business");
 

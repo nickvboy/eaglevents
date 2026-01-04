@@ -148,6 +148,20 @@ ODBE
 - [x]  Open Zendesk modal; verify it appears and closes.
 - [x]  When double clicking the ticket it shoud open the full screen and stay on the ticket view
 
+## Zendesk Hour Logging (Zendesk Queue)
+
+- [ ]  Open Zendesk queue from Tickets; verify modal loads with Ready/Needs Logging tabs and counts.
+- [ ]  Ready tab: ticket with hours logged shows Hours to copy, Zendesk ID, and Info entered button enabled.
+- [ ]  Needs Logging tab: assigned ticket with no hours shows "No hours logged" status and Info entered disabled.
+- [ ]  Needs Logging tab: logged hours but unconfirmed shows "Hours not confirmed" status.
+- [ ]  After confirming a ticket, verify it disappears from both lists and counts update.
+- [ ]  Add new hour logs to a previously confirmed ticket; verify it shows "New hours added" and returns to Needs Logging.
+- [ ]  Confirm is blocked for tickets where the user is neither assignee nor logger; verify error handling.
+- [ ]  Copy buttons: Zendesk ID disabled when missing; Hours disabled when total is 0; verify clipboard text format HH:MM:SS.
+- [ ]  Queue list navigation: previous/next buttons disable at edges; "Ticket X of Y" updates correctly.
+- [ ]  Empty states: Ready with no items shows "All caught up"; Needs Logging empty shows "No tickets needing attention."
+- [ ]  Escape key closes the modal without mutating ticket state.
+
 ## Settings - Theme and Palettes
 
 - [x]  Toggle Light, Dark, System mode; verify theme changes.
