@@ -69,6 +69,11 @@ export const signupLimiter = new RateLimiter(3, {
   uniqueTokenPerInterval: 500,
 });
 
+export const mutationLimiter = new RateLimiter(120, {
+  interval: 60 * 1000, // 1 minute
+  uniqueTokenPerInterval: 1000,
+});
+
 export function getClientIp(source: Request | Headers): string {
   const headers = source instanceof Headers ? source : source.headers;
   const forwarded = headers.get("x-forwarded-for");

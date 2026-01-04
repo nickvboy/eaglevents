@@ -11,9 +11,11 @@ type MonthWidgetProps = {
   onSelect: (d: Date) => void;
   onMonthChange: (direction: number) => void;
   focusedWeekStart: Date; // start of the week currently in focus
-  calendars: { id: number; name: string; swatchClass: string }[];
+  calendars: { id: number; name: string; color: string; isPersonal: boolean; canManage: boolean }[];
   visibleCalendarIds: number[];
   onToggleCalendar: (id: number) => void;
+  onEditCalendar: (id: number) => void;
+  onCreateCalendar: () => void;
 };
 
 function buildMonthGrid(refDate: Date) {
@@ -106,11 +108,8 @@ export function CalendarSidebar(props: MonthWidgetProps) {
   };
 
   return (
-    <aside
-      ref={containerRef}
-      className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-outline-muted bg-surface-muted p-3 text-sm text-ink-primary"
-    >
-      <div className="mb-3">
+    <aside className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-outline-muted bg-surface-muted p-3 text-sm text-ink-primary">
+      <div ref={containerRef} className="mb-3">
         {mode === "day" ? (
           <>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -259,25 +258,86 @@ export function CalendarSidebar(props: MonthWidgetProps) {
         )}
       </div>
 
-      <div>
-        <div className="mb-2 text-xs uppercase text-ink-muted">My calendars</div>
-        <div className="flex flex-col gap-1">
-          {props.calendars.map((c) => {
-            const visible = props.visibleCalendarIds.includes(c.id);
-            return (
-              <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 hover:bg-surface-muted">
-                <input
-                  type="checkbox"
-                  checked={visible}
-                  onChange={() => props.onToggleCalendar(c.id)}
-                  className="accent-accent-strong"
-                />
-                <span className={`inline-block h-3 w-3 rounded ${c.swatchClass}`} />
-                <span className="truncate">{c.name}</span>
-              </label>
-            );
-          })}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 scrollbar-hidden">
+          <div>
+            <div className="mb-2 text-xs uppercase text-ink-muted">Team calendars</div>
+            <div className="flex flex-col gap-1">
+              {props.calendars
+                .filter((c) => !c.isPersonal)
+                .map((c) => {
+                  const visible = props.visibleCalendarIds.includes(c.id);
+                  return (
+                    <label key={c.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-surface-muted">
+                      <input
+                        type="checkbox"
+                        checked={visible}
+                        onChange={() => props.onToggleCalendar(c.id)}
+                        className="accent-accent-strong"
+                      />
+                      <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: c.color }} />
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      {c.canManage ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            props.onEditCalendar(c.id);
+                          }}
+                          className="text-[11px] text-ink-muted hover:text-ink-primary"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+          <div>
+            <div className="mb-2 text-xs uppercase text-ink-muted">My calendars</div>
+            <div className="flex flex-col gap-1">
+              {props.calendars
+                .filter((c) => c.isPersonal)
+                .map((c) => {
+                  const visible = props.visibleCalendarIds.includes(c.id);
+                  return (
+                    <label key={c.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-surface-muted">
+                      <input
+                        type="checkbox"
+                        checked={visible}
+                        onChange={() => props.onToggleCalendar(c.id)}
+                        className="accent-accent-strong"
+                      />
+                      <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: c.color }} />
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      {c.canManage ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            props.onEditCalendar(c.id);
+                          }}
+                          className="text-[11px] text-ink-muted hover:text-ink-primary"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={props.onCreateCalendar}
+          className="mt-3 w-full rounded-md border border-outline-muted px-2 py-1 text-xs font-semibold text-ink-primary hover:bg-surface-muted"
+        >
+          New calendar
+        </button>
       </div>
     </aside>
   );

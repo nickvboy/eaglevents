@@ -804,7 +804,6 @@ export const setupRouter = createTRPCRouter({
           })),
         );
 
-        await ensurePrimaryCalendars(tx, insertedUser.id);
       }
     });
 
@@ -894,9 +893,6 @@ export const setupRouter = createTRPCRouter({
         .set({ setupCompletedAt: new Date(), updatedAt: new Date() })
         .where(eq(businesses.id, status.business!.id));
 
-      for (const userId of adminUserIds) {
-        await ensurePrimaryCalendars(tx, userId);
-      }
     });
 
     return getSetupStatus(ctx.db);

@@ -19,9 +19,10 @@ export function AppShell({ user, children }: AppShellProps) {
     HIDE_SHELL_PATHS.some((base) => pathname === base || (base !== "/" && pathname?.startsWith(`${base}/`)));
   const lockShellScroll = Boolean(pathname?.startsWith("/calendar"));
   const shellHeightClass = hideShell ? "min-h-screen" : "h-screen";
+  const useShellScroll = !hideShell && !lockShellScroll;
 
   return (
-    <div className={`flex ${shellHeightClass} flex-col md:flex-row`}>
+    <div className={`flex ${shellHeightClass} ${useShellScroll ? "overflow-hidden" : ""} flex-col md:flex-row`}>
       {!hideShell ? <SidebarNav user={user} /> : null}
       <div className="flex h-full min-h-0 flex-1 flex-col">
         {!hideShell ? (
@@ -32,7 +33,7 @@ export function AppShell({ user, children }: AppShellProps) {
         <main
           className={
             "flex min-h-0 flex-1 flex-col bg-surface-canvas pb-16 md:pb-0 " +
-            (lockShellScroll ? "overflow-hidden" : "")
+            (lockShellScroll ? "overflow-hidden" : useShellScroll ? "overflow-y-auto" : "")
           }
         >
           {children}

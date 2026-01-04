@@ -12,7 +12,7 @@ type Props = {
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
-  calendarLookup?: Map<number, { name: string; swatchClass: string }>;
+  calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
 export function WeekGrid({

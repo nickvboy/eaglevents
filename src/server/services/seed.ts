@@ -333,7 +333,6 @@ export async function seedEvents({
         setupTime: new Date(start.getTime() - 60 * 60 * 1000),
         zendeskTicketNumber,
         hourLogs,
-        ...(scopeType && scopeId ? { scopeType, scopeId } : {}),
       };
 
       return {

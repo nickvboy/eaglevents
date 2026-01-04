@@ -27,6 +27,7 @@ type CreateFormState = {
   phoneNumber: string;
   dateOfBirth: string;
   primaryRole: RoleOption;
+  scopeKeys: string[];
 };
 
 type AdminUser = RouterOutputs["admin"]["users"]["users"][number];
@@ -60,6 +61,7 @@ function createDefaultCreateForm(): CreateFormState {
     phoneNumber: "",
     dateOfBirth: "",
     primaryRole: "employee",
+    scopeKeys: [],
   };
 }
 
@@ -255,6 +257,28 @@ export function UsersView() {
     return false;
   };
 
+  const businessScopeOption = useMemo(
+    () => scopeOptions.find((option) => option.value.startsWith("business:")) ?? null,
+    [scopeOptions],
+  );
+  const requiresBusinessScope = createFormState.primaryRole === "admin" || createFormState.primaryRole === "co_admin";
+  const scopeSelectDisabled = requiresBusinessScope && Boolean(businessScopeOption);
+
+  useEffect(() => {
+    if (requiresBusinessScope && businessScopeOption) {
+      if (createFormState.scopeKeys.length !== 1 || createFormState.scopeKeys[0] !== businessScopeOption.value) {
+        setCreateFormState((prev) => ({ ...prev, scopeKeys: [businessScopeOption.value] }));
+      }
+      return;
+    }
+    if (createFormState.scopeKeys.length === 0 && scopeOptions.length > 0) {
+      const fallback = scopeOptions.find((option) => !option.value.startsWith("business:")) ?? scopeOptions[0];
+      if (fallback) {
+        setCreateFormState((prev) => ({ ...prev, scopeKeys: [fallback.value] }));
+      }
+    }
+  }, [businessScopeOption, createFormState.primaryRole, createFormState.scopeKeys, requiresBusinessScope, scopeOptions]);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedUser) return;
@@ -295,6 +319,23 @@ export function UsersView() {
     setFeedback(null);
 
     try {
+      if (scopeOptions.length > 0 && createFormState.scopeKeys.length === 0) {
+        setFeedback({ type: "error", message: "Select a scope for this user." });
+        return;
+      }
+      if (requiresBusinessScope && !businessScopeOption) {
+        setFeedback({ type: "error", message: "Business scope is required for admin roles." });
+        return;
+      }
+      const scopes = createFormState.scopeKeys
+        .map((key) => {
+          const scopeParts = key.split(":");
+          const scopeType = scopeParts[0] as "business" | "department" | "division" | undefined;
+          const scopeId = scopeParts[1] ? Number(scopeParts[1]) : undefined;
+          if (!scopeType || !Number.isFinite(scopeId)) return null;
+          return { scopeType, scopeId };
+        })
+        .filter((scope): scope is { scopeType: "business" | "department" | "division"; scopeId: number } => Boolean(scope));
       const trimmedDateOfBirth = createFormState.dateOfBirth.trim();
       await createMutation.mutateAsync({
         username: createFormState.username.trim(),
@@ -305,6 +346,7 @@ export function UsersView() {
         phoneNumber: createFormState.phoneNumber.trim(),
         dateOfBirth: trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : undefined,
         primaryRole: createFormState.primaryRole,
+        scopes: scopes.length > 0 ? scopes : undefined,
       });
       setIsCreateOpen(false);
       setCreateFormState(createDefaultCreateForm());
@@ -731,7 +773,7 @@ export function UsersView() {
         )}
       </section>
       {isDeleteOpen && selectedUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-primary/30 px-4">
+        <div className="fixed inset-0 z-[10000] flex items-start justify-center bg-[var(--color-overlay-backdrop)] px-4 py-8">
           <div className="w-full max-w-md rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
             <h3 className="text-lg font-semibold text-ink-primary">Deactivate user account</h3>
             <p className="mt-2 text-sm text-ink-muted">
@@ -763,8 +805,8 @@ export function UsersView() {
         </div>
       ) : null}
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-primary/30 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <div className="fixed inset-0 z-[10000] flex items-start justify-center bg-[var(--color-overlay-backdrop)] px-4 py-8">
+          <div className="max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
             <h3 className="text-lg font-semibold text-ink-primary">Add user</h3>
             <p className="mt-2 text-sm text-ink-muted">Create a new account with a primary role.</p>
             <form className="mt-6 grid gap-4" onSubmit={handleCreate}>
@@ -886,6 +928,30 @@ export function UsersView() {
                   })}
                 </div>
               </fieldset>
+              <label className="flex flex-col gap-2 text-sm text-ink-primary">
+                <span>Scope</span>
+                <select
+                  value={createFormState.scopeKeys}
+                  onChange={(event) => {
+                    const selected = Array.from(event.target.selectedOptions).map((option) => option.value);
+                    setCreateFormState((prev) => ({ ...prev, scopeKeys: selected }));
+                  }}
+                  multiple
+                  className="min-h-[120px] rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={scopeSelectDisabled}
+                >
+                  {scopeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {requiresBusinessScope ? (
+                  <span className="text-xs text-ink-muted">Admin roles are assigned to the full business scope.</span>
+                ) : (
+                  <span className="text-xs text-ink-muted">Hold Ctrl/Cmd to select multiple scopes.</span>
+                )}
+              </label>
               <div className="mt-2 flex flex-wrap justify-end gap-3">
                 <button
                   type="button"

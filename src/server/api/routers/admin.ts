@@ -211,6 +211,9 @@ const snapshotSchema = z.object({
         name: z.string(),
         color: z.string(),
         isPrimary: z.boolean(),
+        isPersonal: z.boolean().optional(),
+        scopeType: z.enum(organizationScopeTypeValues).optional(),
+        scopeId: z.number().int().positive().optional(),
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
       }),
@@ -912,6 +915,9 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       name: row.name,
       color: row.color,
       isPrimary: row.isPrimary,
+      isPersonal: row.isPersonal,
+      scopeType: row.scopeType,
+      scopeId: row.scopeId,
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
     })),
@@ -1880,7 +1886,12 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       const [calendar] = await ctx.db
-        .select({ id: calendars.id, userId: calendars.userId })
+        .select({
+          id: calendars.id,
+          userId: calendars.userId,
+          scopeType: calendars.scopeType,
+          scopeId: calendars.scopeId,
+        })
         .from(calendars)
         .where(eq(calendars.id, input.calendarId))
         .limit(1);
@@ -1912,8 +1923,8 @@ export const adminRouter = createTRPCRouter({
         return {
           calendarId: input.calendarId,
           ownerProfileId: ownerProfile?.id ?? null,
-          scopeType: "business" as const,
-          scopeId: businessId,
+          scopeType: calendar.scopeType,
+          scopeId: calendar.scopeId,
           eventCode: codes[index] ?? generateEventCode(),
           title: event.title,
           isAllDay: event.isAllDay,
@@ -2101,6 +2112,8 @@ export const adminRouter = createTRPCRouter({
           );
         }
 
+        const fallbackBusinessId = data.businesses[0]?.id ?? null;
+
         if (data.calendars.length > 0) {
           await tx.insert(calendars).values(
             data.calendars.map((row) => ({
@@ -2109,6 +2122,9 @@ export const adminRouter = createTRPCRouter({
               name: row.name,
               color: row.color,
               isPrimary: row.isPrimary,
+              isPersonal: row.isPersonal ?? true,
+              scopeType: row.scopeType ?? "business",
+              scopeId: row.scopeId ?? fallbackBusinessId ?? row.id,
               createdAt: parseRequiredTimestamp(row.createdAt),
               updatedAt: parseTimestamp(row.updatedAt),
             })),
@@ -3315,6 +3331,14 @@ export const adminRouter = createTRPCRouter({
         phoneNumber: z.string().min(10).max(32),
         dateOfBirth: z.string().optional(),
         primaryRole: z.enum(["admin", "co_admin", "manager", "employee"]),
+        scopes: z
+          .array(
+            z.object({
+              scopeType: z.enum(["business", "department", "division"]),
+              scopeId: z.number().int().positive(),
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -3366,6 +3390,55 @@ export const adminRouter = createTRPCRouter({
 
       const managerVisibleScopes = isManager ? await getVisibleScopes(ctx.db, context.userId) : null;
 
+      if (input.scopes && input.scopes.length > 0) {
+        const allowedDepartments = new Set(managerVisibleScopes?.departmentIds ?? []);
+        const allowedDivisions = new Set(managerVisibleScopes?.divisionIds ?? []);
+        const seen = new Set<string>();
+
+        for (const scope of input.scopes) {
+          const scopeKey = `${scope.scopeType}:${scope.scopeId}`;
+          if (seen.has(scopeKey)) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Duplicate scopes are not allowed." });
+          }
+          seen.add(scopeKey);
+
+          if (scope.scopeType === "business") {
+            if (scope.scopeId !== businessId) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Business scope must match the current business." });
+            }
+            if (isManager) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "Managers cannot assign business-wide scope." });
+            }
+            continue;
+          }
+
+          const [departmentRow] = await ctx.db
+            .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId, businessId: departments.businessId })
+            .from(departments)
+            .where(eq(departments.id, scope.scopeId))
+            .limit(1);
+          if (departmentRow?.businessId !== businessId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Department scope not found." });
+          }
+          const isDivision = departmentRow.parentDepartmentId !== null;
+          if (scope.scopeType === "department" && isDivision) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a division, not a department." });
+          }
+          if (scope.scopeType === "division" && !isDivision) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a department, not a division." });
+          }
+
+          if (isManager) {
+            if (scope.scopeType === "department" && !allowedDepartments.has(scope.scopeId)) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "You cannot assign users outside your departments." });
+            }
+            if (scope.scopeType === "division" && !allowedDivisions.has(scope.scopeId)) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "You cannot assign users outside your divisions." });
+            }
+          }
+        }
+      }
+
       return ctx.db.transaction(async (tx) => {
         const [existingUser] = await tx
           .select({ id: users.id })
@@ -3408,7 +3481,13 @@ export const adminRouter = createTRPCRouter({
         }
 
         const scopesToAssign: Array<{ scopeType: "business" | "department" | "division"; scopeId: number }> = [];
-        if (isManager) {
+        if (input.scopes && input.scopes.length > 0) {
+          if (input.primaryRole === "admin" || input.primaryRole === "co_admin") {
+            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
+          } else {
+            scopesToAssign.push(...input.scopes);
+          }
+        } else if (isManager) {
           const departmentIds = Array.from(new Set(managerVisibleScopes?.departmentIds ?? [])).sort((a, b) => a - b);
           const divisionIds = Array.from(new Set(managerVisibleScopes?.divisionIds ?? [])).sort((a, b) => a - b);
           for (const id of departmentIds) {

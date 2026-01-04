@@ -14,10 +14,11 @@ import type { RouterOutputs } from "~/trpc/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 
 type View = "day" | "threeday" | "workweek" | "week" | "month";
+type CalendarRow = RouterOutputs["calendar"]["listAccessible"][number];
+type CalendarScopeOption = RouterOutputs["calendar"]["scopeOptions"][number];
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
-const CALENDAR_SWATCHES = ["bg-accent-strong", "bg-status-success", "bg-status-warning", "bg-status-danger", "bg-accent-soft"] as const;
 
 function getStoredDate(key: string, fallback: Date) {
   if (typeof window === "undefined") return fallback;
@@ -51,6 +52,8 @@ export function CalendarShell() {
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [previewEventId, setPreviewEventId] = useState<number | null>(null);
+  const [calendarEditorOpen, setCalendarEditorOpen] = useState(false);
+  const [editingCalendarId, setEditingCalendarId] = useState<number | null>(null);
   const [sidebarMonthDate, setSidebarMonthDate] = useState(() => {
     return startOfDay(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   });
@@ -165,19 +168,32 @@ export function CalendarShell() {
   const { data: business } = api.calendar.getBusiness.useQuery(undefined);
 
   // calendars
-  const { data: calendars } = api.calendar.listMine.useQuery(undefined);
-  const defaultCalendarId = calendars?.find((c) => c.isPrimary)?.id ?? calendars?.[0]?.id;
+  const { data: calendars } = api.calendar.listAccessible.useQuery(undefined);
+  const { data: calendarScopeOptions } = api.calendar.scopeOptions.useQuery();
+  const { data: personalNameSuggestion } = api.calendar.suggestPersonalName.useQuery();
+  const defaultCalendarId =
+    calendars?.find((c) => c.isPersonal && c.isPrimary)?.id ??
+    calendars?.find((c) => c.isPersonal)?.id ??
+    calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
   const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
   const calendarLookup = useMemo(() => {
-    const map = new Map<number, { name: string; swatchClass: string }>();
-    (calendars ?? []).forEach((c, idx) => {
-      const swatchClass = CALENDAR_SWATCHES[idx % CALENDAR_SWATCHES.length] ?? CALENDAR_SWATCHES[0];
-      map.set(c.id, { name: c.name, swatchClass });
+    const map = new Map<number, { name: string; color: string }>();
+    (calendars ?? []).forEach((c) => {
+      map.set(c.id, { name: c.name, color: c.color });
     });
     return map;
   }, [calendars]);
+  const writableCalendars = useMemo(() => (calendars ?? []).filter((c) => c.canWrite), [calendars]);
+  const eventCalendarId = useMemo(() => {
+    if (writableCalendars.length === 0) return defaultCalendarId;
+    if (visibleCalendarIds.length > 0) {
+      const selected = writableCalendars.find((calendar) => visibleCalendarIds.includes(calendar.id));
+      if (selected) return selected.id;
+    }
+    return defaultCalendarId ?? writableCalendars[0]?.id;
+  }, [writableCalendars, visibleCalendarIds, defaultCalendarId]);
 
   const eventIdParam = searchParams.get("eventId")?.trim() ?? "";
   const lookupQuery = api.event.findByIdentifier.useQuery(
@@ -290,6 +306,7 @@ export function CalendarShell() {
   const eventsQuery = api.event.list.useQuery({
     start: range.start,
     end: addDays(range.end, 1),
+    calendarIds: effectiveVisible.length > 0 ? effectiveVisible : undefined,
   });
   const events = useMemo<RouterOutputs["event"]["list"]>(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const previewEvent = useMemo(
@@ -310,6 +327,10 @@ export function CalendarShell() {
     if (editingEventId && resolvedSelectedEvent?.id === editingEventId) return resolvedSelectedEvent;
     return null;
   }, [events, editingEventId, resolvedSelectedEvent]);
+  const editingCalendar = useMemo(
+    () => (calendars ?? []).find((calendar) => calendar.id === editingCalendarId) ?? null,
+    [calendars, editingCalendarId],
+  );
   useEffect(() => {
     if (!eventsQuery.isFetching && selectedEventId && !selectedEvent) {
       setSelectedEventId(null);
@@ -464,12 +485,22 @@ export function CalendarShell() {
             calendars={(calendars ?? []).map((c) => ({
               id: c.id,
               name: c.name,
-              swatchClass: calendarLookup.get(c.id)?.swatchClass ?? CALENDAR_SWATCHES[0],
+              color: c.color,
+              isPersonal: c.isPersonal,
+              canManage: c.canManage,
             }))}
             visibleCalendarIds={effectiveVisible}
             onToggleCalendar={(id) =>
               setVisibleCalendarIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
             }
+            onEditCalendar={(id) => {
+              setEditingCalendarId(id);
+              setCalendarEditorOpen(true);
+            }}
+            onCreateCalendar={() => {
+              setEditingCalendarId(null);
+              setCalendarEditorOpen(true);
+            }}
           />
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
@@ -585,8 +616,20 @@ export function CalendarShell() {
         open={dialogOpen}
         onClose={handleCloseEditor}
         defaultDate={selectedDate}
-        calendarId={defaultCalendarId}
+        calendarId={eventCalendarId}
+        visibleCalendarIds={effectiveVisible}
+        calendars={calendars ?? []}
         event={editingEvent}
+      />
+      <CalendarEditorDialog
+        open={calendarEditorOpen}
+        onClose={() => {
+          setCalendarEditorOpen(false);
+          setEditingCalendarId(null);
+        }}
+        calendar={editingCalendar}
+        scopeOptions={calendarScopeOptions ?? []}
+        personalNameSuggestion={personalNameSuggestion?.name}
       />
     </>
   );
@@ -880,6 +923,222 @@ function NewEventFab({ onClick }: { onClick: () => void }) {
   );
 }
 
+function CalendarEditorDialog({
+  open,
+  onClose,
+  calendar,
+  scopeOptions,
+  personalNameSuggestion,
+}: {
+  open: boolean;
+  onClose: () => void;
+  calendar: CalendarRow | null;
+  scopeOptions: CalendarScopeOption[];
+  personalNameSuggestion?: string;
+}) {
+  const utils = api.useUtils();
+  const createCalendar = api.calendar.create.useMutation({
+    onSuccess: async () => {
+      await utils.calendar.listAccessible.invalidate();
+      await utils.event.invalidate();
+    },
+  });
+  const updateCalendar = api.calendar.update.useMutation({
+    onSuccess: async () => {
+      await utils.calendar.listAccessible.invalidate();
+      await utils.event.invalidate();
+    },
+  });
+
+  const isEditing = Boolean(calendar);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#22c55e");
+  const [isPersonal, setIsPersonal] = useState(true);
+  const [scopeKey, setScopeKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    if (calendar) {
+      setName(calendar.name);
+      setColor(calendar.color);
+      setIsPersonal(calendar.isPersonal);
+      setScopeKey(`${calendar.scopeType}:${calendar.scopeId}`);
+      return;
+    }
+    setName(personalNameSuggestion ?? "");
+    setColor("#22c55e");
+    setIsPersonal(true);
+    setScopeKey(scopeOptions[0] ? `${scopeOptions[0].scopeType}:${scopeOptions[0].scopeId}` : "");
+  }, [open, calendar, scopeOptions, personalNameSuggestion]);
+
+  if (!open) return null;
+
+  const canCreateShared = scopeOptions.length > 0;
+  const isSaving = createCalendar.isPending || updateCalendar.isPending;
+  const canSave = Boolean(name.trim()) && (isPersonal || Boolean(scopeKey));
+
+  const handleSubmit = async () => {
+    setError(null);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Calendar name is required.");
+      return;
+    }
+    if (!isPersonal && !scopeKey) {
+      setError("Select a scope for this calendar.");
+      return;
+    }
+    const [scopeTypeRaw, scopeIdRaw] = scopeKey.split(":");
+    const scopeId = Number(scopeIdRaw);
+    try {
+      if (isEditing && calendar) {
+        await updateCalendar.mutateAsync({
+          calendarId: calendar.id,
+          name: trimmedName,
+          color,
+          ...(calendar.isPersonal
+            ? {}
+            : {
+                scopeType: scopeTypeRaw as "business" | "department" | "division",
+                scopeId,
+              }),
+        });
+      } else {
+        if (isPersonal) {
+          await createCalendar.mutateAsync({
+            name: trimmedName,
+            color,
+            isPersonal: true,
+          });
+        } else {
+          await createCalendar.mutateAsync({
+            name: trimmedName,
+            color,
+            isPersonal: false,
+            scopeType: scopeTypeRaw as "business" | "department" | "division",
+            scopeId,
+          });
+        }
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save calendar.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4">
+      <div className="w-full max-w-lg rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-lg font-semibold">{isEditing ? "Edit calendar" : "New calendar"}</div>
+          <button className="rounded-md border border-outline-muted px-2 py-1 hover:bg-surface-muted" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+            Name
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+            />
+          </label>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+              Color
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(event) => setColor(event.target.value)}
+                  className="h-10 w-14 cursor-pointer rounded border border-outline-muted bg-transparent"
+                />
+                <input
+                  value={color}
+                  onChange={(event) => setColor(event.target.value)}
+                  className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                />
+              </div>
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="text-xs uppercase text-ink-subtle">Calendar type</div>
+            <div className="flex items-center gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={isPersonal}
+                  disabled={isEditing}
+                  onChange={() => setIsPersonal(true)}
+                  className="accent-accent-strong"
+                />
+                Personal
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={!isPersonal}
+                  disabled={isEditing || !canCreateShared}
+                  onChange={() => setIsPersonal(false)}
+                  className="accent-accent-strong"
+                />
+                Team
+              </label>
+              {!canCreateShared && !isPersonal ? (
+                <span className="text-xs text-ink-muted">No shared scopes available.</span>
+              ) : null}
+            </div>
+          </div>
+
+          {!isPersonal ? (
+            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+              Scope
+              <select
+                value={scopeKey}
+                onChange={(event) => setScopeKey(event.target.value)}
+                className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+              >
+                <option value="">Select scope</option>
+                {scopeOptions.map((option) => (
+                  <option key={`${option.scopeType}:${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {error ? <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div> : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-subtle hover:border-outline-strong"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSave || isSaving}
+              className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:opacity-60"
+            >
+              {isSaving ? "Saving..." : isEditing ? "Update calendar" : "Create calendar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function buildMonthGrid(refDate: Date) {
   const first = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
   const start = startOfWeek(first);
@@ -889,4 +1148,3 @@ function buildMonthGrid(refDate: Date) {
 function isSameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
-

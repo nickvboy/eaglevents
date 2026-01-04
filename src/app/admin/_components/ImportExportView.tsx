@@ -130,7 +130,7 @@ export function ImportExportView() {
     refetchInterval: 60000,
   });
   const hourLogRefreshMutation = api.admin.refreshHourLogExport.useMutation();
-  const { data: calendars } = api.calendar.listMine.useQuery(undefined);
+  const { data: calendars } = api.calendar.listAccessible.useQuery(undefined);
 
   const [exportNote, setExportNote] = useState("");
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -163,7 +163,10 @@ export function ImportExportView() {
   >([]);
 
   const canRestore = Boolean(snapshotPayload) && acknowledged && confirmText.trim().toUpperCase() === "RESTORE";
-  const defaultCalendarId = calendars?.find((calendar) => calendar.isPrimary)?.id ?? calendars?.[0]?.id;
+  const defaultCalendarId =
+    calendars?.find((calendar) => calendar.isPersonal && calendar.isPrimary)?.id ??
+    calendars?.find((calendar) => calendar.isPersonal)?.id ??
+    calendars?.[0]?.id;
 
   const handleExport = async () => {
     setExportMessage(null);

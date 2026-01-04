@@ -6,7 +6,7 @@ import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { ChevronDownIcon, ChevronLeftIcon, EditIcon, XIcon } from "~/app/_components/icons";
 
-type CalendarInfo = { name: string; swatchClass: string } | null;
+type CalendarInfo = { name: string; color: string } | null;
 
 type EventDetailDrawerProps = {
   event: RouterOutputs["event"]["list"][number] | null;
@@ -218,7 +218,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
               <div className="mt-1 text-[11px] uppercase tracking-wide text-ink-faint">Event ID #{eventCode}</div>
               {calendar && (
                 <div className="mt-2 inline-flex items-center gap-2 text-xs uppercase tracking-wide text-ink-subtle">
-                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${calendar.swatchClass}`} />
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: calendar.color }} />
                   {calendar.name}
                 </div>
               )}

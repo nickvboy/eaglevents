@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EditIcon, MaximizeIcon } from "~/app/_components/icons";
 
-type CalendarInfo = { name: string; swatchClass: string } | null;
+type CalendarInfo = { name: string; color: string } | null;
 
 type PreviewEvent = {
   id: number;
@@ -87,7 +87,7 @@ export function EventPreviewFlyout({ event, calendar, open, placement = "down", 
             <h2 className="mt-1 text-base font-semibold text-ink-primary">{displayEvent.title}</h2>
             {calendar && (
               <div className="mt-2 inline-flex items-center gap-2 text-xs text-ink-subtle">
-                <span className={`h-2 w-2 rounded-full ${calendar.swatchClass}`} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: calendar.color }} />
                 {calendar.name}
               </div>
             )}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
 import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
+import { formatGeneratedCredentials } from "./credentialsExport";
 
 type ScopeOption = {
   label: string;
@@ -50,11 +51,15 @@ export function UserAccountsForm({
   onUpdated,
   onRememberCredential,
   rememberedCredential,
+  generatedDefaults,
+  onGeneratedDefaultsChange,
 }: {
   status: SetupStatusData;
   onUpdated: () => void;
   onRememberCredential: (credentials: Credential | null) => void;
   rememberedCredential: Credential | null;
+  generatedDefaults: GeneratedDefaultUser[];
+  onGeneratedDefaultsChange: (users: GeneratedDefaultUser[]) => void;
 }) {
   const handleSetupCompleted = useSetupCompletionRedirect();
   const scopeOptions = useMemo<ScopeOption[]>(() => {
@@ -85,7 +90,13 @@ export function UserAccountsForm({
     rememberForLogin: false,
   });
   const [form, setForm] = useState(createEmptyForm);
-  const [generatedDefaults, setGeneratedDefaults] = useState<GeneratedDefaultUser[]>([]);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!copyStatus) return;
+    const timer = window.setTimeout(() => setCopyStatus(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [copyStatus]);
 
   useEffect(() => {
     if (scopeOptions.length === 0 || editingUserId) return;
@@ -163,7 +174,7 @@ export function UserAccountsForm({
     onSuccess: (data) => {
       onUpdated();
       if (data) {
-        setGeneratedDefaults(data.generatedUsers);
+        onGeneratedDefaultsChange(data.generatedUsers);
       }
     },
     onError: (error) => {
@@ -175,7 +186,7 @@ export function UserAccountsForm({
     onSuccess: () => {
       onUpdated();
       onRememberCredential(null);
-      setGeneratedDefaults([]);
+      onGeneratedDefaultsChange([]);
     },
     onError: (error) => {
       handleSetupCompleted(error.message);
@@ -261,6 +272,20 @@ export function UserAccountsForm({
   }, [editingUserId, existingUsers]);
 
   const phoneDisplay = useMemo(() => formatPhone(form.phoneNumber), [form.phoneNumber]);
+  const credentialsExport = useMemo(
+    () => (generatedDefaults.length > 0 ? formatGeneratedCredentials(generatedDefaults) : ""),
+    [generatedDefaults],
+  );
+
+  const handleCopyCredentials = async () => {
+    if (!credentialsExport) return;
+    try {
+      await navigator.clipboard.writeText(credentialsExport);
+      setCopyStatus("Copied credentials to clipboard");
+    } catch (error) {
+      setCopyStatus(error instanceof Error ? error.message : "Unable to copy credentials");
+    }
+  };
 
   const updateAssignment = (id: string, updates: Partial<AssignmentDraft>) => {
     setForm((prev) => ({
@@ -424,14 +449,25 @@ export function UserAccountsForm({
               <div className="text-xs uppercase text-ink-subtle">Generated default accounts</div>
               <p className="mt-1 text-xs text-ink-muted">Copy these credentials before leaving this page.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setGeneratedDefaults([])}
-              className="text-xs text-ink-muted transition hover:text-ink-primary"
-            >
-              Clear list
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCopyCredentials}
+                className="inline-flex items-center gap-2 rounded-full border border-outline-accent bg-accent-muted/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-primary shadow-[var(--shadow-button)] transition hover:border-outline-strong hover:bg-accent-muted"
+              >
+                <span aria-hidden="true">⧉</span>
+                Copy credentials
+              </button>
+              <button
+                type="button"
+                onClick={() => onGeneratedDefaultsChange([])}
+                className="text-xs text-ink-muted transition hover:text-ink-primary"
+              >
+                Clear list
+              </button>
+            </div>
           </div>
+          {copyStatus ? <p className="mt-2 text-xs text-ink-muted">{copyStatus}</p> : null}
           <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
             {generatedDefaults.map((user) => (
               <div key={`${user.username}-${user.roleType}`} className="rounded border border-outline-muted bg-surface-muted p-3">

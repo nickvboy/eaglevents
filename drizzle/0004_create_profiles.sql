@@ -8,9 +8,18 @@ CREATE TABLE IF NOT EXISTS "t3-app-template_profile" (
   "updatedAt" timestamptz
 );
 
-ALTER TABLE "t3-app-template_profile"
-  ADD CONSTRAINT "t3-app-template_profile_userId_t3-app-template_user_id_fk"
-  FOREIGN KEY ("userId") REFERENCES "t3-app-template_user" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 't3-app-template_profile_userId_t3-app-template_user_id_fk'
+  ) THEN
+    ALTER TABLE "t3-app-template_profile"
+      ADD CONSTRAINT "t3-app-template_profile_userId_t3-app-template_user_id_fk"
+      FOREIGN KEY ("userId") REFERENCES "t3-app-template_user" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "profile_email_unique" ON "t3-app-template_profile" ("email");
 

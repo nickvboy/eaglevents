@@ -65,6 +65,14 @@ const rolePriority: Record<RoleType, number> = {
   employee: 1,
 };
 
+const scopePriority: Record<ScopeType, number> = {
+  business: 3,
+  department: 2,
+  division: 1,
+};
+
+const elevatedRoleTypes: RoleType[] = ["admin", "co_admin", "manager"];
+
 const ADMIN_CAPABILITIES: AdminCapability[] = [
   "dashboard:view",
   "company:manage",
@@ -297,6 +305,110 @@ export async function getVisibleScopes(dbClient: DbClient, userId: number): Prom
     departmentIds: Array.from(departmentIds),
     divisionIds: Array.from(divisionIds),
   };
+}
+
+export async function getElevatedVisibleScopes(dbClient: DbClient, userId: number): Promise<VisibleScopes> {
+  const [roles, businessId] = await Promise.all([fetchUserRoles(dbClient, userId), getBusinessId(dbClient)]);
+  if (!businessId) {
+    return { business: false, departmentIds: [], divisionIds: [] };
+  }
+
+  const elevatedRoles = roles.filter((role) => elevatedRoleTypes.includes(role.roleType));
+  const business = elevatedRoles.some((role) => role.scopeType === "business");
+  const departmentIds = new Set<number>();
+  const divisionIds = new Set<number>();
+
+  const tree = await fetchDepartmentTree(dbClient, businessId);
+  for (const role of elevatedRoles) {
+    if (role.scopeType === "department") {
+      departmentIds.add(role.scopeId);
+      const descendants = collectDescendants(role.scopeId, tree);
+      for (const id of descendants) divisionIds.add(id);
+    } else if (role.scopeType === "division") {
+      divisionIds.add(role.scopeId);
+    }
+  }
+
+  return {
+    business,
+    departmentIds: Array.from(departmentIds),
+    divisionIds: Array.from(divisionIds),
+  };
+}
+
+export async function getElevatedScopeOptions(dbClient: DbClient, userId: number): Promise<ScopeOption[]> {
+  const [roles, businessId] = await Promise.all([fetchUserRoles(dbClient, userId), getBusinessId(dbClient)]);
+  if (!businessId) return [];
+
+  const elevatedRoles = roles.filter((role) => elevatedRoleTypes.includes(role.roleType));
+  if (elevatedRoles.length === 0) return [];
+
+  const tree = await fetchDepartmentTree(dbClient, businessId);
+  const [business] = await dbClient
+    .select({ id: businesses.id, name: businesses.name })
+    .from(businesses)
+    .where(eq(businesses.id, businessId))
+    .limit(1);
+
+  const options = new Map<string, ScopeOption>();
+  const addOption = (scopeType: ScopeType, scopeId: number, label: string) => {
+    const key = `${scopeType}:${scopeId}`;
+    if (!options.has(key)) {
+      options.set(key, { scopeType, scopeId, label });
+    }
+  };
+
+  const addDepartmentWithDivisions = (departmentId: number) => {
+    const department = tree.byId.get(departmentId);
+    if (department) {
+      addOption("department", department.id, `${department.name} (Department)`);
+      const descendants = collectDescendants(department.id, tree);
+      for (const id of descendants) {
+        const child = tree.byId.get(id);
+        if (child) addOption("division", child.id, `${child.name} (Division)`);
+      }
+    }
+  };
+
+  for (const role of elevatedRoles) {
+    if (role.scopeType === "business") {
+      if (business) addOption("business", business.id, `${business.name} (Business)`);
+      for (const dept of tree.byId.values()) {
+        if (dept.parentDepartmentId === null) {
+          addOption("department", dept.id, `${dept.name} (Department)`);
+          const descendants = collectDescendants(dept.id, tree);
+          for (const id of descendants) {
+            const child = tree.byId.get(id);
+            if (child) addOption("division", child.id, `${child.name} (Division)`);
+          }
+        }
+      }
+    } else if (role.scopeType === "department") {
+      addDepartmentWithDivisions(role.scopeId);
+    } else if (role.scopeType === "division") {
+      const division = tree.byId.get(role.scopeId);
+      if (division) addOption("division", division.id, `${division.name} (Division)`);
+    }
+  }
+
+  return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export async function resolvePrimaryScopeForUser(dbClient: DbClient, userId: number) {
+  const [roles, businessId] = await Promise.all([fetchUserRoles(dbClient, userId), getBusinessId(dbClient)]);
+  if (roles.length > 0) {
+    const ranked = roles.slice().sort((a, b) => {
+      const roleDiff = (rolePriority[b.roleType] ?? 0) - (rolePriority[a.roleType] ?? 0);
+      if (roleDiff !== 0) return roleDiff;
+      const scopeDiff = (scopePriority[b.scopeType] ?? 0) - (scopePriority[a.scopeType] ?? 0);
+      if (scopeDiff !== 0) return scopeDiff;
+      return a.scopeId - b.scopeId;
+    });
+    const primary = ranked[0];
+    if (primary) return { scopeType: primary.scopeType, scopeId: primary.scopeId };
+  }
+  if (businessId) return { scopeType: "business" as const, scopeId: businessId };
+  return null;
 }
 
 export async function getCreatableScopeOptions(dbClient: DbClient, userId: number): Promise<ScopeOption[]> {

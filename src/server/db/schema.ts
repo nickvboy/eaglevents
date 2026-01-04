@@ -265,6 +265,9 @@ export const calendars = createTable(
     name: d.varchar({ length: 100 }).notNull(),
     color: d.varchar({ length: 32 }).default("#22c55e").notNull(),
     isPrimary: d.boolean().default(false).notNull(),
+    isPersonal: d.boolean().default(true).notNull(),
+    scopeType: organizationScopeTypeEnum().notNull(),
+    scopeId: d.integer().notNull(),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -273,6 +276,7 @@ export const calendars = createTable(
   }),
   (t) => [
     index("calendar_user_idx").on(t.userId),
+    index("calendar_scope_idx").on(t.scopeType, t.scopeId),
   ],
 );
 

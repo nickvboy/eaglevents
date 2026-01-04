@@ -29,24 +29,82 @@ CREATE TABLE IF NOT EXISTS "t3-app-template_theme_profile" (
   "updated_at" timestamp with time zone
 );
 
-ALTER TABLE "t3-app-template_theme_palette"
-  ADD CONSTRAINT "theme_palette_business_fk"
-  FOREIGN KEY ("business_id") REFERENCES "t3-app-template_business"("id") ON DELETE cascade;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 't3-app-template_theme_palette'
+    AND column_name = 'business_id'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'theme_palette_business_fk'
+    ) THEN
+      ALTER TABLE "t3-app-template_theme_palette"
+        ADD CONSTRAINT "theme_palette_business_fk"
+        FOREIGN KEY ("business_id") REFERENCES "t3-app-template_business"("id") ON DELETE cascade;
+    END IF;
 
-ALTER TABLE "t3-app-template_theme_palette"
-  ADD CONSTRAINT "theme_palette_created_by_fk"
-  FOREIGN KEY ("created_by_user_id") REFERENCES "t3-app-template_user"("id") ON DELETE set null;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'theme_palette_created_by_fk'
+    ) THEN
+      ALTER TABLE "t3-app-template_theme_palette"
+        ADD CONSTRAINT "theme_palette_created_by_fk"
+        FOREIGN KEY ("created_by_user_id") REFERENCES "t3-app-template_user"("id") ON DELETE set null;
+    END IF;
 
-ALTER TABLE "t3-app-template_theme_profile"
-  ADD CONSTRAINT "theme_profile_business_fk"
-  FOREIGN KEY ("business_id") REFERENCES "t3-app-template_business"("id") ON DELETE cascade;
+    CREATE INDEX IF NOT EXISTS "theme_palette_business_idx" ON "t3-app-template_theme_palette" ("business_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "theme_palette_business_name_idx" ON "t3-app-template_theme_palette" ("business_id","name");
+  END IF;
+END $$;
 
-ALTER TABLE "t3-app-template_theme_profile"
-  ADD CONSTRAINT "theme_profile_palette_fk"
-  FOREIGN KEY ("palette_id") REFERENCES "t3-app-template_theme_palette"("id") ON DELETE cascade;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 't3-app-template_theme_profile'
+    AND column_name = 'business_id'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'theme_profile_business_fk'
+    ) THEN
+      ALTER TABLE "t3-app-template_theme_profile"
+        ADD CONSTRAINT "theme_profile_business_fk"
+        FOREIGN KEY ("business_id") REFERENCES "t3-app-template_business"("id") ON DELETE cascade;
+    END IF;
+  END IF;
 
-CREATE INDEX "theme_palette_business_idx" ON "t3-app-template_theme_palette" ("business_id");
-CREATE UNIQUE INDEX "theme_palette_business_name_idx" ON "t3-app-template_theme_palette" ("business_id","name");
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 't3-app-template_theme_profile'
+    AND column_name = 'palette_id'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'theme_profile_palette_fk'
+    ) THEN
+      ALTER TABLE "t3-app-template_theme_profile"
+        ADD CONSTRAINT "theme_profile_palette_fk"
+        FOREIGN KEY ("palette_id") REFERENCES "t3-app-template_theme_palette"("id") ON DELETE cascade;
+    END IF;
+  END IF;
 
-CREATE UNIQUE INDEX "theme_profile_scope_idx" ON "t3-app-template_theme_profile" ("business_id","scope_type","scope_id");
-CREATE INDEX "theme_profile_palette_idx" ON "t3-app-template_theme_profile" ("palette_id");
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 't3-app-template_theme_profile'
+    AND column_name = 'business_id'
+  ) THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS "theme_profile_scope_idx" ON "t3-app-template_theme_profile" ("business_id","scope_type","scope_id");
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 't3-app-template_theme_profile'
+    AND column_name = 'palette_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS "theme_profile_palette_idx" ON "t3-app-template_theme_profile" ("palette_id");
+  END IF;
+END $$;

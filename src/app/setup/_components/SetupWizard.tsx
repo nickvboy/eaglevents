@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
 import { SetupProgress } from "./SetupProgress";
 import { BusinessInfoForm } from "./forms/BusinessInfoForm";
@@ -13,8 +13,10 @@ import { DepartmentsForm } from "./forms/DepartmentsForm";
 import { UserAccountsForm } from "./forms/UserAccountsForm";
 import { CompletionPanel } from "./forms/CompletionPanel";
 import { ThemeForm } from "./forms/ThemeForm";
+import { formatGeneratedCredentials } from "./forms/credentialsExport";
 
 type StepKey = "business" | "buildings" | "departments" | "users" | "theme" | "complete";
+type GeneratedDefaultUser = RouterOutputs["setup"]["createDefaultUsers"]["generatedUsers"][number];
 
 const orderedSteps: StepKey[] = ["business", "buildings", "departments", "users", "theme", "complete"];
 
@@ -33,6 +35,8 @@ export function SetupWizard() {
   const [postSetupCredential, setPostSetupCredential] = useState<{ identifier: string; password: string } | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [themeSelection, setThemeSelection] = useState<{ paletteId: number | null; paletteName: string | null } | null>(null);
+  const [generatedDefaults, setGeneratedDefaults] = useState<GeneratedDefaultUser[]>([]);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
   const statusQuery = api.setup.status.useQuery(undefined, { refetchOnWindowFocus: false });
   const { data: status, isLoading, refetch, error } = statusQuery;
@@ -58,6 +62,27 @@ export function SetupWizard() {
       void refetch();
     },
   });
+
+  useEffect(() => {
+    if (!copyStatus) return;
+    const timer = window.setTimeout(() => setCopyStatus(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [copyStatus]);
+
+  const credentialsExport = useMemo(
+    () => (generatedDefaults.length > 0 ? formatGeneratedCredentials(generatedDefaults) : ""),
+    [generatedDefaults],
+  );
+
+  const handleCopyCredentials = async () => {
+    if (!credentialsExport) return;
+    try {
+      await navigator.clipboard.writeText(credentialsExport);
+      setCopyStatus("Copied credentials to clipboard");
+    } catch (error) {
+      setCopyStatus(error instanceof Error ? error.message : "Unable to copy credentials");
+    }
+  };
 
   const handleCompleteSetup = async () => {
     if (completeMutation.isPending || !status) return;
@@ -103,6 +128,8 @@ export function SetupWizard() {
             onUpdated={() => refetch()}
             onRememberCredential={setPostSetupCredential}
             rememberedCredential={postSetupCredential}
+            generatedDefaults={generatedDefaults}
+            onGeneratedDefaultsChange={setGeneratedDefaults}
           />
         );
         break;
@@ -173,6 +200,35 @@ export function SetupWizard() {
           <div className="rounded-lg border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
             {stepContent}
           </div>
+          {generatedDefaults.length > 0 && activeStep !== "users" ? (
+            <div className="mt-4 rounded-lg border border-outline-muted bg-surface-muted p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase text-ink-subtle">Generated account credentials</div>
+                  <p className="mt-1 text-xs text-ink-muted">Save these usernames and passwords in a secure place.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCredentials}
+                  className="inline-flex items-center gap-2 rounded-full border border-outline-accent bg-accent-muted/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-primary shadow-[var(--shadow-button)] transition hover:border-outline-strong hover:bg-accent-muted"
+                >
+                  <span aria-hidden="true">⧉</span>
+                  Copy credentials
+                </button>
+              </div>
+              {copyStatus ? <p className="mt-2 text-xs text-ink-muted">{copyStatus}</p> : null}
+              <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1 font-mono text-[11px] text-ink-muted">
+                {generatedDefaults.map((user) => (
+                  <div key={`${user.username}-${user.roleType}`} className="rounded border border-outline-muted bg-surface-raised p-2">
+                    <div className="text-ink-primary">{user.scopeLabel}</div>
+                    <div>username: {user.username}</div>
+                    <div>password: {user.password}</div>
+                    <div>email: {user.email}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </main>

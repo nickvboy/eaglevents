@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 
 import { db } from "~/server/db";
 import type { Session } from "next-auth";
+import { getClientIp, mutationLimiter } from "~/server/rate-limit";
 
 /**
  * 1. CONTEXT
@@ -124,6 +125,24 @@ const enforceUserIsAuthed = t.middleware(async ({ ctx, next }) => {
   });
 });
 
+const rateLimitMutations = t.middleware(async ({ ctx, next, path }) => {
+  const identifier = ctx.session?.user?.id ? `user:${ctx.session.user.id}` : `ip:${getClientIp(ctx.headers)}`;
+  const rate = mutationLimiter.check(`${path}:${identifier}`);
+  if (!rate.success) {
+    const waitSeconds = rate.retryAfterMs ? Math.ceil(rate.retryAfterMs / 1000) : 60;
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `Too many requests. Try again in ${waitSeconds}s.`,
+    });
+  }
+  return next();
+});
+
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(enforceUserIsAuthed);
+
+export const protectedRateLimitedProcedure = t.procedure
+  .use(timingMiddleware)
+  .use(enforceUserIsAuthed)
+  .use(rateLimitMutations);

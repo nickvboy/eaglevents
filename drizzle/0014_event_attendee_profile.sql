@@ -1,9 +1,18 @@
 ALTER TABLE "t3-app-template_event_attendee"
-  ADD COLUMN "profileId" integer;
+  ADD COLUMN IF NOT EXISTS "profileId" integer;
 
-ALTER TABLE "t3-app-template_event_attendee"
-  ADD CONSTRAINT "event_attendee_profile_fk"
-  FOREIGN KEY ("profileId") REFERENCES "t3-app-template_profile"("id") ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'event_attendee_profile_fk'
+  ) THEN
+    ALTER TABLE "t3-app-template_event_attendee"
+      ADD CONSTRAINT "event_attendee_profile_fk"
+      FOREIGN KEY ("profileId") REFERENCES "t3-app-template_profile"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "event_attendee_profile_idx"
   ON "t3-app-template_event_attendee"("profileId");

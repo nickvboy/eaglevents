@@ -8,6 +8,7 @@ type Props = {
   start: Date;
   end: Date;
   isSelected?: boolean;
+  color?: string;
   onClick?: () => void;
   onExpand?: () => void;
   onDoubleClick?: () => void;
@@ -16,7 +17,7 @@ type Props = {
 export function EventCard(p: Props) {
   const timeLabel = `${formatTime(p.start)} - ${formatTime(p.end)}`;
   const baseClasses =
-    "group relative h-full w-full cursor-pointer overflow-hidden rounded-md border bg-accent-strong p-1 text-xs text-ink-inverted shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-soft";
+    "group relative h-full w-full cursor-pointer overflow-hidden rounded-md border p-1 text-xs text-ink-inverted shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-soft";
   const stateClasses = p.isSelected
     ? "border-outline-muted/80 ring-2 ring-accent-soft shadow-lg shadow-[var(--shadow-accent-glow)]"
     : "border-outline-accent hover:border-outline-accent hover:bg-accent-default";
@@ -26,6 +27,7 @@ export function EventCard(p: Props) {
       onClick={p.onClick}
       onDoubleClick={p.onDoubleClick}
       className={`${baseClasses} ${stateClasses}`}
+      style={p.color ? { backgroundColor: p.color } : undefined}
       title={p.title}
       role="button"
       tabIndex={0}

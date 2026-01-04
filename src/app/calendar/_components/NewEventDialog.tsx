@@ -412,6 +412,8 @@ type Props = {
   onClose: () => void;
   defaultDate: Date;
   calendarId?: number;
+  visibleCalendarIds?: number[];
+  calendars?: Array<{ id: number; name: string; color: string; isPersonal: boolean; canWrite: boolean }>;
   event?: RouterOutputs["event"]["list"][number] | null;
 };
 
@@ -471,15 +473,15 @@ function fallbackSearchLabel(value: string, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }: Props) {
+export function NewEventDialog({ open, onClose, defaultDate, calendarId, visibleCalendarIds, calendars, event }: Props) {
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
   const update = api.event.update.useMutation();
-  const scopeOptionsQuery = api.event.scopeOptions.useQuery();
   const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
-  const [scopeKey, setScopeKey] = useState("");
+  const [selectedCalendarId, setSelectedCalendarId] = useState<number | null>(calendarId ?? null);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<number[]>([]);
   const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
   const [allDay, setAllDay] = useState(false);
   const [inPerson, setInPerson] = useState(false);
@@ -516,7 +518,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
-  const scopeOptions = useMemo(() => scopeOptionsQuery.data ?? [], [scopeOptionsQuery.data]);
+  const calendarOptions = useMemo(() => {
+    return (calendars ?? [])
+      .filter((c) => c.canWrite)
+      .sort((a, b) => {
+        if (a.isPersonal === b.isPersonal) return a.name.localeCompare(b.name);
+        return a.isPersonal ? 1 : -1;
+      });
+  }, [calendars]);
+  const selectedCalendar = useMemo(
+    () => (calendars ?? []).find((calendar) => calendar.id === selectedCalendarId) ?? null,
+    [calendars, selectedCalendarId],
+  );
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -602,11 +615,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
       setQuickCreateTarget(null);
       setQuickCreateDraft(emptyProfileDraft);
       setQuickCreateError(null);
-      if (event.scopeType && event.scopeId) {
-        setScopeKey(`${event.scopeType}:${event.scopeId}`);
-      } else if (scopeOptions.length > 0) {
-        setScopeKey(`${scopeOptions[0]!.scopeType}:${scopeOptions[0]!.scopeId}`);
-      }
+      const eventCalendar = event.calendarId ?? calendarId ?? null;
+      setSelectedCalendarId(eventCalendar);
+      setSelectedCalendarIds(eventCalendar ? [eventCalendar] : []);
       if (event.hourLogs && event.hourLogs.length > 0) {
         setHourLogs(
           event.hourLogs.map((log) => ({
@@ -652,13 +663,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
-    if (scopeOptions.length > 0) {
-      setScopeKey(`${scopeOptions[0]!.scopeType}:${scopeOptions[0]!.scopeId}`);
-    } else {
-      setScopeKey("");
-    }
+    const preferred = (calendarOptions ?? [])
+      .map((c) => c.id)
+      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
+    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
+    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+    const initialSelections =
+      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
+    setSelectedCalendarId(fallbackCalendarId);
+    setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
-  }, [open, defaultDate, event, scopeOptions]);
+  }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -808,7 +823,15 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
   const participantCountInvalid =
     parsedParticipantCount !== null &&
     (Number.isNaN(parsedParticipantCount) || parsedParticipantCount < 0 || parsedParticipantCount > 100000);
-  const canSave = Boolean(title.trim()) && !segmentsInvalid && !hourLogsInvalid && !hourLogsIncomplete && !participantCountInvalid && !isSaving;
+  const hasCalendar = Boolean(selectedCalendarId ?? calendarId ?? event?.calendarId);
+  const canSave =
+    Boolean(title.trim()) &&
+    hasCalendar &&
+    !segmentsInvalid &&
+    !hourLogsInvalid &&
+    !hourLogsIncomplete &&
+    !participantCountInvalid &&
+    !isSaving;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
   const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
   const assigneeResults = api.profile.search.useQuery(
@@ -1172,12 +1195,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
       const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
       const coOwnerProfileIds = selectedCoOwners.map((entry) => entry.profileId).filter((id) => id > 0);
-      const [scopeTypeRaw, scopeIdRaw] = scopeKey.split(":");
-      const scopeId = Number(scopeIdRaw);
-      const scopePayload =
-        scopeTypeRaw && Number.isFinite(scopeId)
-          ? { scopeType: scopeTypeRaw as "business" | "department" | "division", scopeId }
-          : undefined;
+      const targetCalendarId = selectedCalendarId ?? calendarId ?? event?.calendarId ?? null;
+      const targetCalendarIds =
+        selectedCalendarIds.length > 0
+          ? selectedCalendarIds
+          : targetCalendarId
+            ? [targetCalendarId]
+            : [];
+      if (targetCalendarIds.length === 0) {
+        setError("Select at least one calendar before saving.");
+        return;
+      }
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -1188,7 +1216,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
         await update.mutateAsync({
           id: event.id,
-          calendarId: calendarId ?? event.calendarId,
+          calendarId: targetCalendarId ?? targetCalendarIds[0]!,
           title,
           description,
           location,
@@ -1209,7 +1237,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           eventEndTime: eventInfoEndValue,
           setupTime: setupInfoValue,
           zendeskTicketNumber: zendeskTicketPayload,
-          ...scopePayload,
         });
       } else {
         const participantCountPayload = participantCountValue ?? undefined;
@@ -1222,30 +1249,31 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
         for (const segment of segments) {
           const dayStart = allDay ? startOfDay(segment.start) : segment.start;
           const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
-          await create.mutateAsync({
-            calendarId,
-            title,
-            description,
-            location,
-            buildingId: selectedBuildingId ?? undefined,
-            isAllDay: allDay,
-            startDatetime: dayStart,
-            endDatetime: dayEnd,
-            recurrenceRule: recurring ? "FREQ=DAILY" : null,
-            assigneeProfileId: assignee?.profileId ?? undefined,
-            coOwnerProfileIds,
-            hourLogs: payloadHourLogs,
-            attendeeProfileIds,
-            participantCount: participantCountPayload,
-            technicianNeeded,
-            requestCategory: requestCategoryPayload,
-            equipmentNeeded: equipmentPayloadCreate,
-            eventStartTime: eventInfoStartPayload,
-            eventEndTime: eventInfoEndPayload,
-            setupTime: setupInfoPayload,
-            zendeskTicketNumber: zendeskTicketPayloadCreate,
-            ...scopePayload,
-          });
+          for (const calendarId of targetCalendarIds) {
+            await create.mutateAsync({
+              calendarId,
+              title,
+              description,
+              location,
+              buildingId: selectedBuildingId ?? undefined,
+              isAllDay: allDay,
+              startDatetime: dayStart,
+              endDatetime: dayEnd,
+              recurrenceRule: recurring ? "FREQ=DAILY" : null,
+              assigneeProfileId: assignee?.profileId ?? undefined,
+              coOwnerProfileIds,
+              hourLogs: payloadHourLogs,
+              attendeeProfileIds,
+              participantCount: participantCountPayload,
+              technicianNeeded,
+              requestCategory: requestCategoryPayload,
+              equipmentNeeded: equipmentPayloadCreate,
+              eventStartTime: eventInfoStartPayload,
+              eventEndTime: eventInfoEndPayload,
+              setupTime: setupInfoPayload,
+              zendeskTicketNumber: zendeskTicketPayloadCreate,
+            });
+          }
         }
       }
       await utils.event.invalidate();
@@ -1282,22 +1310,84 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, event }
           />
 
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Event scope</div>
-            <select
-              value={scopeKey}
-              onChange={(e) => setScopeKey(e.target.value)}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
-            >
-              <option value="">Select a scope</option>
-              {scopeOptions.map((option) => (
-                <option key={`${option.scopeType}:${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {scopeOptionsQuery.isLoading ? (
-              <p className="mt-1 text-xs text-ink-subtle">Loading scope options…</p>
-            ) : null}
+            <div className="mb-1 text-xs text-ink-muted">Calendars</div>
+            {isEditing ? (
+              <>
+                <select
+                  value={selectedCalendarId ?? ""}
+                  onChange={(e) => setSelectedCalendarId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                >
+                  <option value="">Select a calendar</option>
+                  {calendarOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedCalendar ? (
+                  <p className="mt-1 text-xs text-ink-subtle">
+                    {selectedCalendar.isPersonal ? "Personal calendar" : "Team calendar"}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {calendarOptions.length === 0 ? (
+                  <div className="rounded-md border border-outline-muted bg-surface-muted p-3 text-xs text-ink-muted">
+                    No writable calendars available.
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-md border border-outline-muted bg-surface-muted p-2">
+                      {selectedCalendarIds.length === 0 ? (
+                        <div className="text-xs text-ink-muted">Select at least one calendar.</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {calendarOptions
+                            .filter((option) => selectedCalendarIds.includes(option.id))
+                            .map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedCalendarIds((prev) => prev.filter((id) => id !== option.id))
+                                }
+                                className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs text-ink-primary hover:bg-surface-muted"
+                              >
+                                <span className="inline-block h-2.5 w-2.5 rounded" style={{ backgroundColor: option.color }} />
+                                <span className="max-w-[12rem] truncate">{option.name}</span>
+                                <span className="text-ink-faint">×</span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const nextId = Number(e.target.value);
+                        if (!Number.isFinite(nextId)) return;
+                        setSelectedCalendarIds((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]));
+                      }}
+                      className="mt-2 w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                    >
+                      <option value="">Add calendar</option>
+                      {calendarOptions
+                        .filter((option) => !selectedCalendarIds.includes(option.id))
+                        .map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      {selectedCalendarIds.length} selected
+                    </p>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           <div>

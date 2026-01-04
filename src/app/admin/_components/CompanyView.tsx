@@ -95,6 +95,18 @@ export function CompanyView() {
   const createDepartment = api.admin.createDepartment.useMutation({ onSuccess: invalidateCompany });
   const updateDepartment = api.admin.updateDepartment.useMutation({ onSuccess: invalidateCompany });
   const deleteDepartment = api.admin.deleteDepartment.useMutation({ onSuccess: invalidateCompany });
+  const { data: calendars } = api.calendar.listAccessible.useQuery();
+  const { data: calendarScopeOptions } = api.calendar.scopeOptions.useQuery();
+  const updateCalendar = api.calendar.update.useMutation({
+    onSuccess: async () => {
+      await utils.calendar.listAccessible.invalidate();
+    },
+  });
+  const createCalendar = api.calendar.create.useMutation({
+    onSuccess: async () => {
+      await utils.calendar.listAccessible.invalidate();
+    },
+  });
 
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>("university");
@@ -111,6 +123,14 @@ export function CompanyView() {
     parentDepartmentId: null,
   });
   const [departmentFeedback, setDepartmentFeedback] = useState<string | null>(null);
+  const [calendarForms, setCalendarForms] = useState<Record<number, { name: string; color: string; scopeKey: string }>>({});
+  const [newCalendar, setNewCalendar] = useState<{ name: string; color: string; isPersonal: boolean; scopeKey: string }>({
+    name: "",
+    color: "#22c55e",
+    isPersonal: false,
+    scopeKey: "",
+  });
+  const [calendarFeedback, setCalendarFeedback] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<number, NodePosition>>({});
   const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
   const [companyPosition, setCompanyPosition] = useState<NodePosition>({ x: 0, y: ROOT_DROP_HEIGHT + 12 });
@@ -174,6 +194,23 @@ export function CompanyView() {
     });
     setDepartmentForms(nextDepartmentForms);
   }, [data?.departments]);
+
+  useEffect(() => {
+    if (!calendars) return;
+    const nextCalendarForms: Record<number, { name: string; color: string; scopeKey: string }> = {};
+    calendars.forEach((calendar) => {
+      nextCalendarForms[calendar.id] = {
+        name: calendar.name,
+        color: calendar.color,
+        scopeKey: `${calendar.scopeType}:${calendar.scopeId}`,
+      };
+    });
+    setCalendarForms(nextCalendarForms);
+    setNewCalendar((prev) => ({
+      ...prev,
+      scopeKey: prev.scopeKey || (calendarScopeOptions?.[0] ? `${calendarScopeOptions[0].scopeType}:${calendarScopeOptions[0].scopeId}` : ""),
+    }));
+  }, [calendars, calendarScopeOptions]);
 
   useEffect(() => {
     if (!data?.departments?.roots) return;
@@ -1673,6 +1710,264 @@ export function CompanyView() {
           {departmentFeedback ? (
             <p className="mt-3 text-sm text-ink-muted">{departmentFeedback}</p>
           ) : null}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-outline-muted bg-surface-muted p-4">
+          <h3 className="text-sm font-semibold text-ink-primary">Calendars</h3>
+          <div className="mt-4 space-y-3">
+            {(calendars ?? []).length === 0 ? (
+              <p className="text-sm text-ink-muted">No calendars available.</p>
+            ) : (
+              (calendars ?? []).map((calendar) => {
+                const form = calendarForms[calendar.id];
+                const scopeKey = form?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`;
+                const canManage = calendar.canManage;
+                const hasChanges =
+                  form &&
+                  (form.name !== calendar.name ||
+                    form.color !== calendar.color ||
+                    (!calendar.isPersonal && scopeKey !== `${calendar.scopeType}:${calendar.scopeId}`));
+                return (
+                  <div key={calendar.id} className="rounded-xl border border-outline-muted bg-surface-raised p-4">
+                    <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
+                      <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                        Name
+                        <input
+                          value={form?.name ?? calendar.name}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            setCalendarForms((prev) => ({
+                              ...prev,
+                              [calendar.id]: {
+                                name: event.target.value,
+                                color: prev[calendar.id]?.color ?? calendar.color,
+                                scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
+                              },
+                            }))
+                          }
+                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                        Color
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={form?.color ?? calendar.color}
+                            disabled={!canManage}
+                            onChange={(event) =>
+                              setCalendarForms((prev) => ({
+                                ...prev,
+                                [calendar.id]: {
+                                  name: prev[calendar.id]?.name ?? calendar.name,
+                                  color: event.target.value,
+                                  scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
+                                },
+                              }))
+                            }
+                            className="h-10 w-12 cursor-pointer rounded border border-outline-muted bg-transparent"
+                          />
+                          <input
+                            value={form?.color ?? calendar.color}
+                            disabled={!canManage}
+                            onChange={(event) =>
+                              setCalendarForms((prev) => ({
+                                ...prev,
+                                [calendar.id]: {
+                                  name: prev[calendar.id]?.name ?? calendar.name,
+                                  color: event.target.value,
+                                  scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
+                                },
+                              }))
+                            }
+                            className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                          />
+                        </div>
+                      </label>
+                      <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                        Scope
+                        {calendar.isPersonal ? (
+                          <div className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+                            Personal calendar
+                          </div>
+                        ) : (
+                          <select
+                            value={scopeKey}
+                            disabled={!canManage}
+                            onChange={(event) =>
+                              setCalendarForms((prev) => ({
+                                ...prev,
+                                [calendar.id]: {
+                                  name: prev[calendar.id]?.name ?? calendar.name,
+                                  color: prev[calendar.id]?.color ?? calendar.color,
+                                  scopeKey: event.target.value,
+                                },
+                              }))
+                            }
+                            className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                          >
+                            {(calendarScopeOptions ?? []).map((option) => (
+                              <option key={`${option.scopeType}:${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </label>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          disabled={!canManage || !hasChanges || updateCalendar.isPending}
+                          onClick={async () => {
+                            setCalendarFeedback(null);
+                            const payload = calendarForms[calendar.id];
+                            if (!payload?.name?.trim()) {
+                              setCalendarFeedback("Calendar name is required.");
+                              return;
+                            }
+                            let scopeType: "business" | "department" | "division" | null = null;
+                            let scopeId = 0;
+                            if (!calendar.isPersonal) {
+                              const [scopeTypeRaw, scopeIdRaw] = (payload.scopeKey || "").split(":");
+                              const parsedScopeId = Number(scopeIdRaw);
+                              if (!scopeTypeRaw || !Number.isFinite(parsedScopeId)) {
+                                setCalendarFeedback("Select a valid scope.");
+                                return;
+                              }
+                              scopeType = scopeTypeRaw as "business" | "department" | "division";
+                              scopeId = parsedScopeId;
+                            }
+                            try {
+                              await updateCalendar.mutateAsync({
+                                calendarId: calendar.id,
+                                name: payload.name.trim(),
+                                color: payload.color,
+                                ...(scopeType
+                                  ? {
+                                      scopeType,
+                                      scopeId,
+                                    }
+                                  : {}),
+                              });
+                            } catch (error) {
+                              setCalendarFeedback((error as Error).message ?? "Failed to update calendar.");
+                            }
+                          }}
+                          className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-outline-strong disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="mt-6 border-t border-outline-muted pt-4">
+            <h4 className="text-sm font-semibold text-ink-primary">Add calendar</h4>
+            <div className="mt-4 grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
+              <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                Name
+                <input
+                  value={newCalendar.name}
+                  onChange={(event) => setNewCalendar((prev) => ({ ...prev, name: event.target.value }))}
+                  className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                Color
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={newCalendar.color}
+                    onChange={(event) => setNewCalendar((prev) => ({ ...prev, color: event.target.value }))}
+                    className="h-10 w-12 cursor-pointer rounded border border-outline-muted bg-transparent"
+                  />
+                  <input
+                    value={newCalendar.color}
+                    onChange={(event) => setNewCalendar((prev) => ({ ...prev, color: event.target.value }))}
+                    className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                  />
+                </div>
+              </label>
+              <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+                Scope
+                <select
+                  value={newCalendar.scopeKey}
+                  onChange={(event) => setNewCalendar((prev) => ({ ...prev, scopeKey: event.target.value }))}
+                  disabled={newCalendar.isPersonal}
+                  className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none disabled:opacity-60"
+                >
+                  <option value="">Select scope</option>
+                  {(calendarScopeOptions ?? []).map((option) => (
+                    <option key={`${option.scopeType}:${option.scopeId}`} value={`${option.scopeType}:${option.scopeId}`}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-col items-start gap-2 text-xs uppercase text-ink-subtle md:items-end">
+                <label className="flex items-center gap-2 text-xs uppercase text-ink-subtle">
+                  <input
+                    type="checkbox"
+                    checked={newCalendar.isPersonal}
+                    onChange={(event) => setNewCalendar((prev) => ({ ...prev, isPersonal: event.target.checked }))}
+                    className="accent-accent-strong"
+                  />
+                  Personal
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setCalendarFeedback(null);
+                    if (!newCalendar.name.trim()) {
+                      setCalendarFeedback("Calendar name is required.");
+                      return;
+                    }
+                    if (!newCalendar.isPersonal && !newCalendar.scopeKey) {
+                      setCalendarFeedback("Select a scope for team calendars.");
+                      return;
+                    }
+                    const [scopeTypeRaw, scopeIdRaw] = newCalendar.scopeKey.split(":");
+                    const scopeId = Number(scopeIdRaw);
+                    if (!newCalendar.isPersonal && (!scopeTypeRaw || !Number.isFinite(scopeId))) {
+                      setCalendarFeedback("Select a valid scope for team calendars.");
+                      return;
+                    }
+                    try {
+                      await createCalendar.mutateAsync({
+                        name: newCalendar.name.trim(),
+                        color: newCalendar.color,
+                        isPersonal: newCalendar.isPersonal,
+                        ...(newCalendar.isPersonal
+                          ? {}
+                          : {
+                              scopeType: scopeTypeRaw as "business" | "department" | "division",
+                              scopeId,
+                            }),
+                      });
+                      setNewCalendar({
+                        name: "",
+                        color: "#22c55e",
+                        isPersonal: false,
+                        scopeKey: calendarScopeOptions?.[0]
+                          ? `${calendarScopeOptions[0].scopeType}:${calendarScopeOptions[0].scopeId}`
+                          : "",
+                      });
+                    } catch (error) {
+                      setCalendarFeedback((error as Error).message ?? "Failed to create calendar.");
+                    }
+                  }}
+                  className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default"
+                >
+                  Add calendar
+                </button>
+              </div>
+            </div>
+          </div>
+          {calendarFeedback ? <p className="mt-3 text-sm text-ink-muted">{calendarFeedback}</p> : null}
         </div>
       </section>
     </div>

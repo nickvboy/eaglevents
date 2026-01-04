@@ -2,25 +2,21 @@
 import { and, desc, eq, ilike, inArray, isNull, lt, gt, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure, protectedRateLimitedProcedure } from "~/server/api/trpc";
 import {
-  businesses,
   eventCoOwners,
   eventAttendees,
   eventHourLogs,
   eventZendeskConfirmations,
   events,
   profiles,
-  users,
 } from "~/server/db/schema";
-import bcrypt from "bcryptjs";
-import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import { ensurePrimaryCalendars, getAccessibleCalendarIds, getCalendarAccess } from "~/server/services/calendar";
 import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { refreshHourLogExport } from "~/server/services/hour-log-export";
 import {
-  getBusinessId,
-  getCreatableScopeOptions,
   getOptionalPermissionContext,
+  requireSessionUserId,
   getSessionProfileId,
   getVisibleScopes,
 } from "~/server/services/permissions";
@@ -28,7 +24,6 @@ import type { Session } from "next-auth";
 import type { db as dbClient } from "~/server/db";
 
 type DbClient = typeof dbClient;
-type UserRow = typeof users.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type ProfileSummary = {
   id: number;
@@ -115,18 +110,6 @@ async function requireSessionProfileId(ctx: { session: Session | null; db: DbCli
     throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to access your tickets." });
   }
   return profileId;
-}
-
-async function getOrCreateDemoUser(db: DbClient): Promise<UserRow> {
-  const email = "demo@local";
-  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing[0]) return existing[0];
-  const [inserted] = await db
-    .insert(users)
-    .values({ username: "demo", email, displayName: "Demo User", passwordHash: await bcrypt.hash("demo", 10) })
-    .returning();
-  if (!inserted) throw new Error("Failed to create demo user");
-  return inserted;
 }
 
 async function attachAssignees(db: DbClient, rows: EventRow[]): Promise<EventWithAssignee[]> {
@@ -394,39 +377,11 @@ function isScopeVisible(
   return false;
 }
 
-async function resolveEventScope(ctx: { db: DbClient; session: Session | null }, inputScope?: { scopeType?: string; scopeId?: number }) {
-  const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-  const businessId = await getBusinessId(ctx.db);
-
-  if (!context) {
-    if (!businessId) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
-    }
-    return { scopeType: "business" as const, scopeId: businessId };
-  }
-
-  const scopeOptions = await getCreatableScopeOptions(ctx.db, context.userId);
-  if (scopeOptions.length === 0) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to create events." });
-  }
-
-  if (inputScope?.scopeType && inputScope.scopeId) {
-    const match = scopeOptions.find(
-      (option) => option.scopeType === inputScope.scopeType && option.scopeId === inputScope.scopeId,
-    );
-    if (!match) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "You cannot create events in that scope." });
-    }
-    return { scopeType: match.scopeType, scopeId: match.scopeId };
-  }
-
-  const fallback = scopeOptions[0]!;
-  return { scopeType: fallback.scopeType, scopeId: fallback.scopeId };
-}
-
 async function canEditEvent(dbClient: DbClient, session: Session | null, eventRow: EventRow) {
   const context = await getOptionalPermissionContext(dbClient, session);
-  if (!context) return true;
+  if (!context) return false;
+  const calendarAccess = await getCalendarAccess(dbClient, context.userId, eventRow.calendarId);
+  if (!calendarAccess?.canWrite) return false;
 
   if (context.profileId) {
     if (eventRow.ownerProfileId && eventRow.ownerProfileId === context.profileId) return true;
@@ -444,23 +399,7 @@ async function canEditEvent(dbClient: DbClient, session: Session | null, eventRo
 }
 
 export const eventRouter = createTRPCRouter({
-  scopeOptions: publicProcedure.query(async ({ ctx }) => {
-    const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-    if (!context) {
-      const businessId = await getBusinessId(ctx.db);
-      if (!businessId) return [];
-      const [business] = await ctx.db
-        .select({ id: businesses.id, name: businesses.name })
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-      return business ? [{ scopeType: "business", scopeId: business.id, label: `${business.name} (Business)` }] : [];
-    }
-
-    return getCreatableScopeOptions(ctx.db, context.userId);
-  }),
-
-  findByIdentifier: publicProcedure
+  findByIdentifier: protectedProcedure
     .input(z.object({ identifier: z.string().trim().min(1).max(64) }))
     .query(async ({ ctx, input }) => {
       const trimmed = input.identifier.trim();
@@ -509,17 +448,20 @@ export const eventRouter = createTRPCRouter({
 
       if (!resolved) return null;
       const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-      if (context) {
-        const visible = await getVisibleScopes(ctx.db, context.userId);
-        if (!isScopeVisible(resolved, visible)) {
-          return null;
-        }
+      if (!context) return null;
+      const calendarAccess = await getCalendarAccess(ctx.db, context.userId, resolved.calendarId);
+      if (!calendarAccess?.canView) {
+        return null;
+      }
+      const visible = await getVisibleScopes(ctx.db, context.userId);
+      if (!isScopeVisible(resolved, visible)) {
+        return null;
       }
       const [response] = await buildEventResponses(ctx.db, [resolved]);
       return response ?? null;
     }),
 
-  tickets: publicProcedure
+  tickets: protectedProcedure
     .input(
       z
         .object({
@@ -531,17 +473,21 @@ export const eventRouter = createTRPCRouter({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
+      const userId = requireSessionUserId(ctx.session);
       const limit = input?.limit ?? 100;
       const offset = input?.offset ?? 0;
 
       const conditions: SQL<unknown>[] = [];
       const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-      if (context) {
-        const visible = await getVisibleScopes(ctx.db, context.userId);
-        const scopeCondition = buildScopeCondition(visible);
-        if (scopeCondition) {
-          conditions.push(scopeCondition);
-        }
+      if (!context) return [];
+      const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, userId);
+      if (accessibleCalendarIds.length === 0) return [];
+      conditions.push(inArray(events.calendarId, accessibleCalendarIds));
+
+      const visible = await getVisibleScopes(ctx.db, context.userId);
+      const scopeCondition = buildScopeCondition(visible);
+      if (scopeCondition) {
+        conditions.push(scopeCondition);
       }
       if (input?.assigned === true) {
         conditions.push(sql`${events.assigneeProfileId} IS NOT NULL`);
@@ -570,7 +516,7 @@ export const eventRouter = createTRPCRouter({
         .offset(offset);
       return buildEventResponses(ctx.db, rows);
     }),
-  zendeskQueue: publicProcedure.query(async ({ ctx }) => {
+  zendeskQueue: protectedProcedure.query(async ({ ctx }) => {
     const profileId = await requireSessionProfileId(ctx);
 
     const hourLogs = await ctx.db
@@ -717,7 +663,7 @@ export const eventRouter = createTRPCRouter({
 
       return { success: true, confirmedAt: now };
     }),
-  list: publicProcedure
+  list: protectedProcedure
     .input(
       z.object({
         start: z.coerce.date(),
@@ -726,17 +672,22 @@ export const eventRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const userId = requireSessionUserId(ctx.session);
       let condition = and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start));
-      if (input.calendarIds && input.calendarIds.length > 0) {
-        condition = and(condition, inArray(events.calendarId, input.calendarIds));
-      }
+      const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, userId);
+      if (accessibleCalendarIds.length === 0) return [];
+      const visibleCalendarIds =
+        input.calendarIds && input.calendarIds.length > 0
+          ? input.calendarIds.filter((id) => accessibleCalendarIds.includes(id))
+          : accessibleCalendarIds;
+      condition = and(condition, inArray(events.calendarId, visibleCalendarIds));
+
       const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-      if (context) {
-        const visible = await getVisibleScopes(ctx.db, context.userId);
-        const scopeCondition = buildScopeCondition(visible);
-        if (scopeCondition) {
-          condition = and(condition, scopeCondition);
-        }
+      if (!context) return [];
+      const visible = await getVisibleScopes(ctx.db, context.userId);
+      const scopeCondition = buildScopeCondition(visible);
+      if (scopeCondition) {
+        condition = and(condition, scopeCondition);
       }
       const list = await ctx.db
         .select()
@@ -746,12 +697,10 @@ export const eventRouter = createTRPCRouter({
       return buildEventResponses(ctx.db, list);
     }),
 
-  create: protectedProcedure
+  create: protectedRateLimitedProcedure
     .input(
       z.object({
         calendarId: z.number().optional(),
-        scopeType: z.enum(["business", "department", "division"]).optional(),
-        scopeId: z.number().int().positive().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
@@ -775,19 +724,23 @@ export const eventRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const userId = requireSessionUserId(ctx.session);
       let calendarId = input.calendarId;
       if (!calendarId) {
-        const user = await getOrCreateDemoUser(ctx.db);
-        const list = await ensurePrimaryCalendars(ctx.db, user.id);
+        const list = await ensurePrimaryCalendars(ctx.db, userId);
         const primary = list.find((cal) => cal.isPrimary) ?? list[0];
         if (!primary) throw new Error("Failed to resolve a primary calendar");
         calendarId = primary.id;
       }
 
-      if ((input.scopeType && !input.scopeId) || (!input.scopeType && input.scopeId)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Scope type and id must be provided together." });
+      const calendarAccess = await getCalendarAccess(ctx.db, userId, calendarId);
+      if (!calendarAccess?.canWrite) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
       }
-      const scope = await resolveEventScope(ctx, { scopeType: input.scopeType, scopeId: input.scopeId });
+      const scope = {
+        scopeType: calendarAccess.calendar.scopeType,
+        scopeId: calendarAccess.calendar.scopeId,
+      };
       const eventCode = await getUniqueEventCode(ctx.db);
       const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
       let sessionProfileId: number | null = null;
@@ -919,13 +872,11 @@ export const eventRouter = createTRPCRouter({
       return result;
     }),
 
-  update: protectedProcedure
+  update: protectedRateLimitedProcedure
     .input(
       z.object({
         id: z.number(),
         calendarId: z.number().optional(),
-        scopeType: z.enum(["business", "department", "division"]).optional(),
-        scopeId: z.number().int().positive().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         location: z.string().optional(),
@@ -949,6 +900,7 @@ export const eventRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const userId = requireSessionUserId(ctx.session);
       const existing = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);
       const current = existing[0];
       if (!current) {
@@ -969,13 +921,15 @@ export const eventRouter = createTRPCRouter({
       const zendeskTicketNumber = cleanZendeskTicketNumber(
         input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
       );
-      if ((input.scopeType && !input.scopeId) || (!input.scopeType && input.scopeId)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Scope type and id must be provided together." });
+      const targetCalendarId = input.calendarId ?? current.calendarId;
+      const calendarAccess = await getCalendarAccess(ctx.db, userId, targetCalendarId);
+      if (!calendarAccess?.canWrite) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
       }
-      const nextScope =
-        input.scopeType && input.scopeId
-          ? await resolveEventScope(ctx, { scopeType: input.scopeType, scopeId: input.scopeId })
-          : { scopeType: current.scopeType, scopeId: current.scopeId };
+      const nextScope = {
+        scopeType: calendarAccess.calendar.scopeType,
+        scopeId: calendarAccess.calendar.scopeId,
+      };
       const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
         .filter((id) => Number.isFinite(id))
         .filter((id) => (current.ownerProfileId ? id !== current.ownerProfileId : true));
@@ -1003,7 +957,7 @@ export const eventRouter = createTRPCRouter({
         const [row] = await tx
           .update(events)
           .set({
-            calendarId: input.calendarId ?? current.calendarId,
+            calendarId: targetCalendarId,
             assigneeProfileId: nextAssignee ?? null,
             scopeType: nextScope.scopeType,
             scopeId: nextScope.scopeId,
@@ -1085,7 +1039,7 @@ export const eventRouter = createTRPCRouter({
       return result;
     }),
 
-  delete: protectedProcedure
+  delete: protectedRateLimitedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const [existing] = await ctx.db.select().from(events).where(eq(events.id, input.id)).limit(1);

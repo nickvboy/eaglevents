@@ -14,7 +14,7 @@ type Props = {
   onPreviewEvent?: (event: CalendarEvent | null) => void;
   onOpenEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
-  calendarLookup?: Map<number, { name: string; swatchClass: string }>;
+  calendarLookup?: Map<number, { name: string; color: string }>;
 };
 
 const MINUTE_PX = 1; // 60px per hour -> 30-minute increments visible
@@ -64,6 +64,7 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
       {/* events */}
       {positioned.map((p, idx) => {
         const previewPlacement = previewPlacementFor(p.top);
+        const calendarColor = calendarLookup?.get(p.event.calendarId)?.color;
         return (
           <div
             key={idx}
@@ -76,16 +77,17 @@ export function DayColumn({ date, events, previewEventId, onPreviewEvent, onOpen
             }}
           >
             <div className="relative h-full w-full overflow-visible">
-              <EventCard
-                title={p.event.title}
-                location={p.event.location}
-                start={new Date(p.event.startDatetime)}
-                end={new Date(p.event.endDatetime)}
-                isSelected={p.event.id === previewEventId}
-                onClick={() => onPreviewEvent?.(p.event)}
-                onExpand={() => onOpenEvent?.(p.event)}
-                onDoubleClick={() => onOpenEvent?.(p.event)}
-              />
+                <EventCard
+                  title={p.event.title}
+                  location={p.event.location}
+                  start={new Date(p.event.startDatetime)}
+                  end={new Date(p.event.endDatetime)}
+                  isSelected={p.event.id === previewEventId}
+                  color={calendarColor}
+                  onClick={() => onPreviewEvent?.(p.event)}
+                  onExpand={() => onOpenEvent?.(p.event)}
+                  onDoubleClick={() => onOpenEvent?.(p.event)}
+                />
               <EventPreviewFlyout
                 event={p.event}
                 calendar={calendarLookup?.get(p.event.calendarId) ?? null}

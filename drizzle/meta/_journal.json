@@ -162,6 +162,13 @@
       "when": 1769440001000,
       "tag": "0023_event_building_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1767491027118,
+      "tag": "0023_wooden_magik",
+      "breakpoints": true
     }
   ]
 }
