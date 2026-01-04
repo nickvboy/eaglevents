@@ -526,10 +526,15 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         return a.isPersonal ? 1 : -1;
       });
   }, [calendars]);
-  const selectedCalendar = useMemo(
-    () => (calendars ?? []).find((calendar) => calendar.id === selectedCalendarId) ?? null,
-    [calendars, selectedCalendarId],
-  );
+  useEffect(() => {
+    if (selectedCalendarIds.length === 0) {
+      if (selectedCalendarId !== null) setSelectedCalendarId(null);
+      return;
+    }
+    if (!selectedCalendarIds.includes(selectedCalendarId ?? -1)) {
+      setSelectedCalendarId(selectedCalendarIds[0] ?? null);
+    }
+  }, [selectedCalendarIds, selectedCalendarId]);
 
   const timeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
@@ -1195,17 +1200,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
       const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
       const coOwnerProfileIds = selectedCoOwners.map((entry) => entry.profileId).filter((id) => id > 0);
-      const targetCalendarId = selectedCalendarId ?? calendarId ?? event?.calendarId ?? null;
-      const targetCalendarIds =
-        selectedCalendarIds.length > 0
-          ? selectedCalendarIds
-          : targetCalendarId
-            ? [targetCalendarId]
-            : [];
+      const targetCalendarIds = Array.from(new Set(selectedCalendarIds));
       if (targetCalendarIds.length === 0) {
         setError("Select at least one calendar before saving.");
         return;
       }
+      const targetCalendarId = targetCalendarIds[0] ?? null;
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -1238,6 +1238,42 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           setupTime: setupInfoValue,
           zendeskTicketNumber: zendeskTicketPayload,
         });
+
+        const additionalCalendarIds = targetCalendarIds.slice(1);
+        if (additionalCalendarIds.length > 0) {
+          const participantCountPayload = participantCountValue ?? undefined;
+          const requestCategoryPayload = requestCategoryValue ?? undefined;
+          const equipmentPayloadCreate = equipmentPayload ?? undefined;
+          const eventInfoStartPayload = eventInfoStartValue ?? undefined;
+          const eventInfoEndPayload = eventInfoEndValue ?? undefined;
+          const setupInfoPayload = setupInfoValue ?? undefined;
+          const zendeskTicketPayloadCreate = zendeskTicketPayload ?? undefined;
+          for (const calendarId of additionalCalendarIds) {
+            await create.mutateAsync({
+              calendarId,
+              title,
+              description,
+              location,
+              buildingId: selectedBuildingId ?? undefined,
+              isAllDay: allDay,
+              startDatetime: dayStart,
+              endDatetime: dayEnd,
+              recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
+              assigneeProfileId: assignee?.profileId ?? undefined,
+              coOwnerProfileIds,
+              hourLogs: payloadHourLogs,
+              attendeeProfileIds,
+              participantCount: participantCountPayload,
+              technicianNeeded,
+              requestCategory: requestCategoryPayload,
+              equipmentNeeded: equipmentPayloadCreate,
+              eventStartTime: eventInfoStartPayload,
+              eventEndTime: eventInfoEndPayload,
+              setupTime: setupInfoPayload,
+              zendeskTicketNumber: zendeskTicketPayloadCreate,
+            });
+          }
+        }
       } else {
         const participantCountPayload = participantCountValue ?? undefined;
         const requestCategoryPayload = requestCategoryValue ?? undefined;
@@ -1311,81 +1347,56 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
           <div>
             <div className="mb-1 text-xs text-ink-muted">Calendars</div>
-            {isEditing ? (
-              <>
-                <select
-                  value={selectedCalendarId ?? ""}
-                  onChange={(e) => setSelectedCalendarId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
-                >
-                  <option value="">Select a calendar</option>
-                  {calendarOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                {selectedCalendar ? (
-                  <p className="mt-1 text-xs text-ink-subtle">
-                    {selectedCalendar.isPersonal ? "Personal calendar" : "Team calendar"}
-                  </p>
-                ) : null}
-              </>
+            {calendarOptions.length === 0 ? (
+              <div className="rounded-md border border-outline-muted bg-surface-muted p-3 text-xs text-ink-muted">
+                No writable calendars available.
+              </div>
             ) : (
               <>
-                {calendarOptions.length === 0 ? (
-                  <div className="rounded-md border border-outline-muted bg-surface-muted p-3 text-xs text-ink-muted">
-                    No writable calendars available.
-                  </div>
-                ) : (
-                  <>
-                    <div className="rounded-md border border-outline-muted bg-surface-muted p-2">
-                      {selectedCalendarIds.length === 0 ? (
-                        <div className="text-xs text-ink-muted">Select at least one calendar.</div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {calendarOptions
-                            .filter((option) => selectedCalendarIds.includes(option.id))
-                            .map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() =>
-                                  setSelectedCalendarIds((prev) => prev.filter((id) => id !== option.id))
-                                }
-                                className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs text-ink-primary hover:bg-surface-muted"
-                              >
-                                <span className="inline-block h-2.5 w-2.5 rounded" style={{ backgroundColor: option.color }} />
-                                <span className="max-w-[12rem] truncate">{option.name}</span>
-                                <span className="text-ink-faint">×</span>
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const nextId = Number(e.target.value);
-                        if (!Number.isFinite(nextId)) return;
-                        setSelectedCalendarIds((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]));
-                      }}
-                      className="mt-2 w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
-                    >
-                      <option value="">Add calendar</option>
+                <div className="rounded-md border border-outline-muted bg-surface-muted p-2">
+                  {selectedCalendarIds.length === 0 ? (
+                    <div className="text-xs text-ink-muted">Select at least one calendar.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
                       {calendarOptions
-                        .filter((option) => !selectedCalendarIds.includes(option.id))
+                        .filter((option) => selectedCalendarIds.includes(option.id))
                         .map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedCalendarIds((prev) => prev.filter((id) => id !== option.id))}
+                            className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs text-ink-primary hover:bg-surface-muted"
+                          >
+                            <span className="inline-block h-2.5 w-2.5 rounded" style={{ backgroundColor: option.color }} />
+                            <span className="max-w-[12rem] truncate">{option.name}</span>
+                            <span className="text-ink-faint">x</span>
+                          </button>
                         ))}
-                    </select>
-                    <p className="mt-1 text-xs text-ink-subtle">
-                      {selectedCalendarIds.length} selected
-                    </p>
-                  </>
-                )}
+                    </div>
+                  )}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const nextId = Number(e.target.value);
+                    if (!Number.isFinite(nextId)) return;
+                    setSelectedCalendarIds((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]));
+                    setSelectedCalendarId(nextId);
+                  }}
+                  className="mt-2 w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                >
+                  <option value="">Add calendar</option>
+                  {calendarOptions
+                    .filter((option) => !selectedCalendarIds.includes(option.id))
+                    .map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="mt-1 text-xs text-ink-subtle">
+                  {selectedCalendarIds.length} selected
+                </p>
               </>
             )}
           </div>

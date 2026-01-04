@@ -829,10 +829,6 @@ export const setupRouter = createTRPCRouter({
       });
     }
 
-    const adminUserIds = Array.from(
-      new Set(status.roles.filter((role) => role.roleType === "admin").map((role) => role.userId)),
-    );
-
     await ctx.db.transaction(async (tx) => {
       if (input?.paletteId !== undefined) {
         if (input.paletteId === null) {

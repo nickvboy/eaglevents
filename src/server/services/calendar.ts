@@ -152,17 +152,21 @@ export async function listAccessibleCalendars(
 
   const conditions: SQL<unknown>[] = [];
 
-  const sharedCondition = sharedScopeCondition
-    ? and(eq(calendars.isPersonal, false), sharedScopeCondition)
-    : eq(calendars.isPersonal, false);
-  conditions.push(sharedCondition);
+  if (sharedScopeCondition) {
+    const sharedCondition = and(eq(calendars.isPersonal, false), sharedScopeCondition);
+    if (sharedCondition) conditions.push(sharedCondition);
+  } else {
+    conditions.push(eq(calendars.isPersonal, false));
+  }
 
-  conditions.push(and(eq(calendars.isPersonal, true), eq(calendars.userId, userId)));
+  const personalCondition = and(eq(calendars.isPersonal, true), eq(calendars.userId, userId));
+  if (personalCondition) conditions.push(personalCondition);
 
   if (elevatedScopes.business) {
     conditions.push(eq(calendars.isPersonal, true));
   } else if (elevatedScopeCondition) {
-    conditions.push(and(eq(calendars.isPersonal, true), elevatedScopeCondition));
+    const elevatedCondition = and(eq(calendars.isPersonal, true), elevatedScopeCondition);
+    if (elevatedCondition) conditions.push(elevatedCondition);
   }
 
   const [first, ...rest] = conditions;
@@ -171,7 +175,8 @@ export async function listAccessibleCalendars(
     whereCondition = whereCondition ? (or(whereCondition, condition) ?? whereCondition) : condition;
   }
   if (!options.includeArchived) {
-    whereCondition = and(whereCondition ?? sql`true`, eq(calendars.isArchived, false));
+    const archivedCondition = and(whereCondition ?? sql`true`, eq(calendars.isArchived, false));
+    whereCondition = archivedCondition ?? whereCondition;
   }
 
   const rows = await dbClient

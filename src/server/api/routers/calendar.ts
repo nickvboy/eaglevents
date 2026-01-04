@@ -130,7 +130,7 @@ export const calendarRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
       const access = await getCalendarAccess(ctx.db, userId, input.calendarId);
-      if (!access || !access.canManage) {
+      if (!access?.canManage) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage this calendar." });
       }
 
@@ -187,7 +187,7 @@ export const calendarRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
       const access = await getCalendarAccess(ctx.db, userId, input.calendarId);
-      if (!access || !access.canManage) {
+      if (!access?.canManage) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete this calendar." });
       }
       await ctx.db.transaction(async (tx) => {
@@ -204,7 +204,7 @@ export const calendarRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
       const access = await getCalendarAccess(ctx.db, userId, input.calendarId, { includeArchived: true });
-      if (!access || !access.canManage) {
+      if (!access?.canManage) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to restore this calendar." });
       }
       await ctx.db.transaction(async (tx) => {

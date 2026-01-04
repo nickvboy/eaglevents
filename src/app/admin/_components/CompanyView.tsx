@@ -2087,7 +2087,7 @@ export function CompanyView() {
           <div className="w-full max-w-md rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
             <div className="text-lg font-semibold">Remove calendar?</div>
             <p className="mt-2 text-sm text-ink-muted">
-              "{calendarToRemove.name}" will be removed from the list. Events stay in the database but become hidden.
+              &quot;{calendarToRemove.name}&quot; will be removed from the list. Events stay in the database but become hidden.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
               <button

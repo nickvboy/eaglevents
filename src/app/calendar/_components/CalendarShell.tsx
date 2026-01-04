@@ -308,7 +308,10 @@ export function CalendarShell() {
     end: addDays(range.end, 1),
     calendarIds: effectiveVisible.length > 0 ? effectiveVisible : undefined,
   });
-  const events = useMemo<RouterOutputs["event"]["list"]>(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const events = useMemo<RouterOutputs["event"]["list"]>(() => {
+    if (visibleCalendarsLoaded && effectiveVisible.length === 0) return [];
+    return eventsQuery.data ?? [];
+  }, [eventsQuery.data, effectiveVisible.length, visibleCalendarsLoaded]);
   const previewEvent = useMemo(
     () => events.find((e) => e.id === previewEventId) ?? null,
     [events, previewEventId],

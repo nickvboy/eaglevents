@@ -826,7 +826,7 @@ async function withRateLimitRetry<T>(action: () => Promise<T>, log: (message: st
 }
 
 function parseRetryAfterSeconds(message: string) {
-  const match = message.match(/try again in (\d+)s/i);
+  const match = /try again in (\d+)s/i.exec(message);
   if (!match) return null;
   const parsed = Number.parseInt(match[1] ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
