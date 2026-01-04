@@ -446,11 +446,15 @@ export function CalendarShell() {
 
   const clearEventParams = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
+    const returnTo = params.get("returnTo");
     params.delete("eventId");
     params.delete("date");
     params.delete("calendarId");
+    params.delete("returnTo");
     const next = params.toString();
-    router.replace(next ? `/calendar?${next}` : "/calendar");
+    const safeReturn =
+      returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
+    router.replace(safeReturn ?? (next ? `/calendar?${next}` : "/calendar"));
   }, [router, searchParams]);
 
   const monthOverlay = (

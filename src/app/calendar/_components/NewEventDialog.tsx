@@ -522,7 +522,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<number[]>([]);
   const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
   const [allDay, setAllDay] = useState(false);
-  const [inPerson, setInPerson] = useState(false);
   const [location, setLocation] = useState("");
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
   const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
@@ -605,7 +604,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         },
       ]);
       setAllDay(event.isAllDay);
-      setInPerson(false);
       setLocation(event.location ?? "");
       setSelectedBuildingId(event.buildingId ?? null);
       const parsed = parseLocationInput(event.location ?? "");
@@ -684,7 +682,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setTitle("");
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
-    setInPerson(false);
     setLocation("");
     setSelectedBuildingId(null);
     setSelectedBuildingAcronym("");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { ChevronDownIcon, ReportIcon, SearchIcon } from "~/app/_components/icons";
 import { ZendeskModal } from "./ZendeskModal";
@@ -16,6 +17,9 @@ function useTicketsData(search: string): TicketsResponse {
 }
 
 export function TicketsShell() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<TicketView>("unassigned");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -34,6 +38,11 @@ export function TicketsShell() {
   const selected = useMemo(() => rows.find((r) => r.id === selectedId) ?? null, [rows, selectedId]);
   const currentLabel = view === "unassigned" ? "Unassigned Tickets" : view === "assigned" ? "Assigned Tickets" : "All Tickets";
   const currentCount = view === "unassigned" ? counts.unassigned : view === "assigned" ? counts.assigned : counts.all;
+  const returnTo =
+    pathname && pathname !== "/calendar"
+      ? `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
+      : "";
+  const returnParam = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
 
   return (
     <div className="flex min-h-screen">
@@ -110,7 +119,16 @@ export function TicketsShell() {
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-auto">
             <div className="hidden md:block">
-              <TicketTable rows={rows} selectedId={selectedId} onSelect={setSelectedId} />
+              <TicketTable
+                rows={rows}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onOpen={(row) => {
+                  const dateParam = encodeURIComponent(new Date(row.startDatetime).toISOString());
+                  const calendarParam = row.calendarId ? `&calendarId=${row.calendarId}` : "";
+                  router.push(`/calendar?eventId=${row.id}&date=${dateParam}${calendarParam}${returnParam}`);
+                }}
+              />
             </div>
             <div className="md:hidden">
               <MobileTicketList rows={rows} onOpen={(id) => setSelectedId(id)} />
@@ -152,7 +170,17 @@ function NavButton({
   );
 }
 
-function TicketTable({ rows, selectedId, onSelect }: { rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
+function TicketTable({
+  rows,
+  selectedId,
+  onSelect,
+  onOpen,
+}: {
+  rows: Row[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  onOpen: (row: Row) => void;
+}) {
   return (
     <table className="w-full min-w-full border-collapse text-sm">
       <thead className="bg-surface-overlay/60 text-ink-subtle">
@@ -176,6 +204,7 @@ function TicketTable({ rows, selectedId, onSelect }: { rows: Row[]; selectedId: 
               key={row.id}
               className={`${zebra} cursor-pointer transition hover:bg-surface-muted ${isSelected ? "bg-accent-muted/40" : ""}`}
               onClick={() => onSelect(row.id)}
+              onDoubleClick={() => onOpen(row)}
             >
               <Td>
                 <StatusPill row={row} />

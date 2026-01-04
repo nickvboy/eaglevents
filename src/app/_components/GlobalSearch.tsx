@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "~/trpc/react";
 import { SearchIcon } from "./icons";
 
@@ -11,6 +11,8 @@ type GlobalSearchProps = {
 
 export function GlobalSearch({ enabled }: GlobalSearchProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const utils = api.useUtils();
   const [value, setValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,7 +51,12 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   const openTicket = (result: { id: number }) => {
     setValue("");
     setExpanded(false);
-    router.push(`/calendar?eventId=${result.id}`);
+    const returnTo =
+      pathname && pathname !== "/calendar"
+        ? `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
+        : "";
+    const returnParam = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
+    router.push(`/calendar?eventId=${result.id}${returnParam}`);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
