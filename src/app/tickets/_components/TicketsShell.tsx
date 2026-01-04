@@ -131,7 +131,15 @@ export function TicketsShell() {
               />
             </div>
             <div className="md:hidden">
-              <MobileTicketList rows={rows} onOpen={(id) => setSelectedId(id)} />
+              <MobileTicketList
+                rows={rows}
+                onOpen={(id) => setSelectedId(id)}
+                onOpenFull={(row) => {
+                  const dateParam = encodeURIComponent(new Date(row.startDatetime).toISOString());
+                  const calendarParam = row.calendarId ? `&calendarId=${row.calendarId}` : "";
+                  router.push(`/calendar?eventId=${row.id}&date=${dateParam}${calendarParam}${returnParam}`);
+                }}
+              />
             </div>
           </div>
           <aside className="hidden w-80 shrink-0 border-l border-outline-muted bg-surface-raised/80 backdrop-blur xl:block">
@@ -345,7 +353,16 @@ function MobileViewSwitcher({
   );
 }
 
-function MobileTicketList({ rows, onOpen }: { rows: Row[]; onOpen: (id: number) => void }) {
+function MobileTicketList({
+  rows,
+  onOpen,
+  onOpenFull,
+}: {
+  rows: Row[];
+  onOpen: (id: number) => void;
+  onOpenFull: (row: Row) => void;
+}) {
+  const lastTapRef = useRef(0);
   return (
     <ul className="divide-y divide-outline-muted">
       {rows.map((row, idx) => {
@@ -362,6 +379,13 @@ function MobileTicketList({ rows, onOpen }: { rows: Row[]; onOpen: (id: number) 
             key={row.id}
             className={`${idx % 2 === 0 ? "bg-surface-sunken/30" : "bg-surface-muted/20"} px-3 py-3`}
             onClick={() => onOpen(row.id)}
+            onTouchEnd={() => {
+              const now = Date.now();
+              if (now - lastTapRef.current < 350) {
+                onOpenFull(row);
+              }
+              lastTapRef.current = now;
+            }}
           >
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-ink-subtle">
