@@ -57,6 +57,8 @@ export function PaletteManager() {
     }
   };
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [blockedDeleteId, setBlockedDeleteId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!statusMessage) return;
@@ -70,6 +72,9 @@ export function PaletteManager() {
   const workspaceProfile = profiles.find((p) => p.scopeType === "business");
 
   const workspacePaletteId = workspaceProfile?.paletteId ?? null;
+  const assignedPaletteIds = useMemo(() => {
+    return new Set(profiles.map((profile) => profile.paletteId).filter((id): id is number => typeof id === "number"));
+  }, [profiles]);
 
   const handleEdit = (paletteId: number) => {
     const palette = palettes.find((p) => p.id === paletteId);
@@ -96,16 +101,28 @@ export function PaletteManager() {
   };
 
   const handleDelete = async (paletteId: number) => {
-    if (!confirm("Delete this palette? This cannot be undone.")) return;
+    if (assignedPaletteIds.has(paletteId)) {
+      setBlockedDeleteId(paletteId);
+      return;
+    }
+    setBlockedDeleteId(null);
+    setDeleteConfirmId(paletteId);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmId === null) return;
     try {
-      await deletePalette.mutateAsync({ id: paletteId });
+      await deletePalette.mutateAsync({ id: deleteConfirmId });
       void utils.theme.current.invalidate();
       setStatusMessage("Palette deleted");
-      if (selectedPaletteId === paletteId) {
+      setBlockedDeleteId(null);
+      if (selectedPaletteId === deleteConfirmId) {
         handleCreate();
       }
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to delete palette");
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -174,6 +191,32 @@ export function PaletteManager() {
 
   return (
     <section className="rounded-3xl border border-outline-muted bg-surface-raised/80 p-6 shadow-[var(--shadow-pane)]">
+      {deleteConfirmId !== null ? (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
+            <div className="mt-2 text-ink-primary">Delete this palette? This cannot be undone.</div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
+                onClick={() => setDeleteConfirmId(null)}
+                disabled={deletePalette.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong disabled:opacity-60"
+                onClick={() => void confirmDelete()}
+                disabled={deletePalette.isPending}
+              >
+                {deletePalette.isPending ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <header className="flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.35em] text-ink-subtle">Palettes</p>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -245,11 +288,19 @@ export function PaletteManager() {
                   <button
                     type="button"
                     className="rounded-full border border-status-danger px-3 py-1 text-xs text-status-danger transition hover:bg-status-danger-surface"
+                    title={
+                      assignedPaletteIds.has(palette.id)
+                        ? "Unassign this palette from all profiles before deleting it."
+                        : "Delete palette"
+                    }
                     onClick={() => handleDelete(palette.id)}
                   >
                     Delete
                   </button>
                 </div>
+                {blockedDeleteId === palette.id ? (
+                  <p className="text-xs text-status-warning">Unassign this palette from all profiles before deleting it.</p>
+                ) : null}
               </article>
             );
           })

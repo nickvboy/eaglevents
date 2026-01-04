@@ -1,9 +1,3 @@
-# QA_MASTER_TEST_PLAN
-
-# Eaglevents Master QA Test Plan (Beta)
-
-Use this checklist to validate end-to-end user flows before release. Each item is a test case.
-
 ### Notes
 ODBE
 
@@ -105,75 +99,71 @@ ODBE
 
 ## Calendar - Calendar Management & Visibility
 
-- [ ]  Team calendars appear before personal calendars in the sidebar list.
-- [ ]  Toggle a team calendar off; verify events disappear from the grid and agenda list.
-- [ ]  Toggle multiple calendars on/off; verify the visible set persists on refresh.
-- [ ]  Mini calendar list scrolls smoothly without showing a scrollbar; verify mouse wheel scrolls the list.
-- [ ]  Personal calendar auto-names as "First L. Personal Calendar #N" and can be edited.
-- [ ]  Managers/admins can see personal calendars in scope; employees only see their own personal calendars.
+- [x]  Team calendars appear before personal calendars in the sidebar list.
+- [x]  Toggle a team calendar off; verify events disappear from the grid and agenda list.
+- [x]  Toggle multiple calendars on/off; verify the visible set persists on refresh.
+- [x]  Mini calendar list scrolls smoothly without showing a scrollbar; verify mouse wheel scrolls the list.
+- [x]  When calandar changes colre it will chnage the event colors
+- [x]  Personal calendar auto-names as "First L. Personal Calendar #N" and can be edited.
+- [x]  Managers/admins can see personal calendars in scope; employees only see their own personal calendars.
+- [x]  Administrators managers and Co admins should be able to remove calendars,
 
-## Calendar - Multi-Calendar Event Placement
+## Multi-Calendar Event Placement
 
-- [ ]  Create event with multiple calendars selected; verify duplicates appear on each selected calendar.
-- [ ]  Create event with no calendars selected; verify save is blocked with a clear error.
-- [ ]  Create event while specific calendars are toggled on in sidebar; verify modal preselects those calendars.
-- [ ]  Remove a selected calendar chip in the modal; verify it is removed from the target list.
-- [ ]  Edit an existing event; verify it still targets a single calendar and does not duplicate.
+- [x]  Create event with multiple calendars selected; verify duplicates appear on each selected calendar.
+- [x]  Create event with no calendars selected; verify save is blocked with a clear error.
+- [x]  Remove a selected calendar chip in the modal; verify it is removed from the target list.
+- [x]  Edit an existing event; verify it still targets a single calendar and does not duplicate.
 
 ## Calendar - Event Creation
 
 - [x]  Open New Event dialog (FAB or toolbar); verify default date and time.
-- [ ]  Create event with title, time segment, and calendar; verify it appears.
-- [ ]  Add multiple time segments; verify each saves correctly.
-- [ ]  Toggle All day; verify time fields adjust as expected.
-- [ ]  Toggle In-person and Recurring; verify flags persist after save.
-- [ ]  Add location via building + room; verify saved location.
-- [ ]  Use location search input and select suggestion; verify selection fills fields.
-- [ ]  Add description; verify saved and visible in details.
-- [ ]  Set request category; verify saved.
-- [ ]  Set participant count; verify saved.
-- [ ]  Set technician needed and equipment needed; verify saved.
-- [ ]  Set Zendesk ticket number; verify saved and searchable.
-- [ ]  Set informational event start/end and setup times; verify saved.
-- [ ]  Add hour log intervals; verify validation for invalid or incomplete rows.
-- [ ]  Assign assignee and add co-owners; verify saved and displayed in details.
-- [ ]  Add attendees; verify saved and displayed where applicable.
-- [ ]  Save with invalid or missing required fields; verify error message.
-
-## Calendar - Event Editing and Deletion
-
-- [ ]  Open event details from calendar; verify details match saved data.
-- [ ]  Click Edit from details; verify dialog opens with existing values.
-- [ ]  Update event fields; verify changes persist.
-- [ ]  Delete event from details; verify event removed.
-- [ ]  Edit event hour logs in details; verify save and total hours.
+- [x]  Create event with title, time segment, and calendar; verify it appears.
+- [x]  Add multiple time segments; verify each saves correctly.
+- [x]  Add location via building + room; verify saved location.
+- [x]  Use location search input and select suggestion; verify selection fills fields.
+- [x]  Add description; verify saved and visible in details.
+- [x]  Set request category; verify saved.
+- [x]  Set participant count; verify saved.
+- [x]  Set technician needed and equipment needed; verify saved.
+- [x]  Set Zendesk ticket number; verify saved and searchable.
+- [x]  Set informational event start/end and setup times; verify saved.
+- [x]  Add hour log intervals; verify validation for invalid or incomplete rows.
+- [x]  Assign assignee and add co-owners; verify saved and displayed in details.
+- [x]  Add attendees; verify saved and displayed where applicable.
+- [x]  added profiles are rebreed and input validated
+- [x]  Save with invalid or missing required fields; verify error message.
+- [x]  Open event details from calendar; verify details match saved data.
+- [x]  Delete event from details; verify event removed.
+- [x]  Edit event hour logs in details; verify save and total hours.
 
 ## Tickets
 
-- [ ]  Switch between Unassigned, Assigned, and All tickets views.
-- [ ]  Verify counts match ticket lists.
-- [ ]  Search tickets; verify list updates.
-- [ ]  Select a ticket row; verify preview panel updates.
-- [ ]  Verify status pill shows Open, Assigned, Closed correctly.
-- [ ]  Mobile: open a ticket from list; verify preview opens.
-- [ ]  Open Zendesk modal; verify it appears and closes.
+- [x]  Switch between Unassigned, Assigned, and All tickets views.
+- [x]  Verify counts match ticket lists.
+- [x]  Search tickets; verify list updates.
+- [x]  Select a ticket row; verify preview panel updates.
+- [x]  Verify status pill shows Open, Assigned, Closed correctly.
+- [x]  Mobile: open a ticket from list; verify preview opens.
+- [x]  Open Zendesk modal; verify it appears and closes.
+- [x]  When double clicking the ticket it shoud open the full screen and stay on the ticket view
 
 ## Settings - Theme and Palettes
 
-- [ ]  Toggle Light, Dark, System mode; verify theme changes.
-- [ ]  Create new palette; verify it appears in list.
-- [ ]  Edit palette; verify changes persist.
-- [ ]  Delete palette; verify removal and fallback behavior.
-- [ ]  Assign palette to workspace; verify it becomes default.
-- [ ]  Assign palette to a department; verify assignment persists.
-- [ ]  Apply preset palette; verify it appears and can be used.
+- [x]  Toggle Light, Dark, System mode; verify theme changes.
+- [x]  Create new palette; verify it appears in list.
+- [x]  Edit palette; verify changes persist.
+- [x]  Delete palette; verify removal and fallback behavior.
+- [x]  Assign palette to workspace; verify it becomes default.
+- [x]  Apply preset palette; verify it appears and can be used.
+- [x]  Apply a json pallate preset make sure it can be used
 
 ## Admin - Dashboard
 
-- [ ]  Load dashboard; verify summary cards and charts display.
-- [ ]  Verify active users list loads and last activity formats.
-- [ ]  Verify alerts list loads and severity styles.
-- [ ]  Verify upcoming events list loads and labels show.
+- [x]  Load dashboard; verify summary cards and charts display.
+- [x]  Verify active users list loads and last activity formats.
+- [x]  Verify alerts list loads and severity styles.
+- [x]  Verify upcoming events list loads and labels show.
 
 ## Admin - Company
 
