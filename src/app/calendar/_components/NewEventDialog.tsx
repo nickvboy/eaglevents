@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
+import { TRPCClientError } from "@trpc/client";
 import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+import type { AppRouter } from "~/server/api/root";
 import { ChevronDownIcon, EditIcon, XIcon } from "~/app/_components/icons";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
 const DEFAULT_TIME_VALUE = "06:30";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ZENDESK_TICKET_REGEX = /^\d{6}$/;
 
 type Segment = {
   id: string;
@@ -473,6 +477,34 @@ function fallbackSearchLabel(value: string, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function formatPhoneInput(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return hasPlus ? "+" : "";
+  const normalized = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (normalized.length <= 3) return (hasPlus ? "+" : "") + normalized;
+  if (normalized.length <= 6) {
+    return (hasPlus ? "+" : "") + `(${normalized.slice(0, 3)}) ${normalized.slice(3)}`;
+  }
+  const line = normalized.slice(6, 10);
+  return (hasPlus ? "+" : "") + `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${line}`;
+}
+
+function getQuickCreateErrorMessage(err: unknown) {
+  if (err instanceof TRPCClientError) {
+    const zodError = (err as TRPCClientError<AppRouter>).data?.zodError;
+    const fieldErrors = zodError?.fieldErrors ?? {};
+    if (fieldErrors.firstName?.length) return "First name is required.";
+    if (fieldErrors.lastName?.length) return "Last name is required.";
+    if (fieldErrors.email?.length) return "Enter a valid email address.";
+    if (zodError?.formErrors?.length) return zodError.formErrors[0] ?? err.message;
+  }
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return "Failed to create profile.";
+}
+
 export function NewEventDialog({ open, onClose, defaultDate, calendarId, visibleCalendarIds, calendars, event }: Props) {
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
@@ -525,6 +557,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
+  const zendeskTicketError =
+    zendeskTicket.trim().length > 0 && !ZENDESK_TICKET_REGEX.test(zendeskTicket.trim())
+      ? "Zendesk ticket must be exactly 6 digits."
+      : null;
   const calendarOptions = useMemo(() => {
     return (calendars ?? [])
       .filter((c) => c.canWrite)
@@ -1073,6 +1109,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setQuickCreateError("Add a first name, last name, and email.");
       return;
     }
+    if (!EMAIL_REGEX.test(email)) {
+      setQuickCreateError("Enter a valid email address.");
+      return;
+    }
     try {
       const created = await createProfile.mutateAsync({
         firstName,
@@ -1100,7 +1140,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       }
       closeQuickCreate();
     } catch (err) {
-      setQuickCreateError(err instanceof Error ? err.message : "Failed to create profile.");
+      setQuickCreateError(getQuickCreateErrorMessage(err));
     }
   };
 
@@ -1146,7 +1186,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             <input
               placeholder="Phone (optional)"
               value={quickCreateDraft.phoneNumber}
-              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+              onChange={(e) =>
+                setQuickCreateDraft((prev) => ({
+                  ...prev,
+                  phoneNumber: formatPhoneInput(e.target.value),
+                }))
+              }
               className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
             />
           </div>
@@ -1184,6 +1229,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         setError("Please complete or remove invalid hour log entries.");
         return;
       }
+      if (zendeskTicketError) {
+        setError(zendeskTicketError);
+        return;
+      }
       const payloadHourLogs = hourLogs
         .map((log) => {
           if (!log.start || !log.end) return null;
@@ -1204,7 +1253,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       const eventInfoStartValue = eventInfoStart ? new Date(eventInfoStart) : isEditing ? null : undefined;
       const eventInfoEndValue = eventInfoEnd ? new Date(eventInfoEnd) : isEditing ? null : undefined;
       const setupInfoValue = setupInfoTime ? new Date(setupInfoTime) : isEditing ? null : undefined;
-      const zendeskTicketValueRaw = zendeskTicket.replace(/[^a-zA-Z0-9]/g, "");
+      const zendeskTicketValueRaw = zendeskTicket.replace(/\D/g, "");
       const zendeskTicketPayload =
         zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
       const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
@@ -1456,14 +1505,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             <div className="mb-1 text-xs text-ink-muted">Zendesk ticket number</div>
             <input
               type="text"
-              inputMode="text"
-              maxLength={64}
+              inputMode="numeric"
+              maxLength={6}
               value={zendeskTicket}
-              onChange={(e) => setZendeskTicket(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+              onChange={(e) => setZendeskTicket(e.target.value.replace(/\D/g, ""))}
               className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
-              placeholder="e.g., 123456"
+              placeholder="123456"
             />
-            <p className="mt-1 text-xs text-ink-subtle">Only letters and numbers are kept.</p>
+            {zendeskTicketError ? (
+              <p className="mt-1 text-xs text-status-danger">{zendeskTicketError}</p>
+            ) : (
+              <p className="mt-1 text-xs text-ink-subtle">Enter a 6-digit Zendesk ticket.</p>
+            )}
           </div>
 
           <div>
