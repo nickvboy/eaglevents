@@ -254,7 +254,7 @@ function QueueList({
   const isNeedsTab = tab === "needs";
   const items: Array<ReadyItem | NeedsItem> = tab === "ready" ? readyItems : needsItems;
   if (isLoading) {
-    return <div className="p-4 text-sm text-ink-muted">Loading queueâ€¦</div>;
+    return <div className="p-4 text-sm text-ink-muted">Loading queue...</div>;
   }
   if (items.length === 0) {
     return (
@@ -402,7 +402,7 @@ function TicketDetail({
                   : "border border-outline-accent bg-accent-soft text-white hover:-translate-y-0.5 hover:shadow-lg"
               }`}
             >
-              {isSubmitting ? "Savingâ€¦" : "Info entered"}
+              {isSubmitting ? "Saving..." : "Info entered"}
             </button>
           </div>
         </div>

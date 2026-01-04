@@ -127,7 +127,10 @@ export function CompanyView() {
 
   const [buildingForms, setBuildingForms] = useState<Record<number, BuildingFormState>>({});
   const [roomForms, setRoomForms] = useState<Record<number, string>>({});
+  const [editingRoomId, setEditingRoomId] = useState<number | null>(null);
+  const [editingRoomValue, setEditingRoomValue] = useState("");
   const [newBuilding, setNewBuilding] = useState({ name: "", acronym: "", rooms: [] as string[], roomField: "" });
+  const [buildingFeedbacks, setBuildingFeedbacks] = useState<Record<number, string | null>>({});
   const [buildingFeedback, setBuildingFeedback] = useState<string | null>(null);
 
   const [departmentForms, setDepartmentForms] = useState<Record<number, { name: string; parentDepartmentId: number | null }>>({});
@@ -633,7 +636,7 @@ export function CompanyView() {
   const handleAddNewRoom = async (buildingId: number) => {
     const draft = buildingForms[buildingId];
     if (!draft?.roomField.trim()) return;
-    setBuildingFeedback(null);
+    setBuildingFeedbacks((prev) => ({ ...prev, [buildingId]: null }));
     try {
       await createRoom.mutateAsync({ buildingId, roomNumber: draft.roomField.trim() });
       setBuildingForms((prev) => {
@@ -644,7 +647,12 @@ export function CompanyView() {
         };
       });
     } catch (error) {
-      setBuildingFeedback((error as Error).message ?? "Failed to add room.");
+      const message = (error as Error).message ?? "Failed to add room.";
+      const isDuplicate = message.toLowerCase().includes("duplicate key") || message.toLowerCase().includes("unique constraint");
+      setBuildingFeedbacks((prev) => ({
+        ...prev,
+        [buildingId]: isDuplicate ? "That room already exists for this building." : message,
+      }));
     }
   };
 
@@ -734,6 +742,7 @@ export function CompanyView() {
           ) : null}
           {data.buildings.map((building) => {
             const form = buildingForms[building.id];
+            const buildingFeedbackMessage = buildingFeedbacks[building.id];
             return (
               <div key={building.id} className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -744,12 +753,15 @@ export function CompanyView() {
                   <button
                     type="button"
                     onClick={async () => {
-                      setBuildingFeedback(null);
+                      setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
                       if (!confirm(`Delete ${building.name}? This removes all rooms in the building.`)) return;
                       try {
                         await deleteBuilding.mutateAsync({ buildingId: building.id });
                       } catch (error) {
-                        setBuildingFeedback((error as Error).message ?? "Failed to delete building.");
+                        setBuildingFeedbacks((prev) => ({
+                          ...prev,
+                          [building.id]: (error as Error).message ?? "Failed to delete building.",
+                        }));
                       }
                     }}
                     className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-status-danger hover:text-status-danger"
@@ -794,7 +806,7 @@ export function CompanyView() {
                     <button
                       type="button"
                       onClick={async () => {
-                        setBuildingFeedback(null);
+                        setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
                         try {
                           await updateBuilding.mutateAsync({
                             buildingId: building.id,
@@ -802,7 +814,10 @@ export function CompanyView() {
                             acronym: form?.acronym ?? building.acronym,
                           });
                         } catch (error) {
-                          setBuildingFeedback((error as Error).message ?? "Failed to update building.");
+                          setBuildingFeedbacks((prev) => ({
+                            ...prev,
+                            [building.id]: (error as Error).message ?? "Failed to update building.",
+                          }));
                         }
                       }}
                       className="rounded-full border border-outline-muted px-4 py-2 text-xs font-semibold text-ink-primary transition hover:border-outline-strong"
@@ -817,49 +832,77 @@ export function CompanyView() {
                   {building.rooms.length === 0 ? (
                     <div className="text-xs text-ink-muted">No rooms added yet.</div>
                   ) : (
-                    <div className="grid gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {building.rooms.map((room) => (
-                        <div key={room.id} className="flex flex-wrap items-center gap-2">
-                          <input
-                            value={roomForms[room.id] ?? room.roomNumber}
-                            onChange={(event) =>
-                              setRoomForms((prev) => ({
-                                ...prev,
-                                [room.id]: event.target.value,
-                              }))
-                            }
-                            className="w-32 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                          />
+                        <span
+                          key={room.id}
+                          className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs"
+                          onDoubleClick={() => {
+                            setEditingRoomId(room.id);
+                            setEditingRoomValue(roomForms[room.id] ?? room.roomNumber);
+                          }}
+                        >
+                          {editingRoomId === room.id ? (
+                            <input
+                              value={editingRoomValue}
+                              onChange={(event) => setEditingRoomValue(event.target.value)}
+                              onBlur={async () => {
+                                const nextValue = editingRoomValue.trim();
+                                setEditingRoomId(null);
+                                if (!nextValue || nextValue === room.roomNumber) return;
+                                setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
+                                try {
+                                  await updateRoom.mutateAsync({ roomId: room.id, roomNumber: nextValue });
+                                  setRoomForms((prev) => ({ ...prev, [room.id]: nextValue }));
+                                } catch (error) {
+                                  setBuildingFeedbacks((prev) => ({
+                                    ...prev,
+                                    [building.id]: (error as Error).message ?? "Failed to update room.",
+                                  }));
+                                }
+                              }}
+                              onKeyDown={async (event) => {
+                                if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+                                event.preventDefault();
+                                const nextValue = editingRoomValue.trim();
+                                setEditingRoomId(null);
+                                if (!nextValue || nextValue === room.roomNumber) return;
+                                setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
+                                try {
+                                  await updateRoom.mutateAsync({ roomId: room.id, roomNumber: nextValue });
+                                  setRoomForms((prev) => ({ ...prev, [room.id]: nextValue }));
+                                } catch (error) {
+                                  setBuildingFeedbacks((prev) => ({
+                                    ...prev,
+                                    [building.id]: (error as Error).message ?? "Failed to update room.",
+                                  }));
+                                }
+                              }}
+                              className="w-24 rounded-md border border-outline-muted bg-surface-raised px-2 py-1 text-xs text-ink-primary focus:border-outline-accent focus:outline-none"
+                              autoFocus
+                            />
+                          ) : (
+                            <span>{roomForms[room.id] ?? room.roomNumber}</span>
+                          )}
                           <button
                             type="button"
                             onClick={async () => {
-                              setBuildingFeedback(null);
-                              try {
-                                await updateRoom.mutateAsync({ roomId: room.id, roomNumber: roomForms[room.id] ?? room.roomNumber });
-                              } catch (error) {
-                                setBuildingFeedback((error as Error).message ?? "Failed to update room.");
-                              }
-                            }}
-                            className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-outline-strong"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setBuildingFeedback(null);
+                              setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
                               if (!confirm(`Remove room ${room.roomNumber}?`)) return;
                               try {
                                 await deleteRoom.mutateAsync({ roomId: room.id });
                               } catch (error) {
-                                setBuildingFeedback((error as Error).message ?? "Failed to remove room.");
+                                setBuildingFeedbacks((prev) => ({
+                                  ...prev,
+                                  [building.id]: (error as Error).message ?? "Failed to remove room.",
+                                }));
                               }
                             }}
-                            className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-status-danger hover:text-status-danger"
+                            className="text-ink-subtle hover:text-status-danger"
                           >
-                            Remove
+                            x
                           </button>
-                        </div>
+                        </span>
                       ))}
                     </div>
                   )}
@@ -875,6 +918,11 @@ export function CompanyView() {
                           };
                         })
                       }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+                        event.preventDefault();
+                        void handleAddNewRoom(building.id);
+                      }}
                       className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                       placeholder="Add room"
                     />
@@ -886,6 +934,7 @@ export function CompanyView() {
                       Add room
                     </button>
                   </div>
+                  {buildingFeedbackMessage ? <p className="text-xs text-ink-muted">{buildingFeedbackMessage}</p> : null}
                 </div>
               </div>
             );
@@ -919,6 +968,11 @@ export function CompanyView() {
                 <input
                   value={newBuilding.roomField}
                   onChange={(event) => setNewBuilding((prev) => ({ ...prev, roomField: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+                    event.preventDefault();
+                    handleAddNewBuildingRoom();
+                  }}
                   className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
                   placeholder="201"
                 />
@@ -940,7 +994,7 @@ export function CompanyView() {
                   >
                     {room}
                     <button type="button" onClick={() => handleRemoveNewBuildingRoom(room)} className="text-ink-subtle">
-                      Remove
+                      x
                     </button>
                   </span>
                 ))}
