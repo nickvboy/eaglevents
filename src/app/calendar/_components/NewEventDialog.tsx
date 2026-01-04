@@ -477,6 +477,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
   const update = api.event.update.useMutation();
+  const deleteMutation = api.event.delete.useMutation({
+    onSuccess: async () => {
+      await utils.event.invalidate();
+      onClose();
+    },
+  });
   const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
@@ -516,6 +522,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
   const calendarOptions = useMemo(() => {
@@ -551,6 +558,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
   useEffect(() => {
     if (!open) return;
+    setShowDeleteConfirm(false);
     if (event) {
       setTitle(event.title);
       setSegments([
@@ -836,7 +844,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     !hourLogsInvalid &&
     !hourLogsIncomplete &&
     !participantCountInvalid &&
-    !isSaving;
+    !isSaving &&
+    !deleteMutation.isPending;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
   const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
   const assigneeResults = api.profile.search.useQuery(
@@ -1321,6 +1330,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     }
   };
 
+  const handleDelete = async () => {
+    if (!event || deleteMutation.isPending) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!event || deleteMutation.isPending) return;
+    setError(null);
+    try {
+      await deleteMutation.mutateAsync({ id: event.id });
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to delete event");
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -1329,7 +1354,33 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4"
       onMouseDown={handleBackdropMouseDown}
     >
-      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)] p-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
+            <div className="mt-2 text-ink-primary">Delete this event? This cannot be undone.</div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong disabled:opacity-60"
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="relative max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-lg font-semibold">{dialogTitle}</div>
           <button className="rounded-md border border-outline-muted px-2 py-1 hover:bg-surface-muted" onClick={onClose}>
@@ -2070,21 +2121,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               <div className="text-xs text-status-danger">{hourLogsValidationMessage}</div>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-4 border-t border-outline-muted border-b border-outline-muted py-3">
-            <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-accent-strong" />
-              All day
-            </label>
-            <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={inPerson} onChange={(e) => setInPerson(e.target.checked)} className="accent-accent-strong" />
-              In-person event
-            </label>
-            <label className="ml-2 inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} className="accent-accent-strong" />
-              Make recurring
-            </label>
-          </div>
-
           <div>
             <div className="mb-1 text-xs text-ink-muted">Add a room or location</div>
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
@@ -2190,7 +2226,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
           {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
 
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex items-center justify-between gap-2">
+            {isEditing && event && (
+              <button
+                type="button"
+                className="rounded-md border border-status-danger px-3 py-1.5 text-sm font-medium text-status-danger transition hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </button>
+            )}
             <button
               className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
               disabled={!canSave}
