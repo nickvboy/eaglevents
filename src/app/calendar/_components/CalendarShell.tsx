@@ -177,7 +177,7 @@ export function CalendarShell() {
     calendars?.[0]?.id;
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<number[]>([]);
   const [visibleCalendarsLoaded, setVisibleCalendarsLoaded] = useState(false);
-  const effectiveVisible = visibleCalendarIds.length > 0 ? visibleCalendarIds : calendars?.map((c) => c.id) ?? [];
+  const effectiveVisible = visibleCalendarIds;
   const calendarLookup = useMemo(() => {
     const map = new Map<number, { name: string; color: string }>();
     (calendars ?? []).forEach((c) => {
