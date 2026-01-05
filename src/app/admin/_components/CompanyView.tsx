@@ -33,6 +33,11 @@ type ConnectorDrag = {
   fromSide: HandleSide;
 };
 
+type ConfirmAction =
+  | { type: "deleteBuilding"; buildingId: number; buildingName: string }
+  | { type: "removeRoom"; buildingId: number; roomId: number; roomNumber: string }
+  | { type: "deleteDepartment"; departmentId: number; departmentName: string };
+
 const businessTypes: Array<{ value: BusinessType; label: string }> = [
   { value: "university", label: "University" },
   { value: "nonprofit", label: "Non-profit" },
@@ -139,6 +144,10 @@ export function CompanyView() {
     parentDepartmentId: null,
   });
   const [departmentFeedback, setDepartmentFeedback] = useState<string | null>(null);
+  const [collapsedDepartments, setCollapsedDepartments] = useState<Set<number>>(new Set());
+  const [listContextMenu, setListContextMenu] = useState<{ parentId: number; depth: number } | null>(null);
+  const [listContextChildName, setListContextChildName] = useState("");
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [calendarForms, setCalendarForms] = useState<Record<number, { name: string; color: string; scopeKey: string }>>({});
   const [newCalendar, setNewCalendar] = useState<{ name: string; color: string; isPersonal: boolean; scopeKey: string }>({
     name: "",
@@ -155,8 +164,15 @@ export function CompanyView() {
   const dragOffsetRef = useRef<NodePosition | null>(null);
   const companyDragOffsetRef = useRef<NodePosition | null>(null);
   const chartRef = useRef<HTMLDivElement | null>(null);
+  const resizeRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   const nodePositionsRef = useRef<Record<number, NodePosition>>({});
   const rafRef = useRef<number | null>(null);
+  const [chartHeight, setChartHeight] = useState<number | null>(null);
   const [pendingParents, setPendingParents] = useState<Record<number, number | null>>({});
   const [companyLinks, setCompanyLinks] = useState<Record<number, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; parentId: number } | null>(null);
@@ -174,6 +190,30 @@ export function CompanyView() {
   const [edgeAnchors, setEdgeAnchors] = useState<
     Record<number, { parentId: number; fromSide: HandleSide; toSide: HandleSide }>
   >({});
+
+  useEffect(() => {
+    const stored = localStorage.getItem("company-flow-chart-size");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { height?: number };
+        if (typeof parsed.height === "number") {
+          setChartHeight(parsed.height);
+          return;
+        }
+      } catch {
+        // Ignore invalid stored sizes.
+      }
+    }
+    if (chartRef.current) {
+      const bounds = chartRef.current.getBoundingClientRect();
+      setChartHeight(Math.max(360, bounds.height));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!chartHeight) return;
+    localStorage.setItem("company-flow-chart-size", JSON.stringify({ height: chartHeight }));
+  }, [chartHeight]);
 
   useEffect(() => {
     if (data?.business) {
@@ -328,6 +368,18 @@ export function CompanyView() {
   const departmentById = useMemo(() => {
     return new Map((data?.departments?.flat ?? []).map((dept) => [dept.id, dept]));
   }, [data?.departments?.flat]);
+
+  const collapsibleDepartmentIds = useMemo(() => {
+    const ids = new Set<number>();
+    const walk = (node: DepartmentNode) => {
+      if (node.children.length > 0) {
+        ids.add(node.id);
+        node.children.forEach((child) => walk(child));
+      }
+    };
+    (data?.departments?.roots ?? []).forEach((root) => walk(root));
+    return ids;
+  }, [data?.departments?.roots]);
 
   const companySize = useMemo(() => {
     const name = data?.business?.name ?? "";
@@ -670,8 +722,70 @@ export function CompanyView() {
     setNewBuilding((prev) => ({ ...prev, rooms: prev.rooms.filter((value) => value !== room) }));
   };
 
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    try {
+      if (confirmAction.type === "deleteBuilding") {
+        setBuildingFeedbacks((prev) => ({ ...prev, [confirmAction.buildingId]: null }));
+        await deleteBuilding.mutateAsync({ buildingId: confirmAction.buildingId });
+      } else if (confirmAction.type === "removeRoom") {
+        setBuildingFeedbacks((prev) => ({ ...prev, [confirmAction.buildingId]: null }));
+        await deleteRoom.mutateAsync({ roomId: confirmAction.roomId });
+      } else if (confirmAction.type === "deleteDepartment") {
+        setDepartmentFeedback(null);
+        await deleteDepartment.mutateAsync({ departmentId: confirmAction.departmentId });
+      }
+    } catch (error) {
+      if (confirmAction.type === "deleteBuilding") {
+        setBuildingFeedbacks((prev) => ({
+          ...prev,
+          [confirmAction.buildingId]: (error as Error).message ?? "Failed to delete building.",
+        }));
+      } else if (confirmAction.type === "removeRoom") {
+        setBuildingFeedbacks((prev) => ({
+          ...prev,
+          [confirmAction.buildingId]: (error as Error).message ?? "Failed to remove room.",
+        }));
+      } else if (confirmAction.type === "deleteDepartment") {
+        setDepartmentFeedback((error as Error).message ?? "Failed to delete department.");
+      }
+    } finally {
+      setConfirmAction(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {confirmAction ? (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
+            <div className="mt-2 text-ink-primary">
+              {confirmAction.type === "deleteBuilding"
+                ? `Delete ${confirmAction.buildingName}? This removes all rooms in the building.`
+                : confirmAction.type === "removeRoom"
+                  ? `Remove room ${confirmAction.roomNumber}?`
+                  : `Delete ${confirmAction.departmentName}? Sub-departments will be removed too.`}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
+                onClick={() => setConfirmAction(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong"
+                onClick={() => void handleConfirmAction()}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
         <header>
           <h2 className="text-lg font-semibold text-ink-primary">Organization details</h2>
@@ -753,16 +867,7 @@ export function CompanyView() {
                   <button
                     type="button"
                     onClick={async () => {
-                      setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
-                      if (!confirm(`Delete ${building.name}? This removes all rooms in the building.`)) return;
-                      try {
-                        await deleteBuilding.mutateAsync({ buildingId: building.id });
-                      } catch (error) {
-                        setBuildingFeedbacks((prev) => ({
-                          ...prev,
-                          [building.id]: (error as Error).message ?? "Failed to delete building.",
-                        }));
-                      }
+                      setConfirmAction({ type: "deleteBuilding", buildingId: building.id, buildingName: building.name });
                     }}
                     className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-status-danger hover:text-status-danger"
                   >
@@ -884,23 +989,19 @@ export function CompanyView() {
                           ) : (
                             <span>{roomForms[room.id] ?? room.roomNumber}</span>
                           )}
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
-                              if (!confirm(`Remove room ${room.roomNumber}?`)) return;
-                              try {
-                                await deleteRoom.mutateAsync({ roomId: room.id });
-                              } catch (error) {
-                                setBuildingFeedbacks((prev) => ({
-                                  ...prev,
-                                  [building.id]: (error as Error).message ?? "Failed to remove room.",
-                                }));
-                              }
-                            }}
-                            className="text-ink-subtle hover:text-status-danger"
-                          >
-                            x
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setConfirmAction({
+                                    type: "removeRoom",
+                                    buildingId: building.id,
+                                    roomId: room.id,
+                                    roomNumber: room.roomNumber,
+                                  });
+                                }}
+                                className="text-ink-subtle hover:text-status-danger"
+                              >
+                                x
                           </button>
                         </span>
                       ))}
@@ -1162,6 +1263,7 @@ export function CompanyView() {
                   <div
                     ref={chartRef}
                     className="relative mt-4 min-h-[360px] overflow-auto rounded-2xl border border-outline-muted bg-surface-canvas"
+                    style={chartHeight ? { height: chartHeight } : undefined}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     tabIndex={0}
@@ -1197,6 +1299,35 @@ export function CompanyView() {
                       setSelectedEdge(null);
                     }}
                   >
+                    <div
+                      role="separator"
+                      aria-orientation="horizontal"
+                      className="absolute bottom-0 left-0 z-10 h-4 w-full cursor-ns-resize"
+                      style={{ pointerEvents: "auto" }}
+                      onPointerDown={(event) => {
+                        if (!chartRef.current) return;
+                        event.preventDefault();
+                        const bounds = chartRef.current.getBoundingClientRect();
+                        resizeRef.current = {
+                          startX: event.clientX,
+                          startY: event.clientY,
+                          startWidth: bounds.width,
+                          startHeight: bounds.height,
+                        };
+                        const handlePointerMove = (moveEvent: PointerEvent) => {
+                          if (!resizeRef.current) return;
+                          const nextHeight = Math.max(360, resizeRef.current.startHeight + (moveEvent.clientY - resizeRef.current.startY));
+                          setChartHeight(nextHeight);
+                        };
+                        const handlePointerUp = () => {
+                          resizeRef.current = null;
+                          window.removeEventListener("pointermove", handlePointerMove);
+                          window.removeEventListener("pointerup", handlePointerUp);
+                        };
+                        window.addEventListener("pointermove", handlePointerMove);
+                        window.addEventListener("pointerup", handlePointerUp);
+                      }}
+                    />
                     <div className="absolute inset-x-0 top-0 flex h-[46px] items-center justify-center border-b border-dashed border-outline-muted text-xs font-semibold uppercase tracking-[0.2em] text-ink-subtle">
                       Root level drop zone
                     </div>
@@ -1289,8 +1420,7 @@ export function CompanyView() {
                       const startY = start.y;
                       const endX = end.x;
                       const endY = end.y;
-                      const dx = Math.max(80, Math.abs(endX - startX) * 0.5);
-                      const path = `M ${startX} ${startY} C ${startX + dx} ${startY} ${endX - dx} ${endY} ${endX} ${endY}`;
+                      const path = `M ${startX} ${startY} L ${endX} ${endY}`;
                       const midX = (startX + endX) / 2;
                       const midY = (startY + endY) / 2;
                       const isSelected = selectedEdge?.from === edge.from && selectedEdge?.to === edge.to;
@@ -1352,13 +1482,9 @@ export function CompanyView() {
                     })}
                     {connectorDrag ? (
                       <path
-                        d={`M ${connectorDrag.startX} ${connectorDrag.startY} C ${
-                          connectorDrag.startX + 80
-                        } ${connectorDrag.startY} ${
-                          (connectorTargetHandle?.x ?? connectorDrag.x) - 80
-                        } ${
+                        d={`M ${connectorDrag.startX} ${connectorDrag.startY} L ${connectorTargetHandle?.x ?? connectorDrag.x} ${
                           connectorTargetHandle?.y ?? connectorDrag.y
-                        } ${connectorTargetHandle?.x ?? connectorDrag.x} ${connectorTargetHandle?.y ?? connectorDrag.y}`}
+                        }`}
                         fill="none"
                         stroke="rgba(59, 130, 246, 0.9)"
                         strokeWidth="2"
@@ -1621,100 +1747,193 @@ export function CompanyView() {
                   ) : null}
                 </div>
               </div>
-              {renderDepartmentRows(data.departments.roots, (dept, depth) => {
-                const form = departmentForms[dept.id];
-                const options = data.departments.flat.filter((option) => option.id !== dept.id);
-                const hasChanges =
-                  form && (form.name !== dept.name || form.parentDepartmentId !== dept.parentDepartmentId);
-                return (
-                  <div
-                    key={dept.id}
-                    className="rounded-xl border border-outline-muted bg-surface-muted p-3"
-                    style={{ paddingLeft: depth * 16 + 12 }}
+              <div className="rounded-2xl border border-outline-muted bg-surface-muted p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-ink-primary">Department list</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (collapsibleDepartmentIds.size > 0 && collapsedDepartments.size === collapsibleDepartmentIds.size) {
+                        setCollapsedDepartments(new Set());
+                        return;
+                      }
+                      setCollapsedDepartments(new Set(collapsibleDepartmentIds));
+                    }}
+                    className="rounded-full border border-outline-muted px-3 py-1 text-xs font-semibold text-ink-subtle hover:border-outline-strong"
                   >
-                    <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto]">
-                      <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
-                        Name
-                        <input
-                          value={form?.name ?? dept.name}
-                          onChange={(event) =>
-                            setDepartmentForms((prev) => {
-                              const base = prev[dept.id] ?? { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null };
-                              return {
-                                ...prev,
-                                [dept.id]: { ...base, name: event.target.value },
-                              };
-                            })
-                          }
-                          className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
-                        Parent
-                        <select
-                          value={form?.parentDepartmentId ?? ""}
-                          onChange={(event) =>
-                            setDepartmentForms((prev) => {
-                              const base = prev[dept.id] ?? { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null };
-                              return {
-                                ...prev,
-                                [dept.id]: {
-                                  ...base,
-                                  parentDepartmentId: event.target.value ? Number(event.target.value) : null,
-                                },
-                              };
-                            })
-                          }
-                          className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                        >
-                          <option value="">No parent</option>
-                          {options.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {departmentPathMap.get(option.id) ?? option.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="flex flex-wrap items-end gap-2">
-                        <button
-                          type="button"
-                          disabled={!hasChanges}
-                          onClick={async () => {
-                            setDepartmentFeedback(null);
-                            try {
-                              await updateDepartment.mutateAsync({
-                                departmentId: dept.id,
-                                name: form?.name ?? dept.name,
-                                parentDepartmentId: form?.parentDepartmentId ?? null,
-                              });
-                            } catch (error) {
-                              setDepartmentFeedback((error as Error).message ?? "Failed to update department.");
-                            }
-                          }}
-                          className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-outline-strong disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setDepartmentFeedback(null);
-                            if (!confirm(`Delete ${dept.name}? Sub-departments will be removed too.`)) return;
-                            try {
-                              await deleteDepartment.mutateAsync({ departmentId: dept.id });
-                            } catch (error) {
-                              setDepartmentFeedback((error as Error).message ?? "Failed to delete department.");
-                            }
-                          }}
-                          className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-status-danger hover:text-status-danger"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    {collapsibleDepartmentIds.size > 0 && collapsedDepartments.size === collapsibleDepartmentIds.size
+                      ? "Expand all"
+                      : "Collapse all"}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-ink-muted">Double-click a node in the chart to rename. Use the x button to remove.</p>
+                <ul
+                  className="mt-4 overflow-hidden rounded-xl border border-outline-muted bg-surface-raised"
+                  onClick={() => setListContextMenu(null)}
+                >
+                  {(() => {
+                    const renderList = (nodes: DepartmentNode[], depth = 0): ReactElement[] => {
+                      return nodes.flatMap((node) => {
+                        const hasChildren = node.children.length > 0;
+                        const indent = depth * 18;
+                        const isCollapsed = collapsedDepartments.has(node.id);
+                        const rows: ReactElement[] = [
+                          <li key={node.id}>
+                            <div
+                              className="relative flex items-center justify-between gap-3 border-b border-outline-muted py-2 pr-4 text-sm"
+                              style={{ paddingLeft: indent + 12 }}
+                              onContextMenu={(event) => {
+                                event.preventDefault();
+                                setContextMenu(null);
+                                setListContextMenu({ parentId: node.id, depth });
+                                setListContextChildName("");
+                              }}
+                            >
+                              {depth > 0 ? (
+                                <>
+                                  <span
+                                    className="absolute top-0 h-full w-px bg-outline-muted"
+                                    style={{ left: indent - 6 }}
+                                  />
+                                  <span
+                                    className="absolute top-1/2 h-px w-4 bg-outline-muted"
+                                    style={{ left: indent - 6 }}
+                                  />
+                                </>
+                              ) : null}
+                              <div className="flex items-center gap-2">
+                                {hasChildren ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCollapsedDepartments((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(node.id)) {
+                                          next.delete(node.id);
+                                        } else {
+                                          next.add(node.id);
+                                        }
+                                        return next;
+                                      })
+                                    }
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-outline-muted text-ink-subtle hover:border-outline-strong"
+                                    aria-label={isCollapsed ? "Expand department" : "Collapse department"}
+                                  >
+                                    {isCollapsed ? (
+                                      <svg viewBox="0 0 16 16" className="h-3 w-3" aria-hidden>
+                                        <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      </svg>
+                                    ) : (
+                                      <svg viewBox="0 0 16 16" className="h-3 w-3" aria-hidden>
+                                        <path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="inline-flex h-5 w-5" />
+                                )}
+                                <span className="font-semibold text-ink-primary">{node.name}</span>
+                                {hasChildren ? (
+                                  <span className="rounded-full border border-outline-muted px-2 py-0.5 text-[11px] text-ink-subtle">
+                                    {node.children.length} sub
+                                  </span>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setConfirmAction({
+                                    type: "deleteDepartment",
+                                    departmentId: node.id,
+                                    departmentName: node.name,
+                                  });
+                                }}
+                                className="text-xs font-semibold text-ink-subtle hover:text-status-danger"
+                              >
+                                x
+                              </button>
+                            </div>
+                          </li>,
+                        ];
+                        if (listContextMenu?.parentId === node.id) {
+                          rows.push(
+                            <li key={`${node.id}-add`}>
+                              <div
+                                className="border-b border-outline-muted bg-surface-muted px-4 py-3 text-xs"
+                                style={{ paddingLeft: indent + 32 }}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="text-[11px] uppercase tracking-wide text-ink-subtle">Add sub-department</div>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <input
+                                    value={listContextChildName}
+                                    onChange={(event) => setListContextChildName(event.target.value)}
+                                    placeholder="Department name"
+                                    onKeyDown={async (event) => {
+                                      if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+                                      event.preventDefault();
+                                      if (!listContextChildName.trim()) {
+                                        setDepartmentFeedback("Department name is required.");
+                                        return;
+                                      }
+                                      try {
+                                        await createDepartment.mutateAsync({
+                                          name: listContextChildName.trim(),
+                                          parentDepartmentId: node.id,
+                                        });
+                                        setListContextMenu(null);
+                                        setListContextChildName("");
+                                      } catch (error) {
+                                        setDepartmentFeedback((error as Error).message ?? "Failed to create department.");
+                                      }
+                                    }}
+                                    className="min-w-[200px] flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setListContextMenu(null);
+                                      setListContextChildName("");
+                                    }}
+                                    className="rounded-full border border-outline-muted px-3 py-1 text-xs text-ink-subtle hover:border-outline-strong"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!listContextChildName.trim()) {
+                                        setDepartmentFeedback("Department name is required.");
+                                        return;
+                                      }
+                                      try {
+                                        await createDepartment.mutateAsync({
+                                          name: listContextChildName.trim(),
+                                          parentDepartmentId: node.id,
+                                        });
+                                        setListContextMenu(null);
+                                        setListContextChildName("");
+                                      } catch (error) {
+                                        setDepartmentFeedback((error as Error).message ?? "Failed to create department.");
+                                      }
+                                    }}
+                                    className="rounded-full bg-accent-strong px-3 py-1 text-xs font-semibold text-ink-inverted transition hover:bg-accent-default"
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                              </div>
+                            </li>,
+                          );
+                        }
+                        return rows.concat(hasChildren && !isCollapsed ? renderList(node.children, depth + 1) : []);
+                      });
+                    };
+                    return renderList(data.departments.roots);
+                  })()}
+                </ul>
+              </div>
             </div>
           )}
         </div>
@@ -2137,23 +2356,24 @@ export function CompanyView() {
       </section>
 
       {calendarToRemove ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4">
-          <div className="w-full max-w-md rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
-            <div className="text-lg font-semibold">Remove calendar?</div>
-            <p className="mt-2 text-sm text-ink-muted">
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
+            <div className="mt-2 text-ink-primary">
               &quot;{calendarToRemove.name}&quot; will be removed from the list. Events stay in the database but become hidden.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
-                className="rounded-full border border-outline-muted px-4 py-2 text-sm text-ink-subtle hover:bg-surface-muted"
+                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
                 onClick={() => setCalendarToRemove(null)}
+                disabled={deleteCalendar.isPending}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="rounded-full bg-status-danger px-4 py-2 text-sm font-semibold text-white hover:bg-status-danger/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong disabled:opacity-60"
                 disabled={deleteCalendar.isPending}
                 onClick={async () => {
                   if (!calendarToRemove) return;
