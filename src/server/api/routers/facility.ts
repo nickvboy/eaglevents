@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { and, eq, ilike, or } from "drizzle-orm";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { buildings, rooms } from "~/server/db/schema";
+import { getPermissionContext } from "~/server/services/permissions";
 
 export const facilityRouter = createTRPCRouter({
   listBuildings: publicProcedure.query(async ({ ctx }) => {
@@ -11,7 +14,50 @@ export const facilityRouter = createTRPCRouter({
       .from(buildings)
       .orderBy(buildings.name);
     return rows;
-  }),
+    }),
+
+  createRoom: protectedProcedure
+    .input(
+      z.object({
+        buildingId: z.number().int().positive(),
+        roomNumber: z.string().trim().min(1).max(64),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const context = await getPermissionContext(ctx.db, ctx.session);
+      const role = context.primaryRole;
+      if (!role) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to add rooms." });
+      }
+      const [buildingRow] = await ctx.db
+        .select({ id: buildings.id, businessId: buildings.businessId })
+        .from(buildings)
+        .where(eq(buildings.id, input.buildingId))
+        .limit(1);
+      if (!buildingRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+      }
+      if (context.businessId && buildingRow.businessId !== context.businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+      }
+      const roomNumber = input.roomNumber.trim();
+      const [existing] = await ctx.db
+        .select({ id: rooms.id })
+        .from(rooms)
+        .where(and(eq(rooms.buildingId, input.buildingId), eq(rooms.roomNumber, roomNumber)))
+        .limit(1);
+      if (existing) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That room already exists for this building." });
+      }
+      const [roomRow] = await ctx.db
+        .insert(rooms)
+        .values({ buildingId: input.buildingId, roomNumber })
+        .returning({ id: rooms.id });
+      if (!roomRow) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create room." });
+      }
+      return { id: roomRow.id };
+    }),
 
   searchRooms: publicProcedure
     .input(

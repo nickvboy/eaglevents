@@ -639,6 +639,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [addRoomError, setAddRoomError] = useState<string | null>(null);
   const locationWrapRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
@@ -1138,6 +1139,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   );
   const locationMatches = locationResults.data ?? [];
   const [locationHighlight, setLocationHighlight] = useState(-1);
+  const createRoom = api.facility.createRoom.useMutation({
+    onSuccess: async () => {
+      await utils.facility.searchRooms.invalidate();
+      setAddRoomError(null);
+      setLocationQuery("");
+    },
+    onError: (err) => {
+      setAddRoomError(err.message ?? "Failed to add room.");
+    },
+  });
 
   useEffect(() => {
     if (!selectedBuildingId) return;
@@ -1146,10 +1157,20 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (found) setSelectedBuildingAcronym(found.acronym);
   }, [selectedBuildingId, buildingList.data]);
 
+  useEffect(() => {
+    if (!selectedBuildingAcronym || selectedBuildingId) return;
+    const match = (buildingList.data ?? []).find((b) => b.acronym === selectedBuildingAcronym);
+    if (match) setSelectedBuildingId(match.id);
+  }, [selectedBuildingAcronym, selectedBuildingId, buildingList.data]);
+
   // Location search + sync effects
   useEffect(() => {
     setLocationHighlight(-1);
   }, [location, locationMatches.length]);
+
+  useEffect(() => {
+    if (addRoomError) setAddRoomError(null);
+  }, [roomNumber, selectedBuildingId, addRoomError]);
 
   useEffect(() => {
     if (!locationQuery.length) return;
@@ -1219,6 +1240,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setRoomNumber(match.roomNumber);
     setLocation(`${match.acronym} ${match.roomNumber}`);
     setLocationQuery("");
+  };
+
+  const handleAddRoom = async () => {
+    if (createRoom.isPending) return;
+    if (!selectedBuildingId) {
+      setAddRoomError("Select a building to add this room.");
+      return;
+    }
+    const nextRoom = roomNumber.trim().toUpperCase();
+    if (!nextRoom) {
+      setAddRoomError("Enter a room number to add.");
+      return;
+    }
+    setAddRoomError(null);
+    await createRoom.mutateAsync({ buildingId: selectedBuildingId, roomNumber: nextRoom });
   };
 
   const addHourLogRow = () => {
@@ -2446,12 +2482,29 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                         })}
                       </>
                     ) : (
-                      <div className="px-3 py-2 text-sm text-ink-muted">No rooms found</div>
+                      <div className="px-3 py-2 text-sm text-ink-muted">
+                        <div>No rooms found</div>
+                        {!isVirtual && selectedBuildingId && roomNumber.trim() ? (
+                          <button
+                            type="button"
+                            className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
+                            onClick={handleAddRoom}
+                            disabled={createRoom.isPending}
+                          >
+                            {createRoom.isPending ? "Adding room..." : `Add room ${roomNumber.trim().toUpperCase()}`}
+                          </button>
+                        ) : !isVirtual ? (
+                          <div className="mt-2 text-xs text-ink-subtle">Select a building and room to add it.</div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </div>
               )}
             </div>
+            {addRoomError && (
+              <div className="mt-2 text-xs text-status-danger">{addRoomError}</div>
+            )}
           </div>
 
           {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
