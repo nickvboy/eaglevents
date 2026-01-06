@@ -13,6 +13,7 @@ const MIN_DURATION_MS = 30 * 60 * 1000;
 const DEFAULT_TIME_VALUE = "06:30";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZENDESK_TICKET_REGEX = /^\d{6}$/;
+const DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v1";
 
 type Segment = {
   id: string;
@@ -434,6 +435,33 @@ type ProfileDraft = {
   phoneNumber: string;
 };
 
+type NewEventDraft = {
+  version: 1;
+  title: string;
+  selectedCalendarId: number | null;
+  selectedCalendarIds: number[];
+  segments: Array<{ start: string; end: string }>;
+  allDay: boolean;
+  location: string;
+  selectedBuildingId: number | null;
+  selectedBuildingAcronym: string;
+  roomNumber: string;
+  description: string;
+  recurring: boolean;
+  participantCount: string;
+  technicianNeeded: boolean;
+  requestCategory: RequestCategoryValue | "";
+  equipmentNeeded: string;
+  zendeskTicket: string;
+  eventInfoStart: string | null;
+  eventInfoEnd: string | null;
+  setupInfoTime: string | null;
+  assignee: AssigneeSelection | null;
+  selectedAttendees: AssigneeSelection[];
+  selectedCoOwners: AssigneeSelection[];
+  hourLogs: Array<{ start: string | null; end: string | null }>;
+};
+
 const emptyProfileDraft: ProfileDraft = {
   firstName: "",
   lastName: "",
@@ -490,6 +518,44 @@ function formatPhoneInput(raw: string) {
   }
   const line = normalized.slice(6, 10);
   return (hasPlus ? "+" : "") + `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${line}`;
+}
+
+function parseDraftDate(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function readNewEventDraft(): NewEventDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<NewEventDraft>;
+    if (parsed.version !== 1) return null;
+    return parsed as NewEventDraft;
+  } catch {
+    return null;
+  }
+}
+
+function writeNewEventDraft(draft: NewEventDraft) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Ignore storage failures (private mode, quota, etc.).
+  }
+}
+
+function clearNewEventDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 function getQuickCreateErrorMessage(err: unknown) {
@@ -554,6 +620,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const skipNextDraftPersistRef = useRef(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
   const zendeskTicketError =
@@ -593,6 +660,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
   useEffect(() => {
     if (!open) return;
+    skipNextDraftPersistRef.current = true;
     setShowDeleteConfirm(false);
     if (event) {
       setTitle(event.title);
@@ -679,6 +747,83 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       }
       return;
     }
+    const draft = readNewEventDraft();
+    const preferred = (calendarOptions ?? [])
+      .map((c) => c.id)
+      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
+    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
+    if (draft) {
+      const writableIds = new Set((calendars ?? []).filter((c) => c.canWrite).map((c) => c.id));
+      const draftCalendarIds = Array.isArray(draft.selectedCalendarIds)
+        ? draft.selectedCalendarIds.filter((id) => writableIds.has(id))
+        : [];
+      const draftCalendarId =
+        typeof draft.selectedCalendarId === "number" && writableIds.has(draft.selectedCalendarId)
+          ? draft.selectedCalendarId
+          : draftCalendarIds[0] ?? null;
+      const fallbackCalendarId = draftCalendarId ?? calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+      const initialSelections =
+        draftCalendarIds.length > 0 ? draftCalendarIds : fallbackCalendarId ? [fallbackCalendarId] : [];
+      const nextSegments =
+        Array.isArray(draft.segments)
+          ? draft.segments
+              .map((segment) => {
+                const start = parseDraftDate(segment?.start);
+                const end = parseDraftDate(segment?.end);
+                if (!start || !end) return null;
+                return { id: randomId(), start, end };
+              })
+              .filter((segment): segment is Segment => Boolean(segment))
+          : [];
+      const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some((opt) => opt.value === draft.requestCategory)
+        ? draft.requestCategory
+        : "";
+      setTitle(draft.title ?? "");
+      setSegments(nextSegments.length > 0 ? nextSegments : [makeSegment(defaultDate)]);
+      setAllDay(Boolean(draft.allDay));
+      setLocation(draft.location ?? "");
+      setSelectedBuildingId(typeof draft.selectedBuildingId === "number" ? draft.selectedBuildingId : null);
+      setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
+      setRoomNumber(draft.roomNumber ?? "");
+      setDescription(draft.description ?? "");
+      setRecurring(Boolean(draft.recurring));
+      setParticipantCount(draft.participantCount ?? "");
+      setTechnicianNeeded(Boolean(draft.technicianNeeded));
+      setRequestCategory(nextRequestCategory);
+      setEquipmentNeeded(draft.equipmentNeeded ?? "");
+      setZendeskTicket(draft.zendeskTicket ?? "");
+      setEventInfoStart(parseDraftDate(draft.eventInfoStart));
+      setEventInfoEnd(parseDraftDate(draft.eventInfoEnd));
+      setSetupInfoTime(parseDraftDate(draft.setupInfoTime));
+      setError(null);
+      setAssignee(draft.assignee ?? null);
+      setAssigneeSearch("");
+      setAssigneeQuery("");
+      setSelectedAttendees(Array.isArray(draft.selectedAttendees) ? draft.selectedAttendees : []);
+      setAttendeeSearch("");
+      setAttendeeQuery("");
+      setSelectedCoOwners(Array.isArray(draft.selectedCoOwners) ? draft.selectedCoOwners : []);
+      setCoOwnerSearch("");
+      setCoOwnerQuery("");
+      setQuickCreateTarget(null);
+      setQuickCreateDraft(emptyProfileDraft);
+      setQuickCreateError(null);
+      setSelectedCalendarId(fallbackCalendarId);
+      setSelectedCalendarIds(initialSelections);
+      setHourLogs(
+        Array.isArray(draft.hourLogs)
+          ? draft.hourLogs.map((log) => ({
+              id: randomId(),
+              start: parseDraftDate(log?.start),
+              end: parseDraftDate(log?.end),
+            }))
+          : [],
+      );
+      return;
+    }
+    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+    const initialSelections =
+      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
     setTitle("");
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
@@ -709,17 +854,77 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
-    const preferred = (calendarOptions ?? [])
-      .map((c) => c.id)
-      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
-    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
-    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
-    const initialSelections =
-      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
     setSelectedCalendarId(fallbackCalendarId);
     setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
   }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds]);
+
+  useEffect(() => {
+    if (!open || event) return;
+    if (skipNextDraftPersistRef.current) {
+      skipNextDraftPersistRef.current = false;
+      return;
+    }
+    const draft: NewEventDraft = {
+      version: 1,
+      title,
+      selectedCalendarId,
+      selectedCalendarIds,
+      segments: segments.map((segment) => ({
+        start: segment.start.toISOString(),
+        end: segment.end.toISOString(),
+      })),
+      allDay,
+      location,
+      selectedBuildingId,
+      selectedBuildingAcronym,
+      roomNumber,
+      description,
+      recurring,
+      participantCount,
+      technicianNeeded,
+      requestCategory,
+      equipmentNeeded,
+      zendeskTicket,
+      eventInfoStart: eventInfoStart ? eventInfoStart.toISOString() : null,
+      eventInfoEnd: eventInfoEnd ? eventInfoEnd.toISOString() : null,
+      setupInfoTime: setupInfoTime ? setupInfoTime.toISOString() : null,
+      assignee,
+      selectedAttendees,
+      selectedCoOwners,
+      hourLogs: hourLogs.map((log) => ({
+        start: log.start ? log.start.toISOString() : null,
+        end: log.end ? log.end.toISOString() : null,
+      })),
+    };
+    writeNewEventDraft(draft);
+  }, [
+    open,
+    event,
+    title,
+    selectedCalendarId,
+    selectedCalendarIds,
+    segments,
+    allDay,
+    location,
+    selectedBuildingId,
+    selectedBuildingAcronym,
+    roomNumber,
+    description,
+    recurring,
+    participantCount,
+    technicianNeeded,
+    requestCategory,
+    equipmentNeeded,
+    zendeskTicket,
+    eventInfoStart,
+    eventInfoEnd,
+    setupInfoTime,
+    assignee,
+    selectedAttendees,
+    selectedCoOwners,
+    hourLogs,
+  ]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1368,6 +1573,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         }
       }
       await utils.event.invalidate();
+      if (!isEditing) {
+        clearNewEventDraft();
+      }
       onClose();
     } catch (err) {
       console.error(err);
@@ -1397,11 +1605,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   return (
     <div
       data-scroll-lock="allow"
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)] px-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 px-4"
       onMouseDown={handleBackdropMouseDown}
     >
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)] p-4">
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
           <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
             <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
             <div className="mt-2 text-ink-primary">Delete this event? This cannot be undone.</div>

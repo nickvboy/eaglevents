@@ -177,8 +177,7 @@ export function DatabaseView() {
         <header className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold text-ink-primary">Event management</h2>
           <p className="text-sm text-ink-muted">
-            Search events by title, event code, Zendesk ticket, or ID. Delete removes related attendees, reminders, logs,
-            and confirmations.
+            Search events by title, event code, Zendesk ticket, or ID. Deleting events never removes users.
           </p>
         </header>
 
@@ -431,7 +430,7 @@ export function DatabaseView() {
                   ? "Delete all events"
                   : "Delete events in range"}
             </button>
-            <p className="text-xs text-ink-subtle">Bulk deletes also remove attendees, reminders, logs, and confirmations.</p>
+            <p className="text-xs text-ink-subtle">Bulk deletes never remove users.</p>
           </div>
         </div>
       </section>
@@ -440,7 +439,7 @@ export function DatabaseView() {
           <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
             <h3 className="text-lg font-semibold text-status-danger">Confirm delete all events</h3>
             <p className="mt-2 text-sm text-ink-muted">
-              This removes all events and related records across the system. This cannot be undone.
+              This removes all events across the system. Users are not affected. This cannot be undone.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button

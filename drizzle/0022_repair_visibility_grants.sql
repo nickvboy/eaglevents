@@ -30,7 +30,12 @@ DO $$ BEGIN
       FOREIGN KEY ("userId") REFERENCES "public"."t3-app-template_user"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 't3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk'
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname IN (
+      't3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk',
+      't3-app-template_visibility_grant_createdByUserId_t3-app-templat'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_visibility_grant"
       ADD CONSTRAINT "t3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk"
@@ -61,7 +66,12 @@ DO $$ BEGIN
       FOREIGN KEY ("eventId") REFERENCES "public"."t3-app-template_event"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 't3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk'
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname IN (
+      't3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk',
+      't3-app-template_event_co_owner_profileId_t3-app-template_profil'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_event_co_owner"
       ADD CONSTRAINT "t3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk"
@@ -106,7 +116,13 @@ DO $$ BEGIN
       FOREIGN KEY ("actorUserId") REFERENCES "public"."t3-app-template_user"("id") ON DELETE set null ON UPDATE no action;
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 't3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk'
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 't3-app-template_audit_log'::regclass
+      AND conname IN (
+        't3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk',
+        't3-app-template_audit_log_actorProfileId_t3-app-template_profil'
+      )
   ) THEN
     ALTER TABLE "t3-app-template_audit_log"
       ADD CONSTRAINT "t3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk"
@@ -169,7 +185,12 @@ END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 't3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk'
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname IN (
+      't3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk',
+      't3-app-template_event_ownerProfileId_t3-app-template_profil'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_event"
       ADD CONSTRAINT "t3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk"

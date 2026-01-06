@@ -47,17 +47,6 @@ const businessTypes: Array<{ value: BusinessType; label: string }> = [
   { value: "other", label: "Other" },
 ];
 
-function renderDepartmentRows(
-  nodes: DepartmentNode[],
-  renderRow: (node: DepartmentNode, depth: number) => ReactElement,
-  depth = 0,
-): ReactElement[] {
-  return nodes.flatMap((node) => [
-    renderRow(node, depth),
-    ...(node.children?.length ? renderDepartmentRows(node.children, renderRow, depth + 1) : []),
-  ]);
-}
-
 const NODE_WIDTH = 190;
 const NODE_HEIGHT = 72;
 const X_GAP = 240;
@@ -138,7 +127,6 @@ export function CompanyView() {
   const [buildingFeedbacks, setBuildingFeedbacks] = useState<Record<number, string | null>>({});
   const [buildingFeedback, setBuildingFeedback] = useState<string | null>(null);
 
-  const [departmentForms, setDepartmentForms] = useState<Record<number, { name: string; parentDepartmentId: number | null }>>({});
   const [newDepartment, setNewDepartment] = useState<{ name: string; parentDepartmentId: number | null }>({
     name: "",
     parentDepartmentId: null,
@@ -239,18 +227,6 @@ export function CompanyView() {
     setBuildingForms(nextBuildingForms);
     setRoomForms(nextRoomForms);
   }, [data?.buildings]);
-
-  useEffect(() => {
-    if (!data?.departments?.flat) return;
-    const nextDepartmentForms: Record<number, { name: string; parentDepartmentId: number | null }> = {};
-    data.departments.flat.forEach((dept) => {
-      nextDepartmentForms[dept.id] = {
-        name: dept.name,
-        parentDepartmentId: dept.parentDepartmentId,
-      };
-    });
-    setDepartmentForms(nextDepartmentForms);
-  }, [data?.departments]);
 
   useEffect(() => {
     if (!calendars) return;

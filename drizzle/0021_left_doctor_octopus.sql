@@ -160,7 +160,10 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 't3-app-template_audit_log'::regclass
     AND contype = 'f'
-    AND conname LIKE 't3-app-template_audit_log_actorProfileId_t3-app-template_profile%'
+    AND (
+      conname LIKE 't3-app-template_audit_log_actorProfileId_t3-app-template_profile%'
+      OR conname LIKE 't3-app-template_audit_log_actorProfileId_t3-app-template_profil%'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_audit_log" ADD CONSTRAINT "t3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk" FOREIGN KEY ("actorProfileId") REFERENCES "public"."t3-app-template_profile"("id") ON DELETE set null ON UPDATE no action;
   END IF;
@@ -184,7 +187,10 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 't3-app-template_event_co_owner'::regclass
     AND contype = 'f'
-    AND conname LIKE 't3-app-template_event_co_owner_profileId_t3-app-template_profile%'
+    AND (
+      conname LIKE 't3-app-template_event_co_owner_profileId_t3-app-template_profile%'
+      OR conname LIKE 't3-app-template_event_co_owner_profileId_t3-app-template_profil%'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_event_co_owner" ADD CONSTRAINT "t3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk" FOREIGN KEY ("profileId") REFERENCES "public"."t3-app-template_profile"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
@@ -208,7 +214,10 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 't3-app-template_visibility_grant'::regclass
     AND contype = 'f'
-    AND conname LIKE 't3-app-template_visibility_grant_createdByUserId_t3-app-template_user%'
+    AND (
+      conname LIKE 't3-app-template_visibility_grant_createdByUserId_t3-app-template_user%'
+      OR conname LIKE 't3-app-template_visibility_grant_createdByUserId_t3-app-templat%'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_visibility_grant" ADD CONSTRAINT "t3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk" FOREIGN KEY ("createdByUserId") REFERENCES "public"."t3-app-template_user"("id") ON DELETE set null ON UPDATE no action;
   END IF;
@@ -229,7 +238,10 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 't3-app-template_event'::regclass
     AND contype = 'f'
-    AND conname LIKE 't3-app-template_event_ownerProfileId_t3-app-template_profile%'
+    AND (
+      conname LIKE 't3-app-template_event_ownerProfileId_t3-app-template_profile%'
+      OR conname LIKE 't3-app-template_event_ownerProfileId_t3-app-template_profil%'
+    )
   ) THEN
     ALTER TABLE "t3-app-template_event" ADD CONSTRAINT "t3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk" FOREIGN KEY ("ownerProfileId") REFERENCES "public"."t3-app-template_profile"("id") ON DELETE set null ON UPDATE no action;
   END IF;

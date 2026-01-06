@@ -49,7 +49,7 @@ WHERE calendar."userId" = primary_roles."userId";
 UPDATE "t3-app-template_calendar"
 SET
   "scopeType" = 'business'::organization_scope_type,
-  "scopeId" = (SELECT id FROM "t3-app-template_business" ORDER BY id LIMIT 1)
+  "scopeId" = COALESCE((SELECT id FROM "t3-app-template_business" ORDER BY id LIMIT 1), 1)
 WHERE "scopeType" IS NULL OR "scopeId" IS NULL;
 
 ALTER TABLE "t3-app-template_calendar" ALTER COLUMN "scopeType" SET NOT NULL;

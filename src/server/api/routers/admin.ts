@@ -2570,13 +2570,7 @@ export const adminRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
 
-      await ctx.db.transaction(async (tx) => {
-        await tx.delete(eventZendeskConfirmations).where(eq(eventZendeskConfirmations.eventId, input.id));
-        await tx.delete(eventHourLogs).where(eq(eventHourLogs.eventId, input.id));
-        await tx.delete(eventReminders).where(eq(eventReminders.eventId, input.id));
-        await tx.delete(eventAttendees).where(eq(eventAttendees.eventId, input.id));
-        await tx.delete(events).where(eq(events.id, input.id));
-      });
+      await ctx.db.delete(events).where(eq(events.id, input.id));
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] admin deleteEvent refresh failed", error);
@@ -2606,13 +2600,7 @@ export const adminRouter = createTRPCRouter({
       const eventIds = eventRows.map((row) => row.id);
       if (eventIds.length === 0) return { deleted: 0 };
 
-      await ctx.db.transaction(async (tx) => {
-        await tx.delete(eventZendeskConfirmations).where(inArray(eventZendeskConfirmations.eventId, eventIds));
-        await tx.delete(eventHourLogs).where(inArray(eventHourLogs.eventId, eventIds));
-        await tx.delete(eventReminders).where(inArray(eventReminders.eventId, eventIds));
-        await tx.delete(eventAttendees).where(inArray(eventAttendees.eventId, eventIds));
-        await tx.delete(events).where(inArray(events.id, eventIds));
-      });
+      await ctx.db.delete(events).where(inArray(events.id, eventIds));
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] admin deleteEventsByRange refresh failed", error);
@@ -2630,13 +2618,7 @@ export const adminRouter = createTRPCRouter({
     const total = countRow?.count ?? 0;
     if (total === 0) return { deleted: 0 };
 
-    await ctx.db.transaction(async (tx) => {
-      await tx.delete(eventZendeskConfirmations);
-      await tx.delete(eventHourLogs);
-      await tx.delete(eventReminders);
-      await tx.delete(eventAttendees);
-      await tx.delete(events);
-    });
+    await ctx.db.delete(events).where(sql`true`);
 
     void refreshJoinTableExport(ctx.db, true).catch((error) => {
       console.error("[join-table-export] admin deleteAllEvents refresh failed", error);

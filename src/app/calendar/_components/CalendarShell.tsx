@@ -11,7 +11,7 @@ import { api } from "~/trpc/react";
 import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils/date";
 import type { CalendarEvent } from "../utils/event-layout";
 import type { RouterOutputs } from "~/trpc/react";
-import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, XIcon } from "~/app/_components/icons";
 
 type View = "day" | "threeday" | "workweek" | "week" | "month";
 type CalendarRow = RouterOutputs["calendar"]["listAccessible"][number];
@@ -65,6 +65,7 @@ export function CalendarShell() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMonthDate, setMobileMonthDate] = useState(() => selectedDate);
   const activeView = isMobile ? mobileView : desktopView;
   const setActiveView = (next: View) => {
@@ -161,6 +162,10 @@ export function CalendarShell() {
     if (!isMobile) setMobileCalendarOpen(false);
     else setMobileMonthDate(selectedDate);
   }, [isMobile, selectedDate]);
+
+  useEffect(() => {
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   const today = startOfDay(new Date());
 
@@ -518,8 +523,23 @@ export function CalendarShell() {
           )}
           {isMobile ? (
             <>
+              <div className="shrink-0 border-b border-outline-muted bg-surface-overlay px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-full border border-outline-muted px-3 py-2 text-sm font-semibold text-ink-primary hover:bg-surface-muted"
+                  aria-label="Open calendars"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                  Calendars
+                </button>
+              </div>
               <div className="shrink-0">
-                <MobileToolbar onToday={goToToday} view={activeView} onViewChange={setActiveView} />
+                <MobileToolbar
+                  onToday={goToToday}
+                  view={activeView}
+                  onViewChange={setActiveView}
+                />
               </div>
               <div className="shrink-0">
                 <MobileDateHeader
@@ -534,9 +554,9 @@ export function CalendarShell() {
                   onNextDay={goNextDay}
                   onPrevMonth={() => setMobileMonthDate((prev) => addMonths(prev, -1))}
                   onNextMonth={() => setMobileMonthDate((prev) => addMonths(prev, 1))}
-                onSelectDate={(d) => setSelectedDate(startOfDay(d))}
-              />
-            </div>
+                  onSelectDate={(d) => setSelectedDate(startOfDay(d))}
+                />
+              </div>
               <div className="relative flex min-h-0 flex-1 overflow-hidden">
                 {monthOverlay}
                 {activeView === "month" ? (
@@ -562,6 +582,85 @@ export function CalendarShell() {
                   />
                 )}
                 <NewEventFab onClick={handleNewEventRequest} />
+              </div>
+              <div
+                className={
+                  "fixed inset-x-0 bottom-0 top-16 z-50 transition " +
+                  (mobileSidebarOpen ? "pointer-events-auto" : "pointer-events-none")
+                }
+                aria-hidden={!mobileSidebarOpen}
+              >
+                <button
+                  type="button"
+                  className={
+                    "absolute inset-0 bg-black/30 transition-opacity duration-300 " +
+                    (mobileSidebarOpen ? "opacity-100" : "opacity-0")
+                  }
+                  aria-label="Close calendars"
+                  onClick={() => setMobileSidebarOpen(false)}
+                />
+                <div
+                  className={
+                    "absolute left-0 top-0 h-full max-w-[85%] transition-transform duration-300 ease-out " +
+                    (mobileSidebarOpen ? "translate-x-0" : "-translate-x-full")
+                  }
+                >
+                  <div className="flex h-full flex-col bg-surface-muted shadow-2xl shadow-[var(--shadow-pane)]">
+                    <div className="flex items-center justify-between border-b border-outline-muted px-4 py-3 text-ink-primary">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <CalendarIcon className="h-4 w-4" />
+                        Calendars
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileSidebarOpen(false)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-outline-muted hover:bg-surface-muted"
+                        aria-label="Close calendars"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <CalendarSidebar
+                      className="w-72 max-w-[85vw] border-r-0"
+                      showMiniCalendar={false}
+                      monthDate={sidebarMonthDate}
+                      selectedDate={selectedDate}
+                      onSelect={(d) => {
+                        const normalized = startOfDay(d);
+                        setSelectedDate(normalized);
+                        setSidebarMonthDate(startOfDay(new Date(normalized.getFullYear(), normalized.getMonth(), 1)));
+                      }}
+                      onMonthChange={(direction) =>
+                        setSidebarMonthDate((prev) => {
+                          const next = addMonths(prev, direction);
+                          return startOfDay(new Date(next.getFullYear(), next.getMonth(), 1));
+                        })
+                      }
+                      focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
+                      calendars={(calendars ?? []).map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        color: c.color,
+                        isPersonal: c.isPersonal,
+                        canManage: c.canManage,
+                      }))}
+                      visibleCalendarIds={effectiveVisible}
+                      onToggleCalendar={(id) =>
+                        setVisibleCalendarIds((prev) =>
+                          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                        )
+                      }
+                      onEditCalendar={(id) => {
+                        setEditingCalendarId(id);
+                        setCalendarEditorOpen(true);
+                      }}
+                      onCreateCalendar={() => {
+                        setEditingCalendarId(null);
+                        setCalendarEditorOpen(true);
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </>
           ) : (
@@ -762,6 +861,7 @@ function MobileToolbar({ onToday, view, onViewChange }: MobileToolbarProps) {
   return (
     <div className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-outline-muted bg-surface-overlay px-3 py-2 text-ink-primary">
       <button
+        type="button"
         className="shrink-0 rounded-md border border-outline-muted px-2 py-1 text-xs font-medium hover:bg-surface-muted"
         onClick={onToday}
       >
