@@ -1724,6 +1724,89 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             )}
           </div>
 
+          <div className="space-y-4 border-t border-outline-muted pt-4">
+            {segments.map((segment, index) => {
+              const startValue = formatTimeValue(segment.start);
+              const endValue = formatTimeValue(segment.end);
+              const hasStartOption = timeOptionValues.has(startValue);
+              const hasEndOption = timeOptionValues.has(endValue);
+              return (
+              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                  <span>Day {index + 1}</span>
+                  {!isEditing && segments.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-status-danger transition hover:text-status-danger"
+                      onClick={() => removeSegment(segment.id)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={formatDateInputValue(segment.start)}
+                    onChange={(e) => handleDateChange(segment.id, e.target.value)}
+                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  />
+                  {allDay ? (
+                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                          value={startValue}
+                          onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
+                        >
+                          {timeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                          {!hasStartOption && (
+                            <option value={startValue}>{`${formatTimeLabel(startValue)} (custom)`}</option>
+                          )}
+                        </select>
+                        <ManualTimeEntryButton value={startValue} onChange={(next) => handleStartTimeChange(segment.id, next)} />
+                      </div>
+                      <span className="text-sm text-ink-subtle">to</span>
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                          value={endValue}
+                          onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
+                        >
+                          {timeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                          {!hasEndOption && (
+                            <option value={endValue}>{`${formatTimeLabel(endValue)} (custom)`}</option>
+                          )}
+                        </select>
+                        <ManualTimeEntryButton value={endValue} onChange={(next) => handleEndTimeChange(segment.id, next)} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+            })}
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={addSegmentRow}
+                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
+              >
+                + Add another day
+              </button>
+            )}
+          </div>
+
           <div>
             <div className="mb-1 text-xs text-ink-muted">Invite attendees</div>
             <div className="flex flex-wrap gap-2">
@@ -2016,89 +2099,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             </div>
             {quickCreateTarget === "assignee" ? renderQuickCreateForm() : null}
           </div>
-          </div>
-
-          <div className="space-y-4 border-t border-outline-muted pt-4">
-            {segments.map((segment, index) => {
-              const startValue = formatTimeValue(segment.start);
-              const endValue = formatTimeValue(segment.end);
-              const hasStartOption = timeOptionValues.has(startValue);
-              const hasEndOption = timeOptionValues.has(endValue);
-              return (
-              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                  <span>Day {index + 1}</span>
-                  {!isEditing && segments.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-status-danger transition hover:text-status-danger"
-                      onClick={() => removeSegment(segment.id)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    value={formatDateInputValue(segment.start)}
-                    onChange={(e) => handleDateChange(segment.id, e.target.value)}
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                  />
-                  {allDay ? (
-                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-1">
-                        <select
-                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                          value={startValue}
-                          onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
-                        >
-                          {timeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                          {!hasStartOption && (
-                            <option value={startValue}>{`${formatTimeLabel(startValue)} (custom)`}</option>
-                          )}
-                        </select>
-                        <ManualTimeEntryButton value={startValue} onChange={(next) => handleStartTimeChange(segment.id, next)} />
-                      </div>
-                      <span className="text-sm text-ink-subtle">to</span>
-                      <div className="flex items-center gap-1">
-                        <select
-                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                          value={endValue}
-                          onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
-                        >
-                          {timeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                          {!hasEndOption && (
-                            <option value={endValue}>{`${formatTimeLabel(endValue)} (custom)`}</option>
-                          )}
-                        </select>
-                        <ManualTimeEntryButton value={endValue} onChange={(next) => handleEndTimeChange(segment.id, next)} />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-            })}
-            {!isEditing && (
-              <button
-                type="button"
-                onClick={addSegmentRow}
-                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
-              >
-                + Add another day
-              </button>
-            )}
           </div>
 
           <div className="space-y-4 border-t border-outline-muted pt-4">
