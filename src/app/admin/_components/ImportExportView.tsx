@@ -146,6 +146,7 @@ export function ImportExportView() {
   const [icsImportMessage, setIcsImportMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [icsImportPending, setIcsImportPending] = useState(false);
   const [icsFileName, setIcsFileName] = useState<string | null>(null);
+  const [icsCalendarId, setIcsCalendarId] = useState<number | null>(null);
   const [icsFilterStart, setIcsFilterStart] = useState("");
   const [icsFilterEnd, setIcsFilterEnd] = useState("");
   const [joinTableMessage, setJoinTableMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -226,7 +227,8 @@ export function ImportExportView() {
   };
 
   const handleIcsImport = async () => {
-    if (!defaultCalendarId) {
+    const resolvedCalendarId = icsCalendarId ?? defaultCalendarId;
+    if (!resolvedCalendarId) {
       setIcsImportMessage({ type: "error", text: "No calendar available for import." });
       return;
     }
@@ -244,7 +246,7 @@ export function ImportExportView() {
       }
 
       const result = await importIcsMutation.mutateAsync({
-        calendarId: defaultCalendarId,
+        calendarId: resolvedCalendarId,
         events: toImport.map((item) => ({
           title: item.title,
           start: item.start,
@@ -259,6 +261,7 @@ export function ImportExportView() {
       });
       setIcsPreviewEvents([]);
       setIcsFileName(null);
+      setIcsCalendarId(null);
       setIcsFilterStart("");
       setIcsFilterEnd("");
     } catch (error) {
@@ -275,6 +278,7 @@ export function ImportExportView() {
     setIcsImportMessage(null);
     setIcsPreviewEvents([]);
     setIcsFileName(null);
+    setIcsCalendarId(null);
     setIcsFilterStart("");
     setIcsFilterEnd("");
     if (!file) return;
@@ -525,6 +529,33 @@ export function ImportExportView() {
             />
           </label>
           {icsFileName ? <div className="text-xs text-ink-subtle">Selected: {icsFileName}</div> : null}
+          <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+            Import into calendar
+            <select
+              value={icsCalendarId ? String(icsCalendarId) : ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                setIcsCalendarId(value ? Number(value) : null);
+              }}
+              className={
+                "rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm shadow-sm focus:border-outline-accent focus:outline-none " +
+                (icsCalendarId ? "text-ink-primary" : "text-ink-muted")
+              }
+              disabled={icsImportPending || !calendars || calendars.length === 0}
+            >
+              <option value="" className="bg-surface-muted text-ink-muted">
+                Use default calendar
+              </option>
+              {calendars?.map((calendar) => (
+                <option key={calendar.id} value={calendar.id} className="bg-surface-muted text-ink-primary">
+                  {calendar.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-ink-subtle">
+              Leave blank to import into your default calendar.
+            </span>
+          </label>
           {icsPreviewEvents.length > 0 ? (
             <>
               <div className="flex flex-wrap items-center gap-3 text-xs text-ink-subtle">
