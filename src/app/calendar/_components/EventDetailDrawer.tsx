@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
@@ -324,12 +324,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                                   placeholder="Start"
                                   options={timeOptions}
                                   invalid={invalid}
-                                />
-                                <ManualTimeEntryButton
-                                  value={formatHourLogTime(log.start)}
-                                  onChange={(value) => handleHourLogChange(log.id, "start", value)}
                                   allowEmpty
-                                  label="Manual start time"
                                 />
                               </div>
                               <span className="text-xs text-ink-subtle">to</span>
@@ -340,12 +335,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
                                   placeholder="End"
                                   options={timeOptions}
                                   invalid={invalid}
-                                />
-                                <ManualTimeEntryButton
-                                  value={formatHourLogTime(log.end)}
-                                  onChange={(value) => handleHourLogChange(log.id, "end", value)}
                                   allowEmpty
-                                  label="Manual end time"
                                 />
                               </div>
                               <span
@@ -446,30 +436,62 @@ type TimeSelectProps = {
   placeholder: string;
   options: { value: string; label: string }[];
   invalid?: boolean;
+  allowEmpty?: boolean;
 };
 
-function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSelectProps) {
+function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty = false }: TimeSelectProps) {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [editMeridiem, setEditMeridiem] = useState<"AM" | "PM">("AM");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editPosition, setEditPosition] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const editPopoverRef = useRef<HTMLDivElement | null>(null);
   const activeOptionRef = useRef<HTMLButtonElement | null>(null);
   const defaultOptionRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (editPopoverRef.current?.contains(e.target as Node)) return;
+      if (!containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setEditOpen(false);
+        setEditError(null);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const target = activeOptionRef.current ?? defaultOptionRef.current;
-    if (target) target.scrollIntoView({ block: "start" });
-  }, [open]);
+    if (!editOpen) return;
+    const width = 16 * 16; // matches w-64
+    const gap = 8;
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      let left = rect.left;
+      const maxLeft = window.innerWidth - width - gap;
+      if (left > maxLeft) left = maxLeft;
+      if (left < gap) left = gap;
+      const top = Math.min(window.innerHeight - 220, rect.bottom + gap);
+      setEditPosition({ top, left });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [editOpen]);
 
-  const label = value ? options.find((opt) => opt.value === value)?.label ?? value : placeholder;
+  const optionLabel = value ? options.find((opt) => opt.value === value)?.label ?? null : null;
+  const label = value ? optionLabel ?? formatTimeLabel(value) : placeholder;
+  const hasCustomValue = Boolean(value && !optionLabel);
+  const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
   activeOptionRef.current = null;
 
   return (
@@ -478,15 +500,37 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={
-          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong " +
+          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const parts = formatTimeInputParts(value);
+          setEditValue(parts.time);
+          setEditMeridiem(parts.meridiem);
+          setEditError(null);
+          setEditOpen(true);
+          setOpen(false);
+        }}
       >
         <span className={value ? "text-ink-primary" : "text-ink-muted"}>{label}</span>
         <ChevronDownIcon className="h-3.5 w-3.5 text-ink-muted" />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
+        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur scrollbar-hidden">
+          {hasCustomValue && customOptionLabel && (
+            <button
+              type="button"
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink-primary"
+              onClick={() => {
+                onChange(value);
+                setOpen(false);
+              }}
+            >
+              <span>{customOptionLabel}</span>
+            </button>
+          )}
           {options.map((option) => {
             const active = option.value === value;
             const shouldDefault = !value && option.value === DEFAULT_TIME_VALUE;
@@ -496,7 +540,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 type="button"
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active ? "bg-surface-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
+                  (active ? "text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
                 }
                 onClick={() => {
                   onChange(option.value);
@@ -508,142 +552,101 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 }}
               >
                 <span>{option.label}</span>
-                {active && <span className="text-xs text-ink-muted">Selected</span>}
               </button>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-type ManualTimeEntryButtonProps = {
-  value: string;
-  onChange: (value: string) => void;
-  allowEmpty?: boolean;
-  label?: string;
-};
-
-function ManualTimeEntryButton({ value, onChange, allowEmpty = false, label = "Manual time" }: ManualTimeEntryButtonProps) {
-  const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const [error, setError] = useState<string | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
-
-  const close = () => {
-    setOpen(false);
-    setError(null);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!panelRef.current || panelRef.current.contains(e.target as Node)) return;
-      if (buttonRef.current?.contains(e.target as Node)) return;
-      close();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") close();
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const commit = () => {
-    const normalized = normalizeTimeInput(inputValue);
-    if (!normalized && !allowEmpty) {
-      setError('Enter a time like "3:30p".');
-      return;
-    }
-    if (normalized === null) {
-      if (allowEmpty) onChange("");
-      close();
-      return;
-    }
-    onChange(normalized);
-    close();
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        ref={buttonRef}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-outline-muted text-ink-muted transition hover:border-outline-strong hover:text-ink-primary"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-label={label}
-      >
-        <EditIcon className="h-3.5 w-3.5" />
-      </button>
-      {open &&
+      {editOpen && editPosition &&
         createPortal(
-          <div
-            ref={panelRef}
-            data-scroll-lock="allow"
-            className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 p-4 backdrop-blur-sm"
-            onMouseDown={(e) => {
-              if (panelRef.current && !panelRef.current.contains(e.target as Node)) close();
-            }}
-          >
-            <div
-              className="mt-20 w-full max-w-sm rounded-xl border border-outline-muted bg-surface-overlay p-4 text-sm text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]"
-              onMouseDown={(e: ReactMouseEvent<HTMLDivElement>) => e.stopPropagation()}
-            >
-              <div className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</div>
-              <input
-                value={inputValue}
-                onChange={(e) => {
-                  setInputValue(e.target.value);
-                  setError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commit();
-                  }
-                }}
-                className="mt-2 w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                placeholder="e.g., 1:30pm"
-                autoFocus
-              />
-              <div className="mt-1 text-xs text-ink-muted">Enter time like 1:15pm or 1330.</div>
-              {error && <div className="mt-1 text-xs text-status-danger">{error}</div>}
-              <div className="mt-3 flex items-center justify-end gap-2 text-xs">
-                {allowEmpty && (
-                  <button
-                    type="button"
-                    className="text-ink-muted transition hover:text-ink-primary"
-                    onClick={() => {
+        <div
+          ref={editPopoverRef}
+          className="fixed z-[10000] w-64 rounded-lg border border-outline-muted bg-surface-overlay p-3 text-sm shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
+          style={{ top: editPosition.top, left: editPosition.left }}
+        >
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Edit time</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="8:15"
+              value={editValue}
+              onChange={(event) => {
+                setEditValue(formatTimeInputDraft(event.target.value));
+                if (editError) setEditError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const normalized = normalizeTimeInputParts(editValue, editMeridiem);
+                  if (!normalized) {
+                    if (!allowEmpty || editValue.trim().length > 0) {
+                      setEditError("Enter time as h:mm.");
+                    } else {
                       onChange("");
-                      close();
-                    }}
-                  >
-                    Clear
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="rounded-md bg-accent-soft px-3 py-1 font-semibold text-surface-primary transition hover:bg-accent-strong"
-                  onClick={commit}
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-    </>
+                      setEditOpen(false);
+                    }
+                    return;
+                  }
+                  onChange(normalized);
+                  setEditOpen(false);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  setEditOpen(false);
+                  setEditError(null);
+                }
+              }}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+            />
+            <select
+              value={editMeridiem}
+              onChange={(event) => setEditMeridiem(event.target.value as "AM" | "PM")}
+              className="rounded-md border border-outline-muted bg-surface-muted px-2 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <div className="mt-1 text-xs text-ink-muted">Enter time as h:mm.</div>
+          {editError && <div className="mt-1 text-xs text-status-danger">{editError}</div>}
+          <div className="mt-3 flex items-center justify-end gap-2 text-xs">
+            {allowEmpty && (
+              <button
+                type="button"
+                className="text-ink-muted transition hover:text-ink-primary"
+                onClick={() => {
+                  onChange("");
+                  setEditOpen(false);
+                  setEditError(null);
+                }}
+              >
+                Clear
+              </button>
+            )}
+            <button
+              type="button"
+              className="rounded-md bg-accent-soft px-3 py-1 font-semibold text-surface-primary transition hover:bg-accent-strong"
+              onClick={() => {
+                const normalized = normalizeTimeInputParts(editValue, editMeridiem);
+                if (!normalized) {
+                  if (!allowEmpty || editValue.trim().length > 0) {
+                    setEditError("Enter time as h:mm.");
+                  } else {
+                    onChange("");
+                    setEditOpen(false);
+                  }
+                  return;
+                }
+                onChange(normalized);
+                setEditOpen(false);
+              }}
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+        , document.body)}
+    </div>
   );
 }
 
@@ -667,6 +670,12 @@ function formatTimePart(start: Date, end: Date) {
     minute: "2-digit",
   });
   return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
+}
+
+function formatTimeLabel(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return value;
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function formatHourLogTime(date: Date | null) {
@@ -719,6 +728,37 @@ function normalizeTimeInput(value: string) {
   }
   if (hours < 0 || hours > 23) return null;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatTimeInputParts(value: string) {
+  if (!value) return { time: "", meridiem: "AM" as const };
+  const [hours, minutes] = value.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return { time: "", meridiem: "AM" as const };
+  const meridiem = hours >= 12 ? "PM" : "AM";
+  const hours12 = ((hours + 11) % 12) + 1;
+  return { time: `${hours12}:${String(minutes).padStart(2, "0")}`, meridiem };
+}
+
+function normalizeTimeInputParts(value: string, meridiem: "AM" | "PM") {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 1 || hours > 12) return null;
+  if (minutes < 0 || minutes > 59) return null;
+  let normalizedHours = hours % 12;
+  if (meridiem === "PM") normalizedHours += 12;
+  return `${String(normalizedHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatTimeInputDraft(raw: string) {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length <= 2) return digits;
+  if (digits.length === 3) return `${digits[0]}:${digits.slice(1)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
 }
 
 function parseHourLogTime(value: string, baseDate: Date) {

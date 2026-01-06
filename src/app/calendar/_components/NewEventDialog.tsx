@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { createPortal } from "react-dom";
 import { TRPCClientError } from "@trpc/client";
 import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
-import { ChevronDownIcon, EditIcon, XIcon } from "~/app/_components/icons";
+import { createPortal } from "react-dom";
+import { ChevronDownIcon, XIcon } from "~/app/_components/icons";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
 const DEFAULT_TIME_VALUE = "06:30";
@@ -134,6 +134,37 @@ function normalizeTimeInput(value: string) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+function formatTimeInputParts(value: string) {
+  if (!value) return { time: "", meridiem: "AM" as const };
+  const [hours, minutes] = value.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return { time: "", meridiem: "AM" as const };
+  const meridiem = hours >= 12 ? "PM" : "AM";
+  const hours12 = ((hours + 11) % 12) + 1;
+  return { time: `${hours12}:${String(minutes).padStart(2, "0")}`, meridiem };
+}
+
+function normalizeTimeInputParts(value: string, meridiem: "AM" | "PM") {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 1 || hours > 12) return null;
+  if (minutes < 0 || minutes > 59) return null;
+  let normalizedHours = hours % 12;
+  if (meridiem === "PM") normalizedHours += 12;
+  return `${String(normalizedHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatTimeInputDraft(raw: string) {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length <= 2) return digits;
+  if (digits.length === 3) return `${digits[0]}:${digits.slice(1)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
 function parseLocationInput(raw: string) {
   const value = (raw ?? "").trim();
   if (!value) return { acronym: null, room: null };
@@ -184,47 +215,101 @@ type TimeSelectProps = {
   placeholder: string;
   options: { value: string; label: string }[];
   invalid?: boolean;
+  allowEmpty?: boolean;
 };
 
-function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSelectProps) {
+function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty = false }: TimeSelectProps) {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [editMeridiem, setEditMeridiem] = useState<"AM" | "PM">("AM");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editPosition, setEditPosition] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const editPopoverRef = useRef<HTMLDivElement | null>(null);
   const activeOptionRef = useRef<HTMLButtonElement | null>(null);
   const defaultOptionRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (editPopoverRef.current?.contains(e.target as Node)) return;
+      if (!containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setEditOpen(false);
+        setEditError(null);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const target = activeOptionRef.current ?? defaultOptionRef.current;
-    if (target) target.scrollIntoView({ block: "start" });
-  }, [open]);
+    if (!editOpen) return;
+    const width = 16 * 16; // matches w-64
+    const gap = 8;
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      let left = rect.left;
+      const maxLeft = window.innerWidth - width - gap;
+      if (left > maxLeft) left = maxLeft;
+      if (left < gap) left = gap;
+      const top = Math.min(window.innerHeight - 220, rect.bottom + gap);
+      setEditPosition({ top, left });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [editOpen]);
 
-  const label = value ? options.find((opt) => opt.value === value)?.label ?? value : placeholder;
+  const optionLabel = value ? options.find((opt) => opt.value === value)?.label ?? null : null;
+  const label = value ? optionLabel ?? formatTimeLabel(value) : placeholder;
+  const hasCustomValue = Boolean(value && !optionLabel);
+  const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
   activeOptionRef.current = null;
 
   return (
     <div className="relative min-w-[9rem]" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
         className={
-          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong " +
+          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
+        onClick={() => setOpen((prev) => !prev)}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const parts = formatTimeInputParts(value);
+          setEditValue(parts.time);
+          setEditMeridiem(parts.meridiem);
+          setEditError(null);
+          setEditOpen(true);
+          setOpen(false);
+        }}
       >
         <span className={value ? "text-ink-primary" : "text-ink-muted"}>{label}</span>
         <ChevronDownIcon className="h-3.5 w-3.5 text-ink-muted" />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
+        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur scrollbar-hidden">
+          {hasCustomValue && customOptionLabel && (
+            <button
+              type="button"
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink-primary"
+              onClick={() => {
+                onChange(value);
+                setOpen(false);
+              }}
+            >
+              <span>{customOptionLabel}</span>
+            </button>
+          )}
           {options.map((option) => {
             const active = option.value === value;
             const shouldDefault = !value && option.value === DEFAULT_TIME_VALUE;
@@ -235,7 +320,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 ref={active ? activeOptionRef : shouldDefault ? defaultOptionRef : null}
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
+                  (active ? "text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
                 }
                 onClick={() => {
                   onChange(option.value);
@@ -243,147 +328,63 @@ function TimeSelect({ value, onChange, placeholder, options, invalid }: TimeSele
                 }}
               >
                 <span>{option.label}</span>
-                {active && <span className="text-xs text-status-success">Selected</span>}
               </button>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-type ManualTimeEntryButtonProps = {
-  value: string;
-  onChange: (value: string) => void;
-  allowEmpty?: boolean;
-  label?: string;
-};
-
-function ManualTimeEntryButton({ value, onChange, allowEmpty = false, label = "Manual time" }: ManualTimeEntryButtonProps) {
-  const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const width = 14 * 16; // matches w-56
-    const updatePosition = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      const gap = 8;
-      let left = rect.right - width;
-      const maxLeft = window.innerWidth - width - gap;
-      if (left > maxLeft) left = maxLeft;
-      if (left < gap) left = gap;
-      const top = Math.min(window.innerHeight - 200, rect.bottom + gap);
-      setPosition({ top, left });
-    };
-    updatePosition();
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (buttonRef.current?.contains(target)) return;
-      if (popoverRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (open) {
-      setInputValue(value);
-      setError(null);
-      const id = window.setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 0);
-      return () => window.clearTimeout(id);
-    }
-  }, [open, value]);
-
-  useEffect(() => {
-    if (!open) {
-      setInputValue(value);
-    }
-  }, [value, open]);
-
-  const close = () => {
-    setOpen(false);
-    setError(null);
-  };
-
-  const commit = () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) {
-      if (allowEmpty) {
-        onChange("");
-        close();
-      } else {
-        setError("Enter a time.");
-      }
-      return;
-    }
-    const normalized = normalizeTimeInput(trimmed);
-    if (!normalized) {
-      setError("Enter a valid time, e.g., 7:30 PM.");
-      return;
-    }
-    onChange(normalized);
-    close();
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        ref={buttonRef}
-        onClick={() => setOpen((prev) => !prev)}
-        className="rounded-md border border-outline-muted bg-surface-muted p-2 text-ink-subtle transition hover:text-ink-primary"
-        aria-label="Type a custom time"
-      >
-        <EditIcon className="h-3.5 w-3.5" />
-      </button>
-      {open && position && (
+      {editOpen && editPosition &&
         createPortal(
         <div
-          ref={popoverRef}
-          className="fixed z-[999] w-56 rounded-lg border border-outline-muted bg-surface-overlay p-3 text-sm shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
-          style={{ top: position.top, left: position.left }}
+          ref={editPopoverRef}
+          className="fixed z-[10000] w-64 rounded-lg border border-outline-muted bg-surface-overlay p-3 text-sm shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
+          style={{ top: editPosition.top, left: editPosition.left }}
         >
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</div>
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="e.g. 7:30pm or 1330"
-            value={inputValue}
-            onChange={(event) => {
-              setInputValue(event.target.value);
-              if (error) setError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commit();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                close();
-              }
-            }}
-            className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-          />
-          <div className="mt-1 text-xs text-ink-muted">Press Enter to apply.</div>
-          {error && <div className="mt-1 text-xs text-status-danger">{error}</div>}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Edit time</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="8:15"
+              value={editValue}
+              onChange={(event) => {
+                setEditValue(formatTimeInputDraft(event.target.value));
+                if (editError) setEditError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const normalized = normalizeTimeInputParts(editValue, editMeridiem);
+                  if (!normalized) {
+                    if (!allowEmpty || editValue.trim().length > 0) {
+                      setEditError("Enter time as h:mm.");
+                    } else {
+                      onChange("");
+                      setEditOpen(false);
+                    }
+                    return;
+                  }
+                  onChange(normalized);
+                  setEditOpen(false);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  setEditOpen(false);
+                  setEditError(null);
+                }
+              }}
+              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+            />
+            <select
+              value={editMeridiem}
+              onChange={(event) => setEditMeridiem(event.target.value as "AM" | "PM")}
+              className="rounded-md border border-outline-muted bg-surface-muted px-2 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <div className="mt-1 text-xs text-ink-muted">Enter time as h:mm.</div>
+          {editError && <div className="mt-1 text-xs text-status-danger">{editError}</div>}
           <div className="mt-3 flex items-center justify-end gap-2 text-xs">
             {allowEmpty && (
               <button
@@ -391,7 +392,8 @@ function ManualTimeEntryButton({ value, onChange, allowEmpty = false, label = "M
                 className="text-ink-muted transition hover:text-ink-primary"
                 onClick={() => {
                   onChange("");
-                  close();
+                  setEditOpen(false);
+                  setEditError(null);
                 }}
               >
                 Clear
@@ -400,15 +402,27 @@ function ManualTimeEntryButton({ value, onChange, allowEmpty = false, label = "M
             <button
               type="button"
               className="rounded-md bg-accent-soft px-3 py-1 font-semibold text-surface-primary transition hover:bg-accent-strong"
-              onClick={commit}
+              onClick={() => {
+                const normalized = normalizeTimeInputParts(editValue, editMeridiem);
+                if (!normalized) {
+                  if (!allowEmpty || editValue.trim().length > 0) {
+                    setEditError("Enter time as h:mm.");
+                  } else {
+                    onChange("");
+                    setEditOpen(false);
+                  }
+                  return;
+                }
+                onChange(normalized);
+                setEditOpen(false);
+              }}
             >
               Apply
             </button>
           </div>
         </div>
-        , document.body)
-      )}
-    </>
+        , document.body)}
+    </div>
   );
 }
 
@@ -656,7 +670,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     }
     return opts;
   }, []);
-  const timeOptionValues = useMemo(() => new Set(timeOptions.map((option) => option.value)), [timeOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -1161,9 +1174,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const fallbackEventInfoStartValue = fallbackEventInfoStart ? formatTimeValue(fallbackEventInfoStart) : "";
   const fallbackEventInfoEndValue = fallbackEventInfoEnd ? formatTimeValue(fallbackEventInfoEnd) : "";
   const fallbackSetupInfoValue = fallbackSetupInfoTime ? formatTimeValue(fallbackSetupInfoTime) : "";
-  const fallbackEventInfoStartIsCustom = Boolean(fallbackEventInfoStartValue && !timeOptionValues.has(fallbackEventInfoStartValue));
-  const fallbackEventInfoEndIsCustom = Boolean(fallbackEventInfoEndValue && !timeOptionValues.has(fallbackEventInfoEndValue));
-  const fallbackSetupInfoIsCustom = Boolean(fallbackSetupInfoValue && !timeOptionValues.has(fallbackSetupInfoValue));
 
   useEffect(() => {
     setAssigneeHighlight(-1);
@@ -1728,8 +1738,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             {segments.map((segment, index) => {
               const startValue = formatTimeValue(segment.start);
               const endValue = formatTimeValue(segment.end);
-              const hasStartOption = timeOptionValues.has(startValue);
-              const hasEndOption = timeOptionValues.has(endValue);
               return (
               <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
                 <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
@@ -1755,41 +1763,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
                   ) : (
                     <>
-                      <div className="flex items-center gap-1">
-                        <select
-                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                          value={startValue}
-                          onChange={(e) => handleStartTimeChange(segment.id, e.target.value)}
-                        >
-                          {timeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                          {!hasStartOption && (
-                            <option value={startValue}>{`${formatTimeLabel(startValue)} (custom)`}</option>
-                          )}
-                        </select>
-                        <ManualTimeEntryButton value={startValue} onChange={(next) => handleStartTimeChange(segment.id, next)} />
-                      </div>
+                      <TimeSelect
+                        value={startValue}
+                        onChange={(next) => handleStartTimeChange(segment.id, next)}
+                        placeholder="Start"
+                        options={timeOptions}
+                      />
                       <span className="text-sm text-ink-subtle">to</span>
-                      <div className="flex items-center gap-1">
-                        <select
-                          className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                          value={endValue}
-                          onChange={(e) => handleEndTimeChange(segment.id, e.target.value)}
-                        >
-                          {timeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                          {!hasEndOption && (
-                            <option value={endValue}>{`${formatTimeLabel(endValue)} (custom)`}</option>
-                          )}
-                        </select>
-                        <ManualTimeEntryButton value={endValue} onChange={(next) => handleEndTimeChange(segment.id, next)} />
-                      </div>
+                      <TimeSelect
+                        value={endValue}
+                        onChange={(next) => handleEndTimeChange(segment.id, next)}
+                        placeholder="End"
+                        options={timeOptions}
+                      />
                     </>
                   )}
                 </div>
@@ -2160,6 +2146,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 placeholder="List staging, audio, lighting, or other needs"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-muted">Description</label>
+              <textarea
+                rows={6}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full resize-y rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
+                placeholder="Notes"
+              />
+            </div>
           </div>
 
           <div className="space-y-4 border-t border-outline-muted pt-4">
@@ -2175,28 +2171,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     onChange={(e) => handleInfoDateChange("eventStart", e.target.value)}
                     className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                   />
-                  <div className="flex items-center gap-1">
-                    <select
-                      className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                      value={fallbackEventInfoStartValue}
-                      onChange={(e) => handleInfoTimeChange("eventStart", e.target.value)}
-                    >
-                      <option value="">Select time</option>
-                      {timeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                      {fallbackEventInfoStartIsCustom && fallbackEventInfoStartValue && (
-                        <option value={fallbackEventInfoStartValue}>{`${formatTimeLabel(fallbackEventInfoStartValue)} (custom)`}</option>
-                      )}
-                    </select>
-                    <ManualTimeEntryButton
-                      value={fallbackEventInfoStartValue}
-                      onChange={(next) => handleInfoTimeChange("eventStart", next)}
-                      allowEmpty
-                    />
-                  </div>
+                  <TimeSelect
+                    value={fallbackEventInfoStartValue}
+                    onChange={(next) => handleInfoTimeChange("eventStart", next)}
+                    placeholder="Select time"
+                    options={timeOptions}
+                    allowEmpty
+                  />
                 </div>
               </div>
               <div className="rounded-lg border border-outline-muted p-3">
@@ -2208,28 +2189,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     onChange={(e) => handleInfoDateChange("eventEnd", e.target.value)}
                     className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                   />
-                  <div className="flex items-center gap-1">
-                    <select
-                      className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                      value={fallbackEventInfoEndValue}
-                      onChange={(e) => handleInfoTimeChange("eventEnd", e.target.value)}
-                    >
-                      <option value="">Select time</option>
-                      {timeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                      {fallbackEventInfoEndIsCustom && fallbackEventInfoEndValue && (
-                        <option value={fallbackEventInfoEndValue}>{`${formatTimeLabel(fallbackEventInfoEndValue)} (custom)`}</option>
-                      )}
-                    </select>
-                    <ManualTimeEntryButton
-                      value={fallbackEventInfoEndValue}
-                      onChange={(next) => handleInfoTimeChange("eventEnd", next)}
-                      allowEmpty
-                    />
-                  </div>
+                  <TimeSelect
+                    value={fallbackEventInfoEndValue}
+                    onChange={(next) => handleInfoTimeChange("eventEnd", next)}
+                    placeholder="Select time"
+                    options={timeOptions}
+                    allowEmpty
+                  />
                 </div>
               </div>
             </div>
@@ -2242,28 +2208,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   onChange={(e) => handleInfoDateChange("setup", e.target.value)}
                   className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
                 />
-                <div className="flex items-center gap-1">
-                  <select
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                    value={fallbackSetupInfoValue}
-                    onChange={(e) => handleInfoTimeChange("setup", e.target.value)}
-                  >
-                    <option value="">Select time</option>
-                    {timeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                    {fallbackSetupInfoIsCustom && fallbackSetupInfoValue && (
-                      <option value={fallbackSetupInfoValue}>{`${formatTimeLabel(fallbackSetupInfoValue)} (custom)`}</option>
-                    )}
-                  </select>
-                  <ManualTimeEntryButton
-                    value={fallbackSetupInfoValue}
-                    onChange={(next) => handleInfoTimeChange("setup", next)}
-                    allowEmpty
-                  />
-                </div>
+                <TimeSelect
+                  value={fallbackSetupInfoValue}
+                  onChange={(next) => handleInfoTimeChange("setup", next)}
+                  placeholder="Select time"
+                  options={timeOptions}
+                  allowEmpty
+                />
               </div>
             </div>
           </div>
@@ -2310,12 +2261,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                                 placeholder="Start"
                                 options={timeOptions}
                                 invalid={invalid}
-                              />
-                              <ManualTimeEntryButton
-                                value={formatHourLogTime(log.start)}
-                                onChange={(value) => handleHourLogChange(log.id, "start", value)}
                                 allowEmpty
-                                label="Manual start time"
                               />
                             </div>
                             <span className="text-xs text-ink-subtle">to</span>
@@ -2326,12 +2272,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                                 placeholder="End"
                                 options={timeOptions}
                                 invalid={invalid}
-                              />
-                              <ManualTimeEntryButton
-                                value={formatHourLogTime(log.end)}
-                                onChange={(value) => handleHourLogChange(log.id, "end", value)}
                                 allowEmpty
-                                label="Manual end time"
                               />
                             </div>
                             <span
@@ -2469,17 +2410,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 </div>
               </div>
             )}
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-ink-muted">Description</div>
-            <textarea
-              rows={6}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full resize-y rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
-              placeholder="Notes"
-            />
           </div>
 
           {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
