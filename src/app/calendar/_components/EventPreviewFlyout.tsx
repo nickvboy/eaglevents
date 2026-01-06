@@ -25,11 +25,20 @@ type EventPreviewFlyoutProps = {
   calendar: CalendarInfo;
   open: boolean;
   placement?: "down" | "up";
+  side?: "left" | "right";
   onExpand: () => void;
   onEdit: () => void;
 };
 
-export function EventPreviewFlyout({ event, calendar, open, placement = "down", onExpand, onEdit }: EventPreviewFlyoutProps) {
+export function EventPreviewFlyout({
+  event,
+  calendar,
+  open,
+  placement = "down",
+  side = "right",
+  onExpand,
+  onEdit,
+}: EventPreviewFlyoutProps) {
   const [shouldRender, setShouldRender] = useState(open);
   const lastEventRef = useRef<typeof event>(null);
 
@@ -61,8 +70,16 @@ export function EventPreviewFlyout({ event, calendar, open, placement = "down", 
   const totalLoggedMinutes = displayEvent.totalLoggedMinutes ?? 0;
   const totalLoggedHours = Math.round((totalLoggedMinutes / 60) * 100) / 100;
   const placementClass = placement === "up" ? "bottom-0" : "top-0";
-  const pointerClass =
-    placement === "up" ? "bottom-6 border-b border-l" : "top-6 border-l border-t";
+  const sideClass = side === "left" ? "right-[calc(100%+0.5rem)]" : "left-[calc(100%+0.5rem)]";
+  const pointerSideClass = side === "left" ? "-right-2" : "-left-2";
+  const pointerBorderClass =
+    side === "left"
+      ? placement === "up"
+        ? "bottom-6 border-b border-r"
+        : "top-6 border-r border-t"
+      : placement === "up"
+        ? "bottom-6 border-b border-l"
+        : "top-6 border-l border-t";
   const motionClass = open
     ? "translate-y-0 opacity-100"
     : placement === "up"
@@ -72,14 +89,14 @@ export function EventPreviewFlyout({ event, calendar, open, placement = "down", 
   return (
     <aside
       className={
-        `pointer-events-none absolute left-[calc(100%+0.5rem)] ${placementClass} z-30 w-72 transition-all duration-200 ease-out ` +
+        `pointer-events-none absolute ${sideClass} ${placementClass} z-30 w-72 transition-all duration-200 ease-out ` +
         motionClass
       }
       aria-hidden={!open}
     >
       <div className="pointer-events-auto relative flex max-h-[360px] flex-col overflow-hidden rounded-2xl border border-outline-muted bg-surface-raised/95 shadow-xl shadow-[var(--shadow-pane)] backdrop-blur">
         <span
-          className={`pointer-events-none absolute -left-2 block h-4 w-4 rotate-45 rounded-sm ${pointerClass} border-outline-muted bg-surface-raised/95 shadow-lg shadow-[var(--shadow-pane)]`}
+          className={`pointer-events-none absolute ${pointerSideClass} block h-4 w-4 rotate-45 rounded-sm ${pointerBorderClass} border-outline-muted bg-surface-raised/95 shadow-lg shadow-[var(--shadow-pane)]`}
         />
         <header className="flex items-start justify-between gap-3 border-b border-outline-muted bg-surface-muted px-4 py-3">
           <div className="flex-1">

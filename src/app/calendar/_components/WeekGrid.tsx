@@ -103,6 +103,7 @@ export function WeekGrid({
                 onOpenEvent={onOpenEvent}
                 onEditEvent={onEditEvent}
                 calendarLookup={calendarLookup}
+                previewSide={idx >= days.length - 2 ? "left" : "right"}
               />
             </div>
           ))}

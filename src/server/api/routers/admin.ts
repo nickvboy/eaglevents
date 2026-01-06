@@ -569,6 +569,43 @@ function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?
   return and(...conditions) ?? null;
 }
 
+function deriveUpdatedEventLocation(options: {
+  location: string | null;
+  oldAcronym: string;
+  nextAcronym: string;
+  oldName: string;
+  nextName: string;
+}) {
+  const { location, oldAcronym, nextAcronym, oldName, nextName } = options;
+  if (!location) return null;
+  const trimmed = location.trim();
+  if (!trimmed) return null;
+
+  const oldAcr = oldAcronym.trim();
+  const newAcr = nextAcronym.trim();
+  if (oldAcr && newAcr && oldAcr.toUpperCase() !== newAcr.toUpperCase()) {
+    const compact = trimmed.toUpperCase().replace(/\s+|-/g, "");
+    const oldCompact = oldAcr.toUpperCase();
+    if (compact.startsWith(oldCompact)) {
+      const remainder = compact.slice(oldCompact.length);
+      if (!remainder) return newAcr;
+      if (/^[0-9][A-Z0-9]*$/.test(remainder)) {
+        return `${newAcr} ${remainder}`;
+      }
+    }
+  }
+
+  const oldLabel = oldName.trim();
+  const newLabel = nextName.trim();
+  if (oldLabel && newLabel && oldLabel.toUpperCase() !== newLabel.toUpperCase()) {
+    if (trimmed.toUpperCase() === oldLabel.toUpperCase()) {
+      return newLabel;
+    }
+  }
+
+  return null;
+}
+
 
 async function findBusinessId(db: DbReader): Promise<number | null> {
   const [business] = await db.select({ id: businesses.id }).from(businesses).orderBy(businesses.id).limit(1);
@@ -2709,7 +2746,12 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const [buildingRow] = await ctx.db
-        .select({ id: buildings.id, businessId: buildings.businessId })
+        .select({
+          id: buildings.id,
+          businessId: buildings.businessId,
+          name: buildings.name,
+          acronym: buildings.acronym,
+        })
         .from(buildings)
         .where(eq(buildings.id, input.buildingId))
         .limit(1);
@@ -2720,14 +2762,43 @@ export const adminRouter = createTRPCRouter({
       if (businessId && buildingRow.businessId !== businessId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
       }
-      await ctx.db
-        .update(buildings)
-        .set({
-          name: input.name?.trim(),
-          acronym: input.acronym?.trim(),
-          updatedAt: new Date(),
-        })
-        .where(eq(buildings.id, input.buildingId));
+      const nextName = input.name?.trim() ?? buildingRow.name;
+      const nextAcronym = input.acronym?.trim() ?? buildingRow.acronym;
+      const nameChanged = nextName !== buildingRow.name;
+      const acronymChanged = nextAcronym !== buildingRow.acronym;
+
+      await ctx.db.transaction(async (tx) => {
+        await tx
+          .update(buildings)
+          .set({
+            name: input.name?.trim(),
+            acronym: input.acronym?.trim(),
+            updatedAt: new Date(),
+          })
+          .where(eq(buildings.id, input.buildingId));
+
+        if (!nameChanged && !acronymChanged) return;
+
+        const eventRows = await tx
+          .select({ id: events.id, location: events.location })
+          .from(events)
+          .where(eq(events.buildingId, input.buildingId));
+
+        for (const eventRow of eventRows) {
+          const nextLocation = deriveUpdatedEventLocation({
+            location: eventRow.location,
+            oldAcronym: buildingRow.acronym,
+            nextAcronym,
+            oldName: buildingRow.name,
+            nextName,
+          });
+          if (!nextLocation || nextLocation === eventRow.location) continue;
+          await tx
+            .update(events)
+            .set({ location: nextLocation, updatedAt: new Date() })
+            .where(eq(events.id, eventRow.id));
+        }
+      });
       return { id: input.buildingId };
     }),
 

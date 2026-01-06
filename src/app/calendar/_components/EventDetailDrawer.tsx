@@ -730,10 +730,13 @@ function normalizeTimeInput(value: string) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function formatTimeInputParts(value: string) {
-  if (!value) return { time: "", meridiem: "AM" as const };
-  const [hours, minutes] = value.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return { time: "", meridiem: "AM" as const };
+function formatTimeInputParts(value: string): { time: string; meridiem: "AM" | "PM" } {
+  if (!value) return { time: "", meridiem: "AM" };
+  const parts = value.split(":");
+  if (parts.length < 2) return { time: "", meridiem: "AM" };
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return { time: "", meridiem: "AM" };
   const meridiem = hours >= 12 ? "PM" : "AM";
   const hours12 = ((hours + 11) % 12) + 1;
   return { time: `${hours12}:${String(minutes).padStart(2, "0")}`, meridiem };
