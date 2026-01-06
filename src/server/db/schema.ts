@@ -295,6 +295,7 @@ export const events = createTable(
     title: d.varchar({ length: 255 }).notNull(),
     description: text(),
     location: d.varchar({ length: 255 }),
+    isVirtual: d.boolean().default(false).notNull(),
     isAllDay: d.boolean().default(false).notNull(),
     startDatetime: d.timestamp({ withTimezone: true }).notNull(),
     endDatetime: d.timestamp({ withTimezone: true }).notNull(),

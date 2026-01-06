@@ -457,6 +457,7 @@ type NewEventDraft = {
   segments: Array<{ start: string; end: string }>;
   allDay: boolean;
   location: string;
+  isVirtual: boolean;
   selectedBuildingId: number | null;
   selectedBuildingAcronym: string;
   roomNumber: string;
@@ -603,6 +604,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
+  const [isVirtual, setIsVirtual] = useState(false);
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
   const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
   const [roomNumber, setRoomNumber] = useState<string>("");
@@ -634,6 +636,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const locationWrapRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
@@ -686,6 +689,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       ]);
       setAllDay(event.isAllDay);
       setLocation(event.location ?? "");
+      setIsVirtual(Boolean(event.isVirtual));
       setSelectedBuildingId(event.buildingId ?? null);
       const parsed = parseLocationInput(event.location ?? "");
       if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
@@ -795,6 +799,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setSegments(nextSegments.length > 0 ? nextSegments : [makeSegment(defaultDate)]);
       setAllDay(Boolean(draft.allDay));
       setLocation(draft.location ?? "");
+      setIsVirtual(Boolean(draft.isVirtual));
       setSelectedBuildingId(typeof draft.selectedBuildingId === "number" ? draft.selectedBuildingId : null);
       setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
       setRoomNumber(draft.roomNumber ?? "");
@@ -841,6 +846,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
     setLocation("");
+    setIsVirtual(false);
     setSelectedBuildingId(null);
     setSelectedBuildingAcronym("");
     setRoomNumber("");
@@ -889,6 +895,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       })),
       allDay,
       location,
+      isVirtual,
       selectedBuildingId,
       selectedBuildingAcronym,
       roomNumber,
@@ -920,6 +927,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     segments,
     allDay,
     location,
+    isVirtual,
     selectedBuildingId,
     selectedBuildingAcronym,
     roomNumber,
@@ -1139,6 +1147,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   useEffect(() => {
     setLocationHighlight(-1);
   }, [location, locationMatches.length]);
+
+  useEffect(() => {
+    if (!locationQuery.length) return;
+    const handleClick = (event: MouseEvent) => {
+      if (!locationWrapRef.current) return;
+      if (!locationWrapRef.current.contains(event.target as Node)) {
+        setLocationQuery("");
+        setLocationHighlight(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [locationQuery.length]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1441,6 +1462,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         setError("Please complete or remove invalid hour log entries.");
         return;
       }
+      if (!isVirtual && !selectedBuildingId) {
+        setError("Select a building or mark the event as virtual.");
+        return;
+      }
       if (zendeskTicketError) {
         setError(zendeskTicketError);
         return;
@@ -1491,6 +1516,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           description,
           location,
           buildingId: selectedBuildingId,
+          isVirtual,
           isAllDay: allDay,
           startDatetime: dayStart,
           endDatetime: dayEnd,
@@ -1525,6 +1551,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               description,
               location,
               buildingId: selectedBuildingId ?? undefined,
+              isVirtual,
               isAllDay: allDay,
               startDatetime: dayStart,
               endDatetime: dayEnd,
@@ -1562,6 +1589,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               description,
               location,
               buildingId: selectedBuildingId ?? undefined,
+              isVirtual,
               isAllDay: allDay,
               startDatetime: dayStart,
               endDatetime: dayEnd,
@@ -2322,6 +2350,15 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
           <div>
             <div className="mb-1 text-xs text-ink-muted">Add a room or location</div>
+            <label className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={isVirtual}
+                onChange={(event) => setIsVirtual(event.target.checked)}
+                className="h-4 w-4 accent-accent-strong"
+              />
+              Virtual location
+            </label>
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
               <div>
                 <div className="mb-1 text-xs text-ink-muted">Building</div>
@@ -2355,61 +2392,63 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 />
               </div>
             </div>
-            <input
-              placeholder="Location (try: BHG 210 or just 210)"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setLocationHighlight((prev) => Math.max(prev - 1, 0));
-                } else if (e.key === "Enter") {
-                  if (locationMatches.length > 0 && locationHighlight >= 0) {
+            <div ref={locationWrapRef}>
+              <input
+                placeholder="Location (try: BHG 210 or just 210)"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    const match = locationMatches[locationHighlight]!;
-                    handleLocationSelect(match);
+                    setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setLocationHighlight((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === "Enter") {
+                    if (locationMatches.length > 0 && locationHighlight >= 0) {
+                      e.preventDefault();
+                      const match = locationMatches[locationHighlight]!;
+                      handleLocationSelect(match);
+                    }
                   }
-                }
-              }}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-            />
-            {locationQuery.length > 0 && (
-              <div className="relative">
-                <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
-                  {locationResults.isFetching ? (
-                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
-                  ) : locationMatches.length > 0 ? (
-                    <>
-                      {locationMatches.map((match, index) => {
-                        const isActive = index === locationHighlight;
-                        return (
-                          <button
-                            key={`${match.acronym}:${match.roomNumber}:${match.buildingId}`}
-                            type="button"
-                            className={
-                              "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                              (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
-                            }
-                            onMouseEnter={() => setLocationHighlight(index)}
-                            onClick={() => handleLocationSelect(match)}
-                          >
-                            <span>
-                              <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
-                            </span>
-                            <span className="text-xs text-ink-subtle">{match.buildingName}</span>
-                          </button>
-                        );
-                      })}
-                    </>
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-ink-muted">No rooms found</div>
-                  )}
+                }}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+              />
+              {locationQuery.length > 0 && (
+                <div className="relative">
+                  <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                    {locationResults.isFetching ? (
+                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                    ) : locationMatches.length > 0 ? (
+                      <>
+                        {locationMatches.map((match, index) => {
+                          const isActive = index === locationHighlight;
+                          return (
+                            <button
+                              key={`${match.acronym}:${match.roomNumber}:${match.buildingId}`}
+                              type="button"
+                              className={
+                                "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                              }
+                              onMouseEnter={() => setLocationHighlight(index)}
+                              onClick={() => handleLocationSelect(match)}
+                            >
+                              <span>
+                                <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
+                              </span>
+                              <span className="text-xs text-ink-subtle">{match.buildingName}</span>
+                            </button>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-ink-muted">No rooms found</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}

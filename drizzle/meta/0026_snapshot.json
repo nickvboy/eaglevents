@@ -1,0 +1,2672 @@
+{
+  "id": "7b69bf50-6520-4d91-92ce-b8f06de8d56f",
+  "prevId": "1c18f474-6560-4da0-9c53-af55ef6b3dda",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.t3-app-template_audit_log": {
+      "name": "t3-app-template_audit_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_audit_log_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "businessId": {
+          "name": "businessId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actorUserId": {
+          "name": "actorUserId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actorProfileId": {
+          "name": "actorProfileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "targetType": {
+          "name": "targetType",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "targetId": {
+          "name": "targetId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "organization_scope_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "audit_log_business_idx": {
+          "name": "audit_log_business_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_log_actor_idx": {
+          "name": "audit_log_actor_idx",
+          "columns": [
+            {
+              "expression": "actorUserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_log_scope_idx": {
+          "name": "audit_log_scope_idx",
+          "columns": [
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_audit_log_businessId_t3-app-template_business_id_fk": {
+          "name": "t3-app-template_audit_log_businessId_t3-app-template_business_id_fk",
+          "tableFrom": "t3-app-template_audit_log",
+          "tableTo": "t3-app-template_business",
+          "columnsFrom": [
+            "businessId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_audit_log_actorUserId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_audit_log_actorUserId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_audit_log",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "actorUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_audit_log_actorProfileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_audit_log",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "actorProfileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_building": {
+      "name": "t3-app-template_building",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_building_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "businessId": {
+          "name": "businessId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acronym": {
+          "name": "acronym",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "building_business_idx": {
+          "name": "building_business_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "building_business_acronym_idx": {
+          "name": "building_business_acronym_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "acronym",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_building_businessId_t3-app-template_business_id_fk": {
+          "name": "t3-app-template_building_businessId_t3-app-template_business_id_fk",
+          "tableFrom": "t3-app-template_building",
+          "tableTo": "t3-app-template_business",
+          "columnsFrom": [
+            "businessId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_business": {
+      "name": "t3-app-template_business",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_business_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "business_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'other'"
+        },
+        "setupCompletedAt": {
+          "name": "setupCompletedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "business_name_unique": {
+          "name": "business_name_unique",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_calendar": {
+      "name": "t3-app-template_calendar",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_calendar_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#22c55e'"
+        },
+        "isPrimary": {
+          "name": "isPrimary",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "isPersonal": {
+          "name": "isPersonal",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "isArchived": {
+          "name": "isArchived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "organization_scope_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "calendar_user_idx": {
+          "name": "calendar_user_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "calendar_scope_idx": {
+          "name": "calendar_scope_idx",
+          "columns": [
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_calendar_userId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_calendar_userId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_calendar",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_department": {
+      "name": "t3-app-template_department",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_department_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "businessId": {
+          "name": "businessId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parentDepartmentId": {
+          "name": "parentDepartmentId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "department_business_idx": {
+          "name": "department_business_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "department_parent_idx": {
+          "name": "department_parent_idx",
+          "columns": [
+            {
+              "expression": "parentDepartmentId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_department_businessId_t3-app-template_business_id_fk": {
+          "name": "t3-app-template_department_businessId_t3-app-template_business_id_fk",
+          "tableFrom": "t3-app-template_department",
+          "tableTo": "t3-app-template_business",
+          "columnsFrom": [
+            "businessId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "department_parent_fk": {
+          "name": "department_parent_fk",
+          "tableFrom": "t3-app-template_department",
+          "tableTo": "t3-app-template_department",
+          "columnsFrom": [
+            "parentDepartmentId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_attendee": {
+      "name": "t3-app-template_event_attendee",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_attendee_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profileId": {
+          "name": "profileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "responseStatus": {
+          "name": "responseStatus",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'needsAction'"
+        }
+      },
+      "indexes": {
+        "attendee_event_idx": {
+          "name": "attendee_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendee_profile_idx": {
+          "name": "attendee_profile_idx",
+          "columns": [
+            {
+              "expression": "profileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_attendee_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_attendee_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_attendee",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_attendee_profileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_attendee_profileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event_attendee",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "profileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_co_owner": {
+      "name": "t3-app-template_event_co_owner",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_co_owner_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profileId": {
+          "name": "profileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "event_co_owner_event_idx": {
+          "name": "event_co_owner_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_co_owner_profile_idx": {
+          "name": "event_co_owner_profile_idx",
+          "columns": [
+            {
+              "expression": "profileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_co_owner_unique": {
+          "name": "event_co_owner_unique",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_co_owner_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_co_owner_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_co_owner",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_co_owner_profileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event_co_owner",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "profileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_hour_log": {
+      "name": "t3-app-template_event_hour_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_hour_log_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "loggedByProfileId": {
+          "name": "loggedByProfileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "startTime": {
+          "name": "startTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endTime": {
+          "name": "endTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "durationMinutes": {
+          "name": "durationMinutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "event_hour_log_event_idx": {
+          "name": "event_hour_log_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_hour_log_profile_idx": {
+          "name": "event_hour_log_profile_idx",
+          "columns": [
+            {
+              "expression": "loggedByProfileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_hour_log_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_hour_log_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_hour_log",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_hour_log_loggedByProfileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_hour_log_loggedByProfileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event_hour_log",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "loggedByProfileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_reminder": {
+      "name": "t3-app-template_event_reminder",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_reminder_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reminderMinutes": {
+          "name": "reminderMinutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        }
+      },
+      "indexes": {
+        "reminder_event_idx": {
+          "name": "reminder_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_reminder_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_reminder_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_reminder",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_zendesk_confirmation": {
+      "name": "t3-app-template_event_zendesk_confirmation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_zendesk_confirmation_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profileId": {
+          "name": "profileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmedAt": {
+          "name": "confirmedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "zendesk_confirmation_event_idx": {
+          "name": "zendesk_confirmation_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "zendesk_confirmation_profile_idx": {
+          "name": "zendesk_confirmation_profile_idx",
+          "columns": [
+            {
+              "expression": "profileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "zendesk_confirmation_event_profile_idx": {
+          "name": "zendesk_confirmation_event_profile_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_zendesk_confirmation_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_zendesk_confirmation_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_zendesk_confirmation",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_zendesk_confirmation_profileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_zendesk_confirmation_profileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event_zendesk_confirmation",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "profileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event": {
+      "name": "t3-app-template_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "calendarId": {
+          "name": "calendarId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "buildingId": {
+          "name": "buildingId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigneeProfileId": {
+          "name": "assigneeProfileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ownerProfileId": {
+          "name": "ownerProfileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "organization_scope_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventCode": {
+          "name": "eventCode",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isVirtual": {
+          "name": "isVirtual",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "isAllDay": {
+          "name": "isAllDay",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "startDatetime": {
+          "name": "startDatetime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endDatetime": {
+          "name": "endDatetime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recurrenceRule": {
+          "name": "recurrenceRule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "participantCount": {
+          "name": "participantCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "technicianNeeded": {
+          "name": "technicianNeeded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "requestCategory": {
+          "name": "requestCategory",
+          "type": "event_request_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipmentNeeded": {
+          "name": "equipmentNeeded",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eventStartTime": {
+          "name": "eventStartTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eventEndTime": {
+          "name": "eventEndTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "setupTime": {
+          "name": "setupTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zendeskTicketNumber": {
+          "name": "zendeskTicketNumber",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isArchived": {
+          "name": "isArchived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "event_calendar_idx": {
+          "name": "event_calendar_idx",
+          "columns": [
+            {
+              "expression": "calendarId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_building_idx": {
+          "name": "event_building_idx",
+          "columns": [
+            {
+              "expression": "buildingId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_start_idx": {
+          "name": "event_start_idx",
+          "columns": [
+            {
+              "expression": "startDatetime",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_assignee_idx": {
+          "name": "event_assignee_idx",
+          "columns": [
+            {
+              "expression": "assigneeProfileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_scope_idx": {
+          "name": "event_scope_idx",
+          "columns": [
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_owner_idx": {
+          "name": "event_owner_idx",
+          "columns": [
+            {
+              "expression": "ownerProfileId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_event_code_unique": {
+          "name": "event_event_code_unique",
+          "columns": [
+            {
+              "expression": "eventCode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_calendarId_t3-app-template_calendar_id_fk": {
+          "name": "t3-app-template_event_calendarId_t3-app-template_calendar_id_fk",
+          "tableFrom": "t3-app-template_event",
+          "tableTo": "t3-app-template_calendar",
+          "columnsFrom": [
+            "calendarId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_buildingId_t3-app-template_building_id_fk": {
+          "name": "t3-app-template_event_buildingId_t3-app-template_building_id_fk",
+          "tableFrom": "t3-app-template_event",
+          "tableTo": "t3-app-template_building",
+          "columnsFrom": [
+            "buildingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_assigneeProfileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_assigneeProfileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "assigneeProfileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_event_ownerProfileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_event",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "ownerProfileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_organization_role": {
+      "name": "t3-app-template_organization_role",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_organization_role_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profileId": {
+          "name": "profileId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "roleType": {
+          "name": "roleType",
+          "type": "organization_role_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "organization_scope_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "organization_role_user_idx": {
+          "name": "organization_role_user_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_role_scope_idx": {
+          "name": "organization_role_scope_idx",
+          "columns": [
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_role_unique": {
+          "name": "organization_role_unique",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "roleType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_organization_role_userId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_organization_role_userId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_organization_role",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_organization_role_profileId_t3-app-template_profile_id_fk": {
+          "name": "t3-app-template_organization_role_profileId_t3-app-template_profile_id_fk",
+          "tableFrom": "t3-app-template_organization_role",
+          "tableTo": "t3-app-template_profile",
+          "columnsFrom": [
+            "profileId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_post": {
+      "name": "t3-app-template_post",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_post_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "name_idx": {
+          "name": "name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_profile": {
+      "name": "t3-app-template_profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_profile_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "firstName": {
+          "name": "firstName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastName": {
+          "name": "lastName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phoneNumber": {
+          "name": "phoneNumber",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dateOfBirth": {
+          "name": "dateOfBirth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "profile_email_unique": {
+          "name": "profile_email_unique",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "profile_user_unique": {
+          "name": "profile_user_unique",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"t3-app-template_profile\".\"userId\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_profile_userId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_profile_userId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_profile",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_room": {
+      "name": "t3-app-template_room",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_room_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "buildingId": {
+          "name": "buildingId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "roomNumber": {
+          "name": "roomNumber",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "room_building_idx": {
+          "name": "room_building_idx",
+          "columns": [
+            {
+              "expression": "buildingId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "room_building_number_idx": {
+          "name": "room_building_number_idx",
+          "columns": [
+            {
+              "expression": "buildingId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "roomNumber",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_room_buildingId_t3-app-template_building_id_fk": {
+          "name": "t3-app-template_room_buildingId_t3-app-template_building_id_fk",
+          "tableFrom": "t3-app-template_room",
+          "tableTo": "t3-app-template_building",
+          "columnsFrom": [
+            "buildingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_theme_palette": {
+      "name": "t3-app-template_theme_palette",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_theme_palette_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "businessId": {
+          "name": "businessId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "tokens": {
+          "name": "tokens",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isDefault": {
+          "name": "isDefault",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdByUserId": {
+          "name": "createdByUserId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "theme_palette_business_idx": {
+          "name": "theme_palette_business_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "theme_palette_business_name_idx": {
+          "name": "theme_palette_business_name_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_theme_palette_businessId_t3-app-template_business_id_fk": {
+          "name": "t3-app-template_theme_palette_businessId_t3-app-template_business_id_fk",
+          "tableFrom": "t3-app-template_theme_palette",
+          "tableTo": "t3-app-template_business",
+          "columnsFrom": [
+            "businessId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_theme_palette_createdByUserId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_theme_palette_createdByUserId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_theme_palette",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "createdByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_theme_profile": {
+      "name": "t3-app-template_theme_profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_theme_profile_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "businessId": {
+          "name": "businessId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "theme_profile_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "paletteId": {
+          "name": "paletteId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "theme_profile_scope_idx": {
+          "name": "theme_profile_scope_idx",
+          "columns": [
+            {
+              "expression": "businessId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "theme_profile_palette_idx": {
+          "name": "theme_profile_palette_idx",
+          "columns": [
+            {
+              "expression": "paletteId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_theme_profile_businessId_t3-app-template_business_id_fk": {
+          "name": "t3-app-template_theme_profile_businessId_t3-app-template_business_id_fk",
+          "tableFrom": "t3-app-template_theme_profile",
+          "tableTo": "t3-app-template_business",
+          "columnsFrom": [
+            "businessId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_theme_profile_paletteId_t3-app-template_theme_palette_id_fk": {
+          "name": "t3-app-template_theme_profile_paletteId_t3-app-template_theme_palette_id_fk",
+          "tableFrom": "t3-app-template_theme_profile",
+          "tableTo": "t3-app-template_theme_palette",
+          "columnsFrom": [
+            "paletteId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_user": {
+      "name": "t3-app-template_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_user_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "displayName": {
+          "name": "displayName",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isActive": {
+          "name": "isActive",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "deactivatedAt": {
+          "name": "deactivatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "user_username_unique": {
+          "name": "user_username_unique",
+          "columns": [
+            {
+              "expression": "username",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_email_unique": {
+          "name": "user_email_unique",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_visibility_grant": {
+      "name": "t3-app-template_visibility_grant",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_visibility_grant_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "userId": {
+          "name": "userId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeType": {
+          "name": "scopeType",
+          "type": "organization_scope_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdByUserId": {
+          "name": "createdByUserId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "visibility_grant_user_idx": {
+          "name": "visibility_grant_user_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "visibility_grant_scope_idx": {
+          "name": "visibility_grant_scope_idx",
+          "columns": [
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "visibility_grant_unique": {
+          "name": "visibility_grant_unique",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeType",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_visibility_grant_userId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_visibility_grant_userId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_visibility_grant",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk": {
+          "name": "t3-app-template_visibility_grant_createdByUserId_t3-app-template_user_id_fk",
+          "tableFrom": "t3-app-template_visibility_grant",
+          "tableTo": "t3-app-template_user",
+          "columnsFrom": [
+            "createdByUserId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.business_type": {
+      "name": "business_type",
+      "schema": "public",
+      "values": [
+        "university",
+        "nonprofit",
+        "corporation",
+        "government",
+        "venue",
+        "other"
+      ]
+    },
+    "public.event_request_category": {
+      "name": "event_request_category",
+      "schema": "public",
+      "values": [
+        "university_affiliated_request_to_university_business",
+        "university_affiliated_nonrequest_to_university_business",
+        "fgcu_student_affiliated_event",
+        "non_affiliated_or_revenue_generating_event"
+      ]
+    },
+    "public.organization_role_type": {
+      "name": "organization_role_type",
+      "schema": "public",
+      "values": [
+        "admin",
+        "co_admin",
+        "manager",
+        "employee"
+      ]
+    },
+    "public.organization_scope_type": {
+      "name": "organization_scope_type",
+      "schema": "public",
+      "values": [
+        "business",
+        "department",
+        "division"
+      ]
+    },
+    "public.theme_profile_scope": {
+      "name": "theme_profile_scope",
+      "schema": "public",
+      "values": [
+        "business",
+        "department"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -176,6 +176,13 @@
       "when": 1769800000000,
       "tag": "0025_archive_calendars",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1769900000001,
+      "tag": "0026_event_virtual",
+      "breakpoints": true
     }
   ]
 }

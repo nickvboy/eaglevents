@@ -707,6 +707,7 @@ export const eventRouter = createTRPCRouter({
         description: z.string().optional(),
         location: z.string().optional(),
         buildingId: z.number().int().positive().nullable().optional(),
+        isVirtual: z.boolean().optional(),
         isAllDay: z.boolean().default(false),
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
@@ -738,6 +739,11 @@ export const eventRouter = createTRPCRouter({
       const calendarAccess = await getCalendarAccess(ctx.db, userId, calendarId);
       if (!calendarAccess?.canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
+      }
+      const isVirtual = input.isVirtual ?? false;
+      const resolvedBuildingId = input.buildingId ?? null;
+      if (!isVirtual && resolvedBuildingId === null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Select a building or mark the event as virtual." });
       }
       const scope = {
         scopeType: calendarAccess.calendar.scopeType,
@@ -780,7 +786,8 @@ export const eventRouter = createTRPCRouter({
             title: input.title,
             description: input.description,
             location: input.location,
-            buildingId: input.buildingId ?? null,
+            buildingId: resolvedBuildingId,
+            isVirtual,
             isAllDay: input.isAllDay,
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
@@ -883,6 +890,7 @@ export const eventRouter = createTRPCRouter({
         description: z.string().optional(),
         location: z.string().optional(),
         buildingId: z.number().int().positive().nullable().optional(),
+        isVirtual: z.boolean().optional(),
         isAllDay: z.boolean(),
         startDatetime: z.coerce.date(),
         endDatetime: z.coerce.date(),
@@ -932,6 +940,11 @@ export const eventRouter = createTRPCRouter({
       if (!calendarAccess?.canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
       }
+      const nextIsVirtual = input.isVirtual ?? current.isVirtual;
+      const resolvedBuildingId = input.buildingId === undefined ? current.buildingId : input.buildingId;
+      if (!nextIsVirtual && resolvedBuildingId === null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Select a building or mark the event as virtual." });
+      }
       const nextScope = {
         scopeType: calendarAccess.calendar.scopeType,
         scopeId: calendarAccess.calendar.scopeId,
@@ -970,7 +983,8 @@ export const eventRouter = createTRPCRouter({
             title: input.title,
             description: input.description ?? null,
             location: input.location ?? null,
-            buildingId: input.buildingId === undefined ? current.buildingId : input.buildingId,
+            buildingId: resolvedBuildingId,
+            isVirtual: nextIsVirtual,
             isAllDay: input.isAllDay,
             startDatetime: input.startDatetime,
             endDatetime: input.endDatetime,
