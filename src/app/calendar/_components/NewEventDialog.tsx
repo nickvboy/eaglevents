@@ -1091,7 +1091,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     { enabled: open && assigneeQuery.length > 1 },
   );
   const assigneeMatches = assigneeResults.data ?? [];
-  const shouldShowAssigneeResults = assigneeQuery.length > 1;
+  const shouldShowAssigneeResults = assigneeQuery.length > 1 && quickCreateTarget !== "assignee";
   const attendeeResults = api.profile.search.useQuery(
     { query: attendeeQuery, limit: 7 },
     { enabled: open && attendeeQuery.length > 1 },
