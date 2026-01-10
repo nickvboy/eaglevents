@@ -25,10 +25,11 @@ const adminNavItem: NavItem = { href: "/admin", label: "Admin", icon: ShieldIcon
 
 type SidebarNavProps = {
   user: Session["user"] | null;
+  profileFirstName?: string | null;
 };
 
 export function SidebarNav(props: SidebarNavProps) {
-  const { user } = props;
+  const { user, profileFirstName } = props;
   const pathname = usePathname();
   const permissionsQuery = api.admin.permissions.useQuery();
   const canAccessAdmin = (permissionsQuery.data?.capabilities?.length ?? 0) > 0;
@@ -72,11 +73,23 @@ export function SidebarNav(props: SidebarNavProps) {
           );
         })}
         <div className="flex flex-1 items-center justify-center md:hidden">
-          <AccountMenu user={user} variant="icon" menuPlacement="up" menuAlign="right" />
+          <AccountMenu
+            user={user}
+            profileFirstName={profileFirstName}
+            variant="icon"
+            menuPlacement="up"
+            menuAlign="right"
+          />
         </div>
       </nav>
       <div className="hidden md:mt-auto md:flex md:pb-2">
-        <AccountMenu user={user} variant="icon" menuPlacement="up" menuAlign="left" />
+        <AccountMenu
+          user={user}
+          profileFirstName={profileFirstName}
+          variant="icon"
+          menuPlacement="up"
+          menuAlign="left"
+        />
       </div>
     </aside>
   );

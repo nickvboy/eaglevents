@@ -824,10 +824,102 @@ export function CompanyView() {
           <p className="text-sm text-ink-muted">Add, edit, or remove facilities and their room numbers.</p>
         </header>
 
+        <div className="mt-6 rounded-2xl border border-outline-muted bg-surface-muted p-4">
+          <h3 className="text-sm font-semibold text-ink-primary">Add a building</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+              Name
+              <input
+                value={newBuilding.name}
+                onChange={(event) => setNewBuilding((prev) => ({ ...prev, name: event.target.value }))}
+                className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+              Acronym
+              <input
+                value={newBuilding.acronym}
+                onChange={(event) => setNewBuilding((prev) => ({ ...prev, acronym: event.target.value }))}
+                className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
+              />
+            </label>
+          </div>
+          <div className="mt-4">
+            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
+              Rooms
+              <div className="flex flex-wrap gap-2">
+                <input
+                  value={newBuilding.roomField}
+                  onChange={(event) => setNewBuilding((prev) => ({ ...prev, roomField: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+                    event.preventDefault();
+                    handleAddNewBuildingRoom();
+                  }}
+                  className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                  placeholder="201"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNewBuildingRoom}
+                  className="rounded-full border border-outline-accent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink-primary hover:bg-accent-muted"
+                >
+                  Add room
+                </button>
+              </div>
+            </label>
+            {newBuilding.rooms.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {newBuilding.rooms.map((room) => (
+                  <span
+                    key={room}
+                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs"
+                  >
+                    {room}
+                    <button type="button" onClick={() => handleRemoveNewBuildingRoom(room)} className="text-ink-subtle">
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-ink-muted">Add each room you schedule (e.g., 135, 210A).</p>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={async () => {
+                setBuildingFeedback(null);
+                if (!newBuilding.name.trim() || !newBuilding.acronym.trim() || newBuilding.rooms.length === 0) {
+                  setBuildingFeedback("Add a building name, acronym, and at least one room.");
+                  return;
+                }
+                try {
+                  await createBuilding.mutateAsync({
+                    name: newBuilding.name.trim(),
+                    acronym: newBuilding.acronym.trim(),
+                    rooms: newBuilding.rooms,
+                  });
+                  setNewBuilding({ name: "", acronym: "", rooms: [], roomField: "" });
+                } catch (error) {
+                  setBuildingFeedback((error as Error).message ?? "Failed to add building.");
+                }
+              }}
+              className="rounded-full bg-accent-strong px-5 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default"
+            >
+              Add building
+            </button>
+          </div>
+          {buildingFeedback ? (
+            <p className="mt-3 text-sm text-ink-muted">{buildingFeedback}</p>
+          ) : null}
+        </div>
+
         <div className="mt-6 space-y-4">
           {data.buildings.length === 0 ? (
             <div className="rounded-xl border border-dashed border-outline-muted bg-surface-muted px-4 py-6 text-sm text-ink-muted">
-              No buildings yet. Add your first facility below.
+              No buildings yet. Add your first facility above.
             </div>
           ) : null}
           {data.buildings.map((building) => {
@@ -1016,98 +1108,6 @@ export function CompanyView() {
               </div>
             );
           })}
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-outline-muted bg-surface-muted p-4">
-          <h3 className="text-sm font-semibold text-ink-primary">Add a building</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
-              Name
-              <input
-                value={newBuilding.name}
-                onChange={(event) => setNewBuilding((prev) => ({ ...prev, name: event.target.value }))}
-                className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
-              Acronym
-              <input
-                value={newBuilding.acronym}
-                onChange={(event) => setNewBuilding((prev) => ({ ...prev, acronym: event.target.value }))}
-                className="rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
-              />
-            </label>
-          </div>
-          <div className="mt-4">
-            <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
-              Rooms
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={newBuilding.roomField}
-                  onChange={(event) => setNewBuilding((prev) => ({ ...prev, roomField: event.target.value }))}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
-                    event.preventDefault();
-                    handleAddNewBuildingRoom();
-                  }}
-                  className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                  placeholder="201"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddNewBuildingRoom}
-                  className="rounded-full border border-outline-accent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink-primary hover:bg-accent-muted"
-                >
-                  Add room
-                </button>
-              </div>
-            </label>
-            {newBuilding.rooms.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {newBuilding.rooms.map((room) => (
-                  <span
-                    key={room}
-                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs"
-                  >
-                    {room}
-                    <button type="button" onClick={() => handleRemoveNewBuildingRoom(room)} className="text-ink-subtle">
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-ink-muted">Add each room you schedule (e.g., 135, 210A).</p>
-            )}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={async () => {
-                setBuildingFeedback(null);
-                if (!newBuilding.name.trim() || !newBuilding.acronym.trim() || newBuilding.rooms.length === 0) {
-                  setBuildingFeedback("Add a building name, acronym, and at least one room.");
-                  return;
-                }
-                try {
-                  await createBuilding.mutateAsync({
-                    name: newBuilding.name.trim(),
-                    acronym: newBuilding.acronym.trim(),
-                    rooms: newBuilding.rooms,
-                  });
-                  setNewBuilding({ name: "", acronym: "", rooms: [], roomField: "" });
-                } catch (error) {
-                  setBuildingFeedback((error as Error).message ?? "Failed to add building.");
-                }
-              }}
-              className="rounded-full bg-accent-strong px-5 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default"
-            >
-              Add building
-            </button>
-          </div>
-          {buildingFeedback ? (
-            <p className="mt-3 text-sm text-ink-muted">{buildingFeedback}</p>
-          ) : null}
         </div>
       </section>
 

@@ -43,6 +43,9 @@ export function CalendarSidebar(props: MonthWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"day" | "month">("day");
   const [monthSelectionYear, setMonthSelectionYear] = useState(props.monthDate.getFullYear());
+  const [isEditingYear, setIsEditingYear] = useState(false);
+  const [yearDraft, setYearDraft] = useState(String(props.monthDate.getFullYear()));
+  const yearInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -97,9 +100,31 @@ export function CalendarSidebar(props: MonthWidgetProps) {
 
   useEffect(() => {
     if (mode === "month") {
-      setMonthSelectionYear(props.monthDate.getFullYear());
+      const nextYear = props.monthDate.getFullYear();
+      setMonthSelectionYear(nextYear);
+      if (!isEditingYear) {
+        setYearDraft(String(nextYear));
+      }
+    } else if (isEditingYear) {
+      setIsEditingYear(false);
     }
-  }, [mode, props.monthDate]);
+  }, [isEditingYear, mode, props.monthDate]);
+
+  useEffect(() => {
+    if (!isEditingYear) return;
+    yearInputRef.current?.focus();
+    yearInputRef.current?.select();
+  }, [isEditingYear]);
+
+  const commitYearDraft = () => {
+    const parsed = Number.parseInt(yearDraft, 10);
+    if (Number.isFinite(parsed)) {
+      setMonthSelectionYear(parsed);
+    } else {
+      setYearDraft(String(monthSelectionYear));
+    }
+    setIsEditingYear(false);
+  };
 
   const handleSelectMonth = (monthIndex: number) => {
     const current = props.monthDate;
@@ -218,7 +243,41 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                   <ChevronLeftIcon className="h-4 w-4" />
                 </button>
                 <div className="ml-auto flex items-center gap-3">
-                  <div className="text-base font-semibold">{monthSelectionYear}</div>
+                  {isEditingYear ? (
+                    <input
+                      ref={yearInputRef}
+                      type="text"
+                      inputMode="numeric"
+                      value={yearDraft}
+                      onChange={(event) => setYearDraft(event.target.value)}
+                      onBlur={commitYearDraft}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          commitYearDraft();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setYearDraft(String(monthSelectionYear));
+                          setIsEditingYear(false);
+                        }
+                      }}
+                      className="w-20 rounded-md border border-outline-muted bg-surface-muted px-2 py-1 text-right text-base font-semibold text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-strong focus-visible:outline-offset-1"
+                      aria-label="Edit year"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-base font-semibold hover:text-ink-primary"
+                      onDoubleClick={() => {
+                        setYearDraft(String(monthSelectionYear));
+                        setIsEditingYear(true);
+                      }}
+                      aria-label="Edit year"
+                    >
+                      {monthSelectionYear}
+                    </button>
+                  )}
                   <div className="flex items-center gap-1">
                     <button
                       type="button"

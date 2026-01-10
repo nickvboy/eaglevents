@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 
 type Props = {
@@ -9,9 +9,16 @@ type Props = {
   variant?: "default" | "icon";
   menuPlacement?: "down" | "up";
   menuAlign?: "left" | "right";
+  profileFirstName?: string | null;
 };
 
-export function AccountMenu({ user, variant = "icon", menuPlacement = "down", menuAlign = "right" }: Props) {
+export function AccountMenu({
+  user,
+  variant = "icon",
+  menuPlacement = "down",
+  menuAlign = "right",
+  profileFirstName,
+}: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -23,9 +30,14 @@ export function AccountMenu({ user, variant = "icon", menuPlacement = "down", me
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const email = user?.email ?? "";
-  const name = user?.name ?? email?.split("@")[0] ?? "User";
-  const initials = (name || "U").slice(0, 1).toUpperCase();
+  const { data: session } = useSession();
+  const sessionUser = session?.user ?? null;
+  const email = sessionUser?.email ?? user?.email ?? "";
+  const fromProfile = sessionUser?.profileFirstName?.trim() ?? profileFirstName?.trim();
+  const fromName = sessionUser?.name?.trim() ?? user?.name?.trim();
+  const fallbackName = email ? email?.split("@")[0] : "";
+  const computedName = fromProfile || fromName || fallbackName;
+  const initials = computedName ? computedName.slice(0, 1).toUpperCase() : null;
 
   const isIcon = variant === "icon";
   const buttonClass = isIcon
@@ -44,11 +56,21 @@ export function AccountMenu({ user, variant = "icon", menuPlacement = "down", me
         aria-label={email ? `Account menu for ${email}` : "Account menu"}
       >
         {isIcon ? (
-          <span className="text-sm font-semibold">{initials}</span>
+          <span
+            className={`text-sm font-semibold ${initials ? "" : "opacity-50"}`}
+            aria-hidden={!initials}
+          >
+            {initials ?? ""}
+          </span>
         ) : (
           <>
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-strong text-xs text-ink-inverted">
-              {initials}
+            <span
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
+                initials ? "bg-accent-strong text-xs text-ink-inverted" : "bg-surface-muted/70"
+              }`}
+              aria-hidden={!initials}
+            >
+              {initials ?? ""}
             </span>
             <span className="max-w-[180px] truncate text-ink-primary">{email}</span>
           </>

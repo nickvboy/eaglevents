@@ -14,6 +14,7 @@ const DEFAULT_TIME_VALUE = "06:30";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZENDESK_TICKET_REGEX = /^\d{6}$/;
 const DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v1";
+const EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v1";
 
 type Segment = {
   id: string;
@@ -175,23 +176,43 @@ function parseLocationInput(raw: string) {
   const compact = upper.replace(/\s+|-/g, "");
   let acronym: string | null = null;
   let room: string | null = null;
-  const m1 = /^([A-Z]{1,16})([0-9][A-Z0-9]*)$/.exec(compact);
-  if (m1) {
-    acronym = m1[1] ?? null;
-    room = m1[2] ?? null;
+  const m2 = /^\s*([A-Z][A-Z0-9]{0,15})\s*[- ]\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
+  if (m2) {
+    acronym = m2[1] ?? null;
+    room = m2[2] ?? null;
   } else {
-    const m2 = /^\s*([A-Z]{1,16})\s*[- ]?\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
-    if (m2) {
-      acronym = m2[1] ?? null;
-      room = m2[2] ?? null;
+    const m1 = /^([A-Z]{1,16})([0-9][A-Z0-9]*)$/.exec(compact);
+    if (m1) {
+      acronym = m1[1] ?? null;
+      room = m1[2] ?? null;
     } else {
-      const onlyAcr = /^\s*([A-Z]{1,16})\s*$/.exec(upper);
+      const onlyAcr = /^\s*([A-Z][A-Z0-9]{0,15})\s*$/.exec(upper);
       const onlyRoom = /^\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
       if (onlyAcr) acronym = onlyAcr[1] ?? null;
       if (onlyRoom) room = onlyRoom[1] ?? null;
     }
   }
   return { acronym, room };
+}
+
+function formatLocationSummaryFromRooms(rooms: LocationMatch[]) {
+  if (rooms.length === 0) return "";
+  const grouped = new Map<number, { acronym: string; rooms: string[] }>();
+  for (const entry of rooms) {
+    const existing = grouped.get(entry.buildingId);
+    if (existing) {
+      existing.rooms.push(entry.roomNumber);
+    } else {
+      grouped.set(entry.buildingId, { acronym: entry.acronym, rooms: [entry.roomNumber] });
+    }
+  }
+  const segments = Array.from(grouped.values()).map((group) => {
+    const uniqueRooms = Array.from(new Set(group.rooms));
+    return uniqueRooms.length === 1
+      ? `${group.acronym} ${uniqueRooms[0]}`
+      : `${group.acronym} ${uniqueRooms.join(", ")}`;
+  });
+  return segments.join("; ");
 }
 
 function parseHourLogTime(value: string, baseDate: Date) {
@@ -464,6 +485,13 @@ type NewEventDraft = {
   selectedBuildingId: number | null;
   selectedBuildingAcronym: string;
   roomNumber: string;
+  locationRooms: Array<{
+    roomId: number;
+    buildingId: number;
+    buildingName: string;
+    acronym: string;
+    roomNumber: string;
+  }>;
   description: string;
   recurring: boolean;
   participantCount: string;
@@ -558,6 +586,24 @@ function readNewEventDraft(): NewEventDraft | null {
   }
 }
 
+function getEditEventDraftKey(eventId: number) {
+  return `${EDIT_DRAFT_STORAGE_PREFIX}:${eventId}`;
+}
+
+function readEditEventDraft(eventId: number): NewEventDraft | null {
+  if (typeof window === "undefined") return null;
+  if (!Number.isFinite(eventId)) return null;
+  try {
+    const raw = window.sessionStorage.getItem(getEditEventDraftKey(eventId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<NewEventDraft>;
+    if (parsed.version !== 1) return null;
+    return parsed as NewEventDraft;
+  } catch {
+    return null;
+  }
+}
+
 function writeNewEventDraft(draft: NewEventDraft) {
   if (typeof window === "undefined") return;
   try {
@@ -567,10 +613,30 @@ function writeNewEventDraft(draft: NewEventDraft) {
   }
 }
 
+function writeEditEventDraft(eventId: number, draft: NewEventDraft) {
+  if (typeof window === "undefined") return;
+  if (!Number.isFinite(eventId)) return;
+  try {
+    window.sessionStorage.setItem(getEditEventDraftKey(eventId), JSON.stringify(draft));
+  } catch {
+    // Ignore storage failures (private mode, quota, etc.).
+  }
+}
+
 function clearNewEventDraft() {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearEditEventDraft(eventId: number) {
+  if (typeof window === "undefined") return;
+  if (!Number.isFinite(eventId)) return;
+  try {
+    window.sessionStorage.removeItem(getEditEventDraftKey(eventId));
   } catch {
     // Ignore storage failures.
   }
@@ -596,6 +662,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const deleteMutation = api.event.delete.useMutation({
     onSuccess: async () => {
       await utils.event.invalidate();
+      if (event) {
+        clearEditEventDraft(event.id);
+      }
       onClose();
     },
   });
@@ -611,6 +680,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
   const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
   const [roomNumber, setRoomNumber] = useState<string>("");
+  const [selectedRooms, setSelectedRooms] = useState<LocationMatch[]>([]);
   const [description, setDescription] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [participantCount, setParticipantCount] = useState("");
@@ -682,7 +752,99 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (!open) return;
     skipNextDraftPersistRef.current = true;
     setShowDeleteConfirm(false);
+    const preferred = (calendarOptions ?? [])
+      .map((c) => c.id)
+      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
+    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
     if (event) {
+      const editDraft = readEditEventDraft(event.id);
+      if (editDraft) {
+        const writableIds = new Set((calendars ?? []).filter((c) => c.canWrite).map((c) => c.id));
+        const draftCalendarIds = Array.isArray(editDraft.selectedCalendarIds)
+          ? editDraft.selectedCalendarIds.filter((id) => writableIds.has(id))
+          : [];
+        const draftCalendarId =
+          typeof editDraft.selectedCalendarId === "number" && writableIds.has(editDraft.selectedCalendarId)
+            ? editDraft.selectedCalendarId
+            : draftCalendarIds[0] ?? null;
+        const fallbackCalendarId =
+          draftCalendarId ?? event.calendarId ?? calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+        const initialSelections =
+          draftCalendarIds.length > 0 ? draftCalendarIds : fallbackCalendarId ? [fallbackCalendarId] : [];
+        const nextSegments =
+          Array.isArray(editDraft.segments)
+            ? editDraft.segments
+                .map((segment) => {
+                  const start = parseDraftDate(segment?.start);
+                  const end = parseDraftDate(segment?.end);
+                  if (!start || !end) return null;
+                  return { id: randomId(), start, end };
+                })
+                .filter((segment): segment is Segment => Boolean(segment))
+            : [];
+        const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some((opt) => opt.value === editDraft.requestCategory)
+          ? editDraft.requestCategory
+          : "";
+        setTitle(editDraft.title ?? "");
+        setSegments(
+          nextSegments.length > 0
+            ? nextSegments
+            : [
+                {
+                  id: randomId(),
+                  start: new Date(event.startDatetime),
+                  end: new Date(event.endDatetime),
+                },
+              ],
+        );
+        setAllDay(Boolean(editDraft.allDay));
+        setLocation(editDraft.location ?? "");
+        setIsVirtual(Boolean(editDraft.isVirtual));
+        setSelectedBuildingId(typeof editDraft.selectedBuildingId === "number" ? editDraft.selectedBuildingId : null);
+        setSelectedBuildingAcronym(editDraft.selectedBuildingAcronym ?? "");
+        setRoomNumber(editDraft.roomNumber ?? "");
+        setSelectedRooms(Array.isArray(editDraft.locationRooms) ? editDraft.locationRooms : []);
+        setDescription(editDraft.description ?? "");
+        setRecurring(Boolean(editDraft.recurring));
+        setParticipantCount(editDraft.participantCount ?? "");
+        setTechnicianNeeded(Boolean(editDraft.technicianNeeded));
+        setRequestCategory(nextRequestCategory);
+        setEquipmentNeeded(editDraft.equipmentNeeded ?? "");
+        setZendeskTicket(editDraft.zendeskTicket ?? "");
+        setEventInfoStart(parseDraftDate(editDraft.eventInfoStart));
+        setEventInfoEnd(parseDraftDate(editDraft.eventInfoEnd));
+        setSetupInfoTime(parseDraftDate(editDraft.setupInfoTime));
+        setError(null);
+        setAssignee(editDraft.assignee ?? null);
+        setAssigneeSearch("");
+        setAssigneeQuery("");
+        setSelectedAttendees(Array.isArray(editDraft.selectedAttendees) ? editDraft.selectedAttendees : []);
+        setAttendeeSearch("");
+        setAttendeeQuery("");
+        setSelectedCoOwners(Array.isArray(editDraft.selectedCoOwners) ? editDraft.selectedCoOwners : []);
+        setCoOwnerSearch("");
+        setCoOwnerQuery("");
+        setQuickCreateTarget(null);
+        setQuickCreateDraft(emptyProfileDraft);
+        setQuickCreateError(null);
+        setSelectedCalendarId(fallbackCalendarId);
+        setSelectedCalendarIds(initialSelections);
+        setHourLogs(
+          Array.isArray(editDraft.hourLogs)
+            ? editDraft.hourLogs.map((log) => ({
+                id: randomId(),
+                start: parseDraftDate(log?.start),
+                end: parseDraftDate(log?.end),
+              }))
+            : event.hourLogs?.map((log) => ({
+                id: randomId(),
+                sourceId: log.id,
+                start: log.startTime ? new Date(log.startTime) : null,
+                end: log.endTime ? new Date(log.endTime) : null,
+              })) ?? [],
+        );
+        return;
+      }
       setTitle(event.title);
       setSegments([
         {
@@ -692,12 +854,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         },
       ]);
       setAllDay(event.isAllDay);
-      setLocation(event.location ?? "");
+      const eventLocations = Array.isArray(event.locations) ? event.locations : [];
+      const hasLocations = eventLocations.length > 0;
+      setLocation(hasLocations ? "" : event.location ?? "");
       setIsVirtual(Boolean(event.isVirtual));
       setSelectedBuildingId(event.buildingId ?? null);
-      const parsed = parseLocationInput(event.location ?? "");
-      if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
-      if (parsed.room) setRoomNumber(parsed.room);
+      setSelectedRooms(eventLocations);
+      if (!hasLocations) {
+        const parsed = parseLocationInput(event.location ?? "");
+        if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
+        if (parsed.room) setRoomNumber(parsed.room);
+      }
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
       setParticipantCount(typeof event.participantCount === "number" ? String(event.participantCount) : "");
@@ -769,10 +936,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       return;
     }
     const draft = readNewEventDraft();
-    const preferred = (calendarOptions ?? [])
-      .map((c) => c.id)
-      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
-    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
     if (draft) {
       const writableIds = new Set((calendars ?? []).filter((c) => c.canWrite).map((c) => c.id));
       const draftCalendarIds = Array.isArray(draft.selectedCalendarIds)
@@ -807,6 +970,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setSelectedBuildingId(typeof draft.selectedBuildingId === "number" ? draft.selectedBuildingId : null);
       setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
       setRoomNumber(draft.roomNumber ?? "");
+      setSelectedRooms(Array.isArray(draft.locationRooms) ? draft.locationRooms : []);
       setDescription(draft.description ?? "");
       setRecurring(Boolean(draft.recurring));
       setParticipantCount(draft.participantCount ?? "");
@@ -854,6 +1018,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setSelectedBuildingId(null);
     setSelectedBuildingAcronym("");
     setRoomNumber("");
+    setSelectedRooms([]);
     setDescription("");
     setRecurring(false);
     setParticipantCount("");
@@ -883,7 +1048,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds]);
 
   useEffect(() => {
-    if (!open || event) return;
+    if (!open) return;
     if (skipNextDraftPersistRef.current) {
       skipNextDraftPersistRef.current = false;
       return;
@@ -903,6 +1068,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       selectedBuildingId,
       selectedBuildingAcronym,
       roomNumber,
+      locationRooms: selectedRooms.map((entry) => ({
+        roomId: entry.roomId,
+        buildingId: entry.buildingId,
+        buildingName: entry.buildingName,
+        acronym: entry.acronym,
+        roomNumber: entry.roomNumber,
+      })),
       description,
       recurring,
       participantCount,
@@ -921,7 +1093,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         end: log.end ? log.end.toISOString() : null,
       })),
     };
-    writeNewEventDraft(draft);
+    if (event) {
+      writeEditEventDraft(event.id, draft);
+    } else {
+      writeNewEventDraft(draft);
+    }
   }, [
     open,
     event,
@@ -935,6 +1111,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     selectedBuildingId,
     selectedBuildingAcronym,
     roomNumber,
+    selectedRooms,
     description,
     recurring,
     participantCount,
@@ -1163,6 +1340,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (match) setSelectedBuildingId(match.id);
   }, [selectedBuildingAcronym, selectedBuildingId, buildingList.data]);
 
+  useEffect(() => {
+    if (!selectedBuildingAcronym || roomNumber.trim().length === 0) return;
+    const query = `${selectedBuildingAcronym} ${roomNumber}`.trim();
+    setLocation(query);
+    setLocationQuery(query);
+    setLocationHighlight(-1);
+  }, [selectedBuildingAcronym, roomNumber]);
+
   // Location search + sync effects
   useEffect(() => {
     setLocationHighlight(-1);
@@ -1193,19 +1378,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         return;
       }
       setLocationQuery(trimmed);
-      const { acronym, room } = parseLocationInput(trimmed);
-      if (acronym) setSelectedBuildingAcronym(acronym);
-      if (room) setRoomNumber(room);
     }, 250);
     return () => window.clearTimeout(handle);
   }, [location]);
-
-  useEffect(() => {
-    if (selectedBuildingAcronym) {
-      const next = roomNumber ? `${selectedBuildingAcronym} ${roomNumber}` : `${selectedBuildingAcronym}`;
-      setLocation(next);
-    }
-  }, [selectedBuildingAcronym, roomNumber]);
   const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
   const hourLogsValidationMessage = hourLogsInvalid
     ? "Each log's end time must be after its start time."
@@ -1234,12 +1409,66 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     }
   };
 
+  const addSelectedRoom = (match: LocationMatch) => {
+    setSelectedRooms((prev) => {
+      if (prev.some((entry) => entry.roomId === match.roomId)) return prev;
+      return [...prev, match];
+    });
+  };
+
   const handleLocationSelect = (match: LocationMatch) => {
     setSelectedBuildingId(match.buildingId);
     setSelectedBuildingAcronym(match.acronym);
-    setRoomNumber(match.roomNumber);
-    setLocation(`${match.acronym} ${match.roomNumber}`);
+    addSelectedRoom(match);
+    setLocation("");
     setLocationQuery("");
+    setLocationHighlight(-1);
+  };
+
+  const handleClearForm = () => {
+    const preferred = (calendarOptions ?? [])
+      .map((c) => c.id)
+      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
+    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
+    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+    const initialSelections =
+      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
+    setTitle("");
+    setSegments([makeSegment(defaultDate)]);
+    setAllDay(false);
+    setLocation("");
+    setIsVirtual(false);
+    setSelectedBuildingId(null);
+    setSelectedBuildingAcronym("");
+    setRoomNumber("");
+    setSelectedRooms([]);
+    setDescription("");
+    setRecurring(false);
+    setParticipantCount("");
+    setTechnicianNeeded(false);
+    setRequestCategory("");
+    setEquipmentNeeded("");
+    setZendeskTicket("");
+    setEventInfoStart(null);
+    setEventInfoEnd(null);
+    setSetupInfoTime(null);
+    setError(null);
+    setAssignee(null);
+    setAssigneeSearch("");
+    setAssigneeQuery("");
+    setSelectedAttendees([]);
+    setAttendeeSearch("");
+    setAttendeeQuery("");
+    setSelectedCoOwners([]);
+    setCoOwnerSearch("");
+    setCoOwnerQuery("");
+    setQuickCreateTarget(null);
+    setQuickCreateDraft(emptyProfileDraft);
+    setQuickCreateError(null);
+    setSelectedCalendarId(fallbackCalendarId);
+    setSelectedCalendarIds(initialSelections);
+    setHourLogs([]);
+    clearNewEventDraft();
   };
 
   const handleAddRoom = async () => {
@@ -1254,7 +1483,30 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       return;
     }
     setAddRoomError(null);
-    await createRoom.mutateAsync({ buildingId: selectedBuildingId, roomNumber: nextRoom });
+    const searchQuery = selectedBuildingAcronym ? `${selectedBuildingAcronym} ${nextRoom}` : nextRoom;
+    const matches = await utils.facility.searchRooms.fetch({ query: searchQuery, limit: 5 });
+    const existing = matches.find(
+      (match) => match.buildingId === selectedBuildingId && match.roomNumber.toUpperCase() === nextRoom,
+    );
+    if (existing) {
+      addSelectedRoom(existing);
+      setRoomNumber("");
+      return;
+    }
+    const created = await createRoom.mutateAsync({ buildingId: selectedBuildingId, roomNumber: nextRoom });
+    const building = (buildingList.data ?? []).find((entry) => entry.id === selectedBuildingId);
+    if (!building) {
+      setAddRoomError("Building could not be resolved for the new room.");
+      return;
+    }
+    addSelectedRoom({
+      roomId: created.id,
+      buildingId: selectedBuildingId,
+      buildingName: building.name,
+      acronym: building.acronym,
+      roomNumber: nextRoom,
+    });
+    setRoomNumber("");
   };
 
   const addHourLogRow = () => {
@@ -1540,6 +1792,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         return;
       }
       const targetCalendarId = targetCalendarIds[0] ?? null;
+      const selectedRoomIds = selectedRooms.map((entry) => entry.roomId);
+      const roomLocationSummary = formatLocationSummaryFromRooms(selectedRooms);
+      const locationPayload = selectedRoomIds.length > 0 ? roomLocationSummary : location.trim();
+      const buildingIdPayload = selectedRoomIds.length > 0 ? selectedRooms[0]?.buildingId ?? null : selectedBuildingId;
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -1553,8 +1809,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           calendarId: targetCalendarId ?? targetCalendarIds[0]!,
           title,
           description,
-          location,
-          buildingId: selectedBuildingId,
+          location: locationPayload,
+          buildingId: buildingIdPayload,
+          roomIds: selectedRoomIds,
           isVirtual,
           isAllDay: allDay,
           startDatetime: dayStart,
@@ -1588,8 +1845,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               calendarId,
               title,
               description,
-              location,
-              buildingId: selectedBuildingId ?? undefined,
+              location: locationPayload,
+              buildingId: buildingIdPayload ?? undefined,
+              roomIds: selectedRoomIds,
               isVirtual,
               isAllDay: allDay,
               startDatetime: dayStart,
@@ -1626,8 +1884,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               calendarId,
               title,
               description,
-              location,
-              buildingId: selectedBuildingId ?? undefined,
+              location: locationPayload,
+              buildingId: buildingIdPayload ?? undefined,
+              roomIds: selectedRoomIds,
               isVirtual,
               isAllDay: allDay,
               startDatetime: dayStart,
@@ -1650,7 +1909,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         }
       }
       await utils.event.invalidate();
-      if (!isEditing) {
+      if (isEditing && event) {
+        clearEditEventDraft(event.id);
+      } else {
         clearNewEventDraft();
       }
       onClose();
@@ -2426,14 +2687,49 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 <input
                   placeholder="e.g., 210 or 210A"
                   value={roomNumber}
-                  onChange={(e) => setRoomNumber(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    const next = e.target.value.toUpperCase();
+                    setRoomNumber(next);
+                    const query = next.trim().length > 0 ? `${selectedBuildingAcronym} ${next}`.trim() : "";
+                    setLocation(query);
+                    setLocationQuery(query);
+                    setLocationHighlight(-1);
+                  }}
                   className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
                 />
+                <button
+                  type="button"
+                  onClick={() => void handleAddRoom()}
+                  className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
+                >
+                  Add room to event
+                </button>
               </div>
             </div>
+            {selectedRooms.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {selectedRooms.map((entry) => (
+                  <span
+                    key={`${entry.roomId}-${entry.buildingId}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
+                  >
+                    <span className="font-semibold">{entry.acronym}</span>
+                    <span>{entry.roomNumber}</span>
+                    <button
+                      type="button"
+                      className="text-ink-muted transition hover:text-ink-primary"
+                      onClick={() => setSelectedRooms((prev) => prev.filter((room) => room.roomId !== entry.roomId))}
+                      aria-label={`Remove ${entry.acronym} ${entry.roomNumber}`}
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div ref={locationWrapRef}>
               <input
-                placeholder="Location (try: BHG 210 or just 210)"
+                placeholder="Search rooms (try: BHG 210 or just 210)"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 onKeyDown={(e) => {
@@ -2510,16 +2806,27 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
 
           <div className="mt-2 flex items-center justify-between gap-2">
-            {isEditing && event && (
-              <button
-                type="button"
-                className="rounded-md border border-status-danger px-3 py-1.5 text-sm font-medium text-status-danger transition hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60"
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            )}
+            <div className="flex gap-2">
+              {isEditing && event && (
+                <button
+                  type="button"
+                  className="rounded-md border border-status-danger px-3 py-1.5 text-sm font-medium text-status-danger transition hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                </button>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="rounded-md border border-outline-muted px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-muted hover:text-ink-primary"
+                  onClick={handleClearForm}
+                >
+                  Clear Form
+                </button>
+              )}
+            </div>
             <button
               className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
               disabled={!canSave}

@@ -7,9 +7,12 @@ import {
   eventCoOwners,
   eventAttendees,
   eventHourLogs,
+  eventRooms,
   eventZendeskConfirmations,
   events,
+  buildings,
   profiles,
+  rooms,
 } from "~/server/db/schema";
 import { ensurePrimaryCalendars, getAccessibleCalendarIds, getCalendarAccess } from "~/server/services/calendar";
 import { refreshJoinTableExport } from "~/server/services/join-table-export";
@@ -65,6 +68,16 @@ type EventResponse = EventWithCoOwners & {
   hourLogs: HourLogResponse[];
   totalLoggedMinutes: number;
   attendees: AttendeeSummary[];
+};
+type EventLocation = {
+  roomId: number;
+  roomNumber: string;
+  buildingId: number;
+  buildingName: string;
+  acronym: string;
+};
+type EventResponseWithLocations = EventResponse & {
+  locations: EventLocation[];
 };
 type ZendeskQueueItem = {
   eventId: number;
@@ -278,11 +291,49 @@ async function attachAttendees(db: DbClient, rows: EventWithCoOwners[]): Promise
   }));
 }
 
-async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<EventResponse[]> {
+async function attachLocations(db: DbClient, rows: EventResponse[]): Promise<EventResponseWithLocations[]> {
+  if (rows.length === 0) return [];
+  const eventIds = rows.map((row) => row.id);
+  const locationRows = await db
+    .select({
+      eventId: eventRooms.eventId,
+      roomId: rooms.id,
+      roomNumber: rooms.roomNumber,
+      buildingId: buildings.id,
+      buildingName: buildings.name,
+      acronym: buildings.acronym,
+    })
+    .from(eventRooms)
+    .innerJoin(rooms, eq(eventRooms.roomId, rooms.id))
+    .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+    .where(inArray(eventRooms.eventId, eventIds))
+    .orderBy(buildings.acronym, rooms.roomNumber);
+
+  const grouped = new Map<number, EventLocation[]>();
+  for (const row of locationRows) {
+    const list = grouped.get(row.eventId) ?? [];
+    list.push({
+      roomId: row.roomId,
+      roomNumber: row.roomNumber,
+      buildingId: row.buildingId,
+      buildingName: row.buildingName,
+      acronym: row.acronym,
+    });
+    grouped.set(row.eventId, list);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    locations: grouped.get(row.id) ?? [],
+  }));
+}
+
+async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<EventResponseWithLocations[]> {
   const withAssignees = await attachAssignees(db, rows);
   const withLogs = await attachHourLogs(db, withAssignees);
   const withCoOwners = await attachCoOwners(db, withLogs);
-  return attachAttendees(db, withCoOwners);
+  const withAttendees = await attachAttendees(db, withCoOwners);
+  return attachLocations(db, withAttendees);
 }
 
 function normalizeHourLogs(
@@ -338,6 +389,63 @@ async function getUniqueEventCode(db: DbClient) {
     if (!existing[0]) return candidate;
   }
   throw new Error("Failed to generate a unique event code");
+}
+
+function formatLocationSummary(locations: EventLocation[]) {
+  if (locations.length === 0) return null;
+  const grouped = new Map<number, { acronym: string; rooms: string[] }>();
+  for (const entry of locations) {
+    const key = entry.buildingId;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.rooms.push(entry.roomNumber);
+    } else {
+      grouped.set(key, { acronym: entry.acronym, rooms: [entry.roomNumber] });
+    }
+  }
+  const segments = Array.from(grouped.values()).map((group) => {
+    const rooms = Array.from(new Set(group.rooms));
+    return rooms.length === 1 ? `${group.acronym} ${rooms[0]}` : `${group.acronym} ${rooms.join(", ")}`;
+  });
+  return segments.join("; ");
+}
+
+async function resolveRoomSelection(
+  dbClient: DbClient,
+  roomIds: number[],
+  businessId: number | null | undefined,
+): Promise<EventLocation[]> {
+  if (roomIds.length === 0) return [];
+  const rows = await dbClient
+    .select({
+      roomId: rooms.id,
+      roomNumber: rooms.roomNumber,
+      buildingId: buildings.id,
+      buildingName: buildings.name,
+      acronym: buildings.acronym,
+      businessId: buildings.businessId,
+    })
+    .from(rooms)
+    .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+    .where(inArray(rooms.id, roomIds));
+
+  if (rows.length !== roomIds.length) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "One or more rooms could not be found." });
+  }
+  if (businessId) {
+    for (const row of rows) {
+      if (row.businessId !== businessId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Room does not belong to this business." });
+      }
+    }
+  }
+  return rows.map((row) => ({
+    roomId: row.roomId,
+    roomNumber: row.roomNumber,
+    buildingId: row.buildingId,
+    buildingName: row.buildingName,
+    acronym: row.acronym,
+  }));
 }
 
 function buildScopeCondition(visible: { business: boolean; departmentIds: number[]; divisionIds: number[] }) {
@@ -707,6 +815,7 @@ export const eventRouter = createTRPCRouter({
         description: z.string().optional(),
         location: z.string().optional(),
         buildingId: z.number().int().positive().nullable().optional(),
+        roomIds: z.array(z.number().int().positive()).optional(),
         isVirtual: z.boolean().optional(),
         isAllDay: z.boolean().default(false),
         startDatetime: z.coerce.date(),
@@ -740,11 +849,16 @@ export const eventRouter = createTRPCRouter({
       if (!calendarAccess?.canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
       }
+      const permissionContext = await getOptionalPermissionContext(ctx.db, ctx.session);
       const isVirtual = input.isVirtual ?? false;
-      const resolvedBuildingId = input.buildingId ?? null;
+      const roomIds = Array.from(new Set(input.roomIds ?? [])).filter((id) => Number.isFinite(id));
+      const resolvedRooms = await resolveRoomSelection(ctx.db, roomIds, permissionContext?.businessId ?? null);
+      const primaryBuildingId = resolvedRooms[0]?.buildingId ?? null;
+      const resolvedBuildingId = roomIds.length > 0 ? primaryBuildingId : input.buildingId ?? null;
       if (!isVirtual && resolvedBuildingId === null) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Select a building or mark the event as virtual." });
       }
+      const resolvedLocation = roomIds.length > 0 ? formatLocationSummary(resolvedRooms) : input.location;
       const scope = {
         scopeType: calendarAccess.calendar.scopeType,
         scopeId: calendarAccess.calendar.scopeId,
@@ -785,7 +899,7 @@ export const eventRouter = createTRPCRouter({
             eventCode,
             title: input.title,
             description: input.description,
-            location: input.location,
+            location: resolvedLocation,
             buildingId: resolvedBuildingId,
             isVirtual,
             isAllDay: input.isAllDay,
@@ -803,6 +917,15 @@ export const eventRouter = createTRPCRouter({
           })
           .returning();
         if (!row) throw new Error("Failed to create event");
+
+        if (roomIds.length > 0) {
+          await tx.insert(eventRooms).values(
+            roomIds.map((roomId) => ({
+              eventId: row.id,
+              roomId,
+            })),
+          );
+        }
 
         if (coOwnerIds.length > 0) {
           await tx.insert(eventCoOwners).values(
@@ -890,6 +1013,7 @@ export const eventRouter = createTRPCRouter({
         description: z.string().optional(),
         location: z.string().optional(),
         buildingId: z.number().int().positive().nullable().optional(),
+        roomIds: z.array(z.number().int().positive()).optional(),
         isVirtual: z.boolean().optional(),
         isAllDay: z.boolean(),
         startDatetime: z.coerce.date(),
@@ -940,11 +1064,28 @@ export const eventRouter = createTRPCRouter({
       if (!calendarAccess?.canWrite) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to that calendar." });
       }
+      const permissionContext = await getOptionalPermissionContext(ctx.db, ctx.session);
       const nextIsVirtual = input.isVirtual ?? current.isVirtual;
-      const resolvedBuildingId = input.buildingId === undefined ? current.buildingId : input.buildingId;
+      const roomIds =
+        input.roomIds === undefined
+          ? null
+          : Array.from(new Set(input.roomIds)).filter((id) => Number.isFinite(id));
+      const resolvedRooms =
+        roomIds === null ? null : await resolveRoomSelection(ctx.db, roomIds, permissionContext?.businessId ?? null);
+      const primaryBuildingId = resolvedRooms?.[0]?.buildingId ?? null;
+      const resolvedBuildingId =
+        roomIds && roomIds.length > 0
+          ? primaryBuildingId
+          : input.buildingId === undefined
+            ? current.buildingId
+            : input.buildingId;
       if (!nextIsVirtual && resolvedBuildingId === null) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Select a building or mark the event as virtual." });
       }
+      const resolvedLocation =
+        resolvedRooms && resolvedRooms.length > 0
+          ? formatLocationSummary(resolvedRooms)
+          : input.location ?? current.location;
       const nextScope = {
         scopeType: calendarAccess.calendar.scopeType,
         scopeId: calendarAccess.calendar.scopeId,
@@ -982,7 +1123,7 @@ export const eventRouter = createTRPCRouter({
             scopeId: nextScope.scopeId,
             title: input.title,
             description: input.description ?? null,
-            location: input.location ?? null,
+            location: resolvedLocation ?? null,
             buildingId: resolvedBuildingId,
             isVirtual: nextIsVirtual,
             isAllDay: input.isAllDay,
@@ -1001,6 +1142,18 @@ export const eventRouter = createTRPCRouter({
           .where(eq(events.id, input.id))
           .returning();
         if (!row) throw new Error("Failed to update event");
+
+        if (roomIds !== null) {
+          await tx.delete(eventRooms).where(eq(eventRooms.eventId, row.id));
+          if (roomIds.length > 0) {
+            await tx.insert(eventRooms).values(
+              roomIds.map((roomId) => ({
+                eventId: row.id,
+                roomId,
+              })),
+            );
+          }
+        }
 
         if (input.coOwnerProfileIds) {
           await tx.delete(eventCoOwners).where(eq(eventCoOwners.eventId, current.id));

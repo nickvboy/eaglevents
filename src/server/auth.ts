@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "~/server/db";
-import { users } from "~/server/db/schema";
+import { profiles, users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { env } from "~/env";
 import { getClientIp, loginLimiter } from "~/server/rate-limit";
@@ -117,9 +117,21 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = typeof user.id === "string" ? user.id : String(user.id);
+        const userId = typeof user.id === "string" ? user.id : String(user.id);
+        token.id = userId;
         token.name = user.name;
         token.email = user.email;
+        const parsedId = Number.parseInt(userId, 10);
+        if (Number.isInteger(parsedId)) {
+          const profile = await db.query.profiles.findFirst({
+            where: (p, { eq }) => eq(p.userId, parsedId),
+            columns: { firstName: profiles.firstName },
+          });
+          const trimmedFirstName = profile?.firstName?.trim();
+          token.profileFirstName = trimmedFirstName && trimmedFirstName.length > 0 ? trimmedFirstName : null;
+        } else {
+          token.profileFirstName = null;
+        }
       }
       return token;
     },
@@ -130,6 +142,7 @@ export const authOptions: NextAuthOptions = {
         }
         session.user.name = token.name;
         session.user.email = typeof token.email === "string" ? token.email : null;
+        session.user.profileFirstName = token.profileFirstName ?? null;
       }
       return session;
     },
@@ -155,6 +168,7 @@ declare module "next-auth" {
       id: string;
       name: string | null | undefined;
       email: string | null | undefined;
+      profileFirstName?: string | null;
     };
   }
 }
@@ -162,5 +176,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
+    profileFirstName?: string | null;
   }
 }

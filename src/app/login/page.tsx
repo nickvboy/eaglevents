@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -23,6 +23,16 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function waitForSession() {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const session = await getSession();
+      if (session?.user?.id) return session;
+      await new Promise((resolve) => setTimeout(resolve, 75));
+    }
+    return null;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +59,7 @@ export default function LoginPage() {
           setError("Invalid credentials");
         }
       } else if (res?.ok) {
+        await waitForSession();
         router.push(callbackUrl);
       }
     } finally {

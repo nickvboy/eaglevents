@@ -1,11 +1,13 @@
 "use client";
 
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import { httpBatchStreamLink, loggerLink } from "@trpc/client";
+import { httpBatchStreamLink, loggerLink, type TRPCLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { useState } from "react";
 import SuperJSON from "superjson";
+import { signOut } from "next-auth/react";
+import { observable } from "@trpc/server/observable";
 
 import { type AppRouter } from "~/server/api/root";
 import { createQueryClient } from "./query-client";
@@ -38,6 +40,38 @@ export type RouterInputs = inferRouterInputs<AppRouter>;
  */
 export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
+/**
+ * Custom error link to handle stale sessions
+ * Detects "Account not found" errors and forces re-authentication
+ */
+const staleSessionLink: TRPCLink<AppRouter> = () => {
+  return ({ next, op }) => {
+    return observable((observer) => {
+      const unsubscribe = next(op).subscribe({
+        next(value) {
+          observer.next(value);
+        },
+        error(err) {
+          // Check if this is a stale session error
+          if (
+            err.data?.code === "UNAUTHORIZED" &&
+            err.message?.includes("Account not found")
+          ) {
+            console.warn("Stale session detected, forcing sign out...");
+            // Sign out and redirect to login
+            void signOut({ callbackUrl: "/login" });
+          }
+          observer.error(err);
+        },
+        complete() {
+          observer.complete();
+        },
+      });
+      return unsubscribe;
+    });
+  };
+};
+
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -49,6 +83,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
             process.env.NODE_ENV === "development" ||
             (op.direction === "down" && op.result instanceof Error),
         }),
+        staleSessionLink,
         httpBatchStreamLink({
           transformer: SuperJSON,
           url: getBaseUrl() + "/api/trpc",

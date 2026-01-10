@@ -1,6 +1,6 @@
 {
-  "id": "7b69bf50-6520-4d91-92ce-b8f06de8d56f",
-  "prevId": "1c18f474-6560-4da0-9c53-af55ef6b3dda",
+  "id": "3820c17c-22b0-4864-af9a-1f36c20ad17a",
+  "prevId": "7b69bf50-6520-4d91-92ce-b8f06de8d56f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1070,6 +1070,134 @@
           "tableTo": "t3-app-template_event",
           "columnsFrom": [
             "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.t3-app-template_event_room": {
+      "name": "t3-app-template_event_room",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "t3-app-template_event_room_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "roomId": {
+          "name": "roomId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "event_room_event_idx": {
+          "name": "event_room_event_idx",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_room_room_idx": {
+          "name": "event_room_room_idx",
+          "columns": [
+            {
+              "expression": "roomId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_room_event_room_unique": {
+          "name": "event_room_event_room_unique",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "roomId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "t3-app-template_event_room_eventId_t3-app-template_event_id_fk": {
+          "name": "t3-app-template_event_room_eventId_t3-app-template_event_id_fk",
+          "tableFrom": "t3-app-template_event_room",
+          "tableTo": "t3-app-template_event",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "t3-app-template_event_room_roomId_t3-app-template_room_id_fk": {
+          "name": "t3-app-template_event_room_roomId_t3-app-template_room_id_fk",
+          "tableFrom": "t3-app-template_event_room",
+          "tableTo": "t3-app-template_room",
+          "columnsFrom": [
+            "roomId"
           ],
           "columnsTo": [
             "id"

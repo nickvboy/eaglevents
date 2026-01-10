@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { mkdir, stat, copyFile, writeFile } from "fs/promises";
 import * as XLSX from "xlsx";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import {
   businesses,
@@ -10,10 +10,12 @@ import {
   calendars,
   eventAttendees,
   eventHourLogs,
+  eventRooms,
   eventReminders,
   eventZendeskConfirmations,
   events,
   profiles,
+  rooms,
   users,
 } from "~/server/db/schema";
 import { db } from "~/server/db";
@@ -37,6 +39,7 @@ type JoinTableRow = {
   reminders: unknown[];
   hourLogs: unknown[];
   confirmations: unknown[];
+  rooms: unknown[];
 };
 
 type JoinTableExportResult = {
@@ -132,6 +135,7 @@ function buildMatrix(rows: JoinTableRow[]) {
     "reminders",
     "hourLogs",
     "confirmations",
+    "rooms",
   ];
 
   const dataRows = rows.map((row) => {
@@ -146,6 +150,7 @@ function buildMatrix(rows: JoinTableRow[]) {
     values.reminders = row.reminders;
     values.hourLogs = row.hourLogs;
     values.confirmations = row.confirmations;
+    values.rooms = row.rooms;
     return headers.map((header) => formatCellValue(values[header]));
   });
 
@@ -165,13 +170,26 @@ async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
   );
   const eventIds = eventRows.map((row) => row.id);
 
-  const [calendarRows, buildingRows, attendeeRows, reminderRows, hourLogRows, confirmationRows] = await Promise.all([
+  const [calendarRows, buildingRows, attendeeRows, reminderRows, hourLogRows, confirmationRows, roomRows] = await Promise.all([
     database.select().from(calendars).where(inArray(calendars.id, calendarIds)),
     buildingIds.length > 0 ? database.select().from(buildings).where(inArray(buildings.id, buildingIds)) : [],
     database.select().from(eventAttendees).where(inArray(eventAttendees.eventId, eventIds)),
     database.select().from(eventReminders).where(inArray(eventReminders.eventId, eventIds)),
     database.select().from(eventHourLogs).where(inArray(eventHourLogs.eventId, eventIds)),
     database.select().from(eventZendeskConfirmations).where(inArray(eventZendeskConfirmations.eventId, eventIds)),
+    database
+      .select({
+        eventId: eventRooms.eventId,
+        roomId: rooms.id,
+        roomNumber: rooms.roomNumber,
+        buildingId: buildings.id,
+        buildingName: buildings.name,
+        buildingAcronym: buildings.acronym,
+      })
+      .from(eventRooms)
+      .innerJoin(rooms, eq(eventRooms.roomId, rooms.id))
+      .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+      .where(inArray(eventRooms.eventId, eventIds)),
   ]);
 
   const calendarUserIds = Array.from(new Set(calendarRows.map((row) => row.userId)));
@@ -230,6 +248,13 @@ async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
     confirmationsByEvent.set(confirmation.eventId, list);
   }
 
+  const roomsByEvent = new Map<number, unknown[]>();
+  for (const room of roomRows) {
+    const list = roomsByEvent.get(room.eventId) ?? [];
+    list.push(room);
+    roomsByEvent.set(room.eventId, list);
+  }
+
   return eventRows.map((event) => {
     const calendar = calendarMap.get(event.calendarId) ?? null;
     const calendarUser = calendar ? userMap.get(calendar.userId) ?? null : null;
@@ -247,6 +272,7 @@ async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
       reminders: remindersByEvent.get(event.id) ?? [],
       hourLogs: hourLogsByEvent.get(event.id) ?? [],
       confirmations: confirmationsByEvent.get(event.id) ?? [],
+      rooms: roomsByEvent.get(event.id) ?? [],
     };
   });
 }

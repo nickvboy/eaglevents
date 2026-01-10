@@ -95,9 +95,10 @@ export const facilityRouter = createTRPCRouter({
       }
 
       // Build query
-      // Results: buildingId, buildingName, acronym, roomNumber
+      // Results: roomId, buildingId, buildingName, acronym, roomNumber
       const baseSelect = ctx.db
         .select({
+          roomId: rooms.id,
           buildingId: buildings.id,
           buildingName: buildings.name,
           acronym: buildings.acronym,

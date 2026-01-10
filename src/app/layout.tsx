@@ -8,6 +8,10 @@ import { Providers } from "./providers";
 import { AppShell } from "./_components/AppShell";
 import { authOptions } from "~/server/auth";
 import { resolvePalette } from "~/server/services/theme";
+import type { ThemePaletteMode, ThemePaletteTokens } from "~/types/theme";
+import { THEME_VAR_NAME_MAP } from "~/types/theme";
+import { db } from "~/server/db";
+import { profiles } from "~/server/db/schema";
 
 export const metadata: Metadata = {
   title: "Create T3 App",
@@ -20,19 +24,95 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
+// Generate inline CSS variables for custom palette to prevent flash
+function generatePaletteCSS(tokens: ThemePaletteTokens): string {
+  const generateVars = (mode: "light" | "dark", modeTokens: ThemePaletteMode) => {
+    const vars = (Object.keys(THEME_VAR_NAME_MAP) as (keyof ThemePaletteMode)[])
+      .map((key) => {
+        const cssVar = THEME_VAR_NAME_MAP[key];
+        const value = modeTokens[key];
+        return `  ${cssVar}: ${value};`;
+      })
+      .join("\n");
+
+    // Calculate accent glow shadow
+    const accentHex = modeTokens.accentStrong;
+    const alpha = mode === "dark" ? 0.55 : 0.35;
+    const accentGlow = hexToRgba(accentHex, alpha) ?? "rgba(0,0,0,0.4)";
+    const glowVar = `  --shadow-accent-glow: 0 0 14px ${accentGlow};`;
+
+    return mode === "dark"
+      ? `:root, [data-theme="dark"] {\n${vars}\n${glowVar}\n}`
+      : `[data-theme="light"] {\n${vars}\n${glowVar}\n}`;
+  };
+
+  return `${generateVars("dark", tokens.dark)}\n${generateVars("light", tokens.light)}`;
+}
+
+function hexToRgba(hex: string, alpha: number): string | null {
+  const normalized = hex.replace("#", "");
+  const chunk = normalized.length === 3 ? normalized.split("").map((c) => c + c).join("") : normalized;
+  const bigint = Number.parseInt(chunk, 16);
+  if (Number.isNaN(bigint)) return null;
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+async function fetchProfileFirstName(userId: number): Promise<string | null> {
+  const existing = await db.query.profiles.findFirst({
+    where: (p, { eq }) => eq(p.userId, userId),
+    columns: { firstName: profiles.firstName },
+  });
+  const trimmed = existing?.firstName?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getServerSession(authOptions);
+  const userId = session?.user?.id ? Number(session.user.id) : null;
   const resolvedPalette = await resolvePalette({
-    userId: session?.user?.id ? Number(session.user.id) : null,
+    userId,
   });
+  const sessionProfileFirstName = session?.user?.profileFirstName?.trim();
+  const profileFirstName =
+    sessionProfileFirstName && sessionProfileFirstName.length > 0
+      ? sessionProfileFirstName
+      : userId
+        ? await fetchProfileFirstName(userId)
+        : null;
+
+  const paletteCSS = generatePaletteCSS(resolvedPalette.tokens);
 
   return (
     <html lang="en" className={`${geist.variable} h-full`}>
+      <head>
+        {/* Blocking script to set theme mode before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const stored = localStorage.getItem('eaglevents:theme-mode');
+                  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  const theme = stored === 'light' ? 'light' : stored === 'dark' ? 'dark' : (systemDark ? 'dark' : 'light');
+                  document.body.dataset.theme = theme;
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+        {/* Inline custom palette variables to prevent flash */}
+        <style dangerouslySetInnerHTML={{ __html: paletteCSS }} />
+      </head>
       <body data-theme="dark" className="h-full bg-surface-canvas text-ink-primary antialiased">
-        <Providers palette={resolvedPalette}>
-          <AppShell user={session?.user ?? null}>{children}</AppShell>
+        <Providers palette={resolvedPalette} session={session}>
+          <AppShell user={session?.user ?? null} profileFirstName={profileFirstName}>
+            {children}
+          </AppShell>
         </Providers>
       </body>
     </html>

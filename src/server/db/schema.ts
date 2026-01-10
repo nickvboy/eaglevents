@@ -326,6 +326,24 @@ export const events = createTable(
   ],
 );
 
+export const eventRooms = createTable(
+  "event_room",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    roomId: d.integer().notNull().references(() => rooms.id, { onDelete: "cascade" }),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    index("event_room_event_idx").on(t.eventId),
+    index("event_room_room_idx").on(t.roomId),
+    uniqueIndex("event_room_event_room_unique").on(t.eventId, t.roomId),
+  ],
+);
+
 export const eventCoOwners = createTable(
   "event_co_owner",
   (d) => ({

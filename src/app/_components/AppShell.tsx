@@ -10,10 +10,11 @@ const HIDE_SHELL_PATHS = ["/login", "/signup", "/setup"];
 
 type AppShellProps = {
   user: Session["user"] | null;
+  profileFirstName?: string | null;
   children: ReactNode;
 };
 
-export function AppShell({ user, children }: AppShellProps) {
+export function AppShell({ user, profileFirstName, children }: AppShellProps) {
   const pathname = usePathname();
   const hideShell =
     HIDE_SHELL_PATHS.some((base) => pathname === base || (base !== "/" && pathname?.startsWith(`${base}/`)));
@@ -23,7 +24,7 @@ export function AppShell({ user, children }: AppShellProps) {
 
   return (
     <div className={`flex ${shellHeightClass} ${useShellScroll ? "overflow-hidden" : ""} flex-col md:flex-row`}>
-      {!hideShell ? <SidebarNav user={user} /> : null}
+      {!hideShell ? <SidebarNav user={user} profileFirstName={profileFirstName} /> : null}
       <div className="flex h-full min-h-0 flex-1 flex-col">
         {!hideShell ? (
           <div className="shrink-0">
