@@ -11,7 +11,6 @@ import { resolvePalette } from "~/server/services/theme";
 import type { ThemePaletteMode, ThemePaletteTokens } from "~/types/theme";
 import { THEME_VAR_NAME_MAP } from "~/types/theme";
 import { db } from "~/server/db";
-import { profiles } from "~/server/db/schema";
 
 export const metadata: Metadata = {
   title: "Create T3 App",
@@ -63,7 +62,7 @@ function hexToRgba(hex: string, alpha: number): string | null {
 async function fetchProfileFirstName(userId: number): Promise<string | null> {
   const existing = await db.query.profiles.findFirst({
     where: (p, { eq }) => eq(p.userId, userId),
-    columns: { firstName: profiles.firstName },
+    columns: { firstName: true },
   });
   const trimmed = existing?.firstName?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;

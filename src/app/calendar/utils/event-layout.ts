@@ -2,6 +2,7 @@ import { minutesSinceStartOfDay } from "./date";
 
 export type CalendarEvent = {
   id: number;
+  eventCode?: string | null;
   title: string;
   location: string | null;
   isAllDay: boolean;

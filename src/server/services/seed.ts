@@ -341,7 +341,7 @@ export async function seedEvents({
           : undefined;
 
       const zendeskTicketNumber =
-        faker.number.int({ min: 0, max: 99 }) < 40 ? `ZD${faker.string.numeric(6)}` : undefined;
+        faker.number.int({ min: 0, max: 99 }) < 40 ? faker.string.numeric(6) : undefined;
       const description = faker.lorem.paragraph();
       const confirmZendesk = Boolean(hourLogs) && faker.number.int({ min: 0, max: 99 }) < 50;
 

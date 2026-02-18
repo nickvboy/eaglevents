@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "~/server/db";
-import { profiles, users } from "~/server/db/schema";
+import { users } from "~/server/db/schema";
 import bcrypt from "bcryptjs";
 import { env } from "~/env";
 import { getClientIp, loginLimiter } from "~/server/rate-limit";
@@ -125,7 +125,7 @@ export const authOptions: NextAuthOptions = {
         if (Number.isInteger(parsedId)) {
           const profile = await db.query.profiles.findFirst({
             where: (p, { eq }) => eq(p.userId, parsedId),
-            columns: { firstName: profiles.firstName },
+            columns: { firstName: true },
           });
           const trimmedFirstName = profile?.firstName?.trim();
           token.profileFirstName = trimmedFirstName && trimmedFirstName.length > 0 ? trimmedFirstName : null;

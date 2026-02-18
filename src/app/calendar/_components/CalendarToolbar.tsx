@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "~/app/_components/icons";
 import { formatRangeLabel } from "../utils/date";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   onPrev: () => void;
   onNext: () => void;
   onNewEvent: () => void;
+  onOpenCalendars: () => void;
 };
 
 const views: Props["view"][] = ["day", "threeday", "workweek", "week", "month"];
@@ -71,6 +72,14 @@ export function CalendarToolbar(props: Props) {
             {v === "workweek" ? "Work week" : v === "threeday" ? "3 day" : v}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={props.onOpenCalendars}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-muted text-ink-primary hover:bg-surface-muted lg:hidden"
+          aria-label="Open calendars"
+        >
+          <CalendarIcon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

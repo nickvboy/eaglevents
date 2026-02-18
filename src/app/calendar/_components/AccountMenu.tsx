@@ -12,6 +12,11 @@ type Props = {
   profileFirstName?: string | null;
 };
 
+function normalizeName(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
 export function AccountMenu({
   user,
   variant = "icon",
@@ -33,10 +38,11 @@ export function AccountMenu({
   const { data: session } = useSession();
   const sessionUser = session?.user ?? null;
   const email = sessionUser?.email ?? user?.email ?? "";
-  const fromProfile = sessionUser?.profileFirstName?.trim() ?? profileFirstName?.trim();
-  const fromName = sessionUser?.name?.trim() ?? user?.name?.trim();
-  const fallbackName = email ? email?.split("@")[0] : "";
-  const computedName = fromProfile || fromName || fallbackName;
+  const fromProfile =
+    normalizeName(sessionUser?.profileFirstName) ?? normalizeName(profileFirstName);
+  const fromName = normalizeName(sessionUser?.name) ?? normalizeName(user?.name);
+  const fallbackName = email ? email.split("@")[0] : null;
+  const computedName = fromProfile ?? fromName ?? fallbackName;
   const initials = computedName ? computedName.slice(0, 1).toUpperCase() : null;
 
   const isIcon = variant === "icon";

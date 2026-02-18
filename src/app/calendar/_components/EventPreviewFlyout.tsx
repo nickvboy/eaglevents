@@ -7,6 +7,7 @@ type CalendarInfo = { name: string; color: string } | null;
 
 type PreviewEvent = {
   id: number;
+  eventCode?: string | null;
   title: string;
   location: string | null;
   description?: string | null;
@@ -63,6 +64,7 @@ export function EventPreviewFlyout({
   const end = new Date(displayEvent.endDatetime);
   const dateLabel = formatDateRange(start, end);
   const timeLabel = formatTimeRange(start, end);
+  const eventCode = displayEvent.eventCode ?? String(displayEvent.id).padStart(7, "0");
   const assigneeName = displayEvent.assigneeProfile
     ? [displayEvent.assigneeProfile.firstName, displayEvent.assigneeProfile.lastName].filter(Boolean).join(" ").trim() ||
       displayEvent.assigneeProfile.email
@@ -102,6 +104,7 @@ export function EventPreviewFlyout({
           <div className="flex-1">
             <div className="text-[11px] uppercase tracking-widest text-status-success">Preview</div>
             <h2 className="mt-1 text-base font-semibold text-ink-primary">{displayEvent.title}</h2>
+            <div className="mt-1 text-xs uppercase tracking-wide text-ink-subtle">Event ID #{eventCode}</div>
             {calendar && (
               <div className="mt-2 inline-flex items-center gap-2 text-xs text-ink-subtle">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: calendar.color }} />
