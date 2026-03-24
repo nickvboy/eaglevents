@@ -573,6 +573,19 @@ function parseDraftDate(value: string | null | undefined) {
   return parsed;
 }
 
+function getWritableCalendarIds(
+  calendars?: Array<{ id: number; canWrite: boolean }>,
+) {
+  return (calendars ?? []).filter((calendar) => calendar.canWrite).map((calendar) => calendar.id);
+}
+
+function getVisibleWritableCalendarIds(
+  writableCalendarIds: number[],
+  visibleCalendarIds?: number[],
+) {
+  return writableCalendarIds.filter((id) => (visibleCalendarIds ?? []).includes(id));
+}
+
 function readNewEventDraft(): NewEventDraft | null {
   if (typeof window === "undefined") return null;
   try {
@@ -752,10 +765,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (!open) return;
     skipNextDraftPersistRef.current = true;
     setShowDeleteConfirm(false);
-    const preferred = (calendarOptions ?? [])
-      .map((c) => c.id)
-      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
-    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
+    const preferred = getWritableCalendarIds(calendars);
+    const visiblePreferred = getVisibleWritableCalendarIds(preferred, visibleCalendarIds);
     if (event) {
       const editDraft = readEditEventDraft(event.id);
       if (editDraft) {
@@ -937,7 +948,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     }
     const draft = readNewEventDraft();
     if (draft) {
-      const writableIds = new Set((calendars ?? []).filter((c) => c.canWrite).map((c) => c.id));
+      const writableIds = new Set(preferred);
       const draftCalendarIds = Array.isArray(draft.selectedCalendarIds)
         ? draft.selectedCalendarIds.filter((id) => writableIds.has(id))
         : [];
@@ -945,9 +956,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         typeof draft.selectedCalendarId === "number" && writableIds.has(draft.selectedCalendarId)
           ? draft.selectedCalendarId
           : draftCalendarIds[0] ?? null;
-      const fallbackCalendarId = draftCalendarId ?? calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
       const initialSelections =
-        draftCalendarIds.length > 0 ? draftCalendarIds : fallbackCalendarId ? [fallbackCalendarId] : [];
+        visiblePreferred.length > 0
+          ? visiblePreferred
+          : draftCalendarIds.length > 0
+            ? draftCalendarIds
+            : [];
+      const fallbackCalendarId =
+        initialSelections[0] ?? draftCalendarId ?? calendarId ?? preferred[0] ?? null;
       const nextSegments =
         Array.isArray(draft.segments)
           ? draft.segments
@@ -994,7 +1010,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setQuickCreateTarget(null);
       setQuickCreateDraft(emptyProfileDraft);
       setQuickCreateError(null);
-      setSelectedCalendarId(fallbackCalendarId);
+      setSelectedCalendarId(initialSelections[0] ?? fallbackCalendarId);
       setSelectedCalendarIds(initialSelections);
       setHourLogs(
         Array.isArray(draft.hourLogs)
@@ -1426,11 +1442,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleClearForm = () => {
-    const preferred = (calendarOptions ?? [])
-      .map((c) => c.id)
-      .filter((id) => (calendars ?? []).some((c) => c.id === id && c.canWrite));
-    const visiblePreferred = (preferred ?? []).filter((id) => (visibleCalendarIds ?? []).includes(id));
-    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+    const preferred = getWritableCalendarIds(calendars);
+    const visiblePreferred = getVisibleWritableCalendarIds(preferred, visibleCalendarIds);
+    const fallbackCalendarId = visiblePreferred[0] ?? calendarId ?? preferred[0] ?? null;
     const initialSelections =
       visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
     setTitle("");
