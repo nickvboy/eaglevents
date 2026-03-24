@@ -195,7 +195,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   const eventCode = event.eventCode ?? String(event.id).padStart(7, "0");
 
   return (
-    <div className="fixed inset-x-0 top-16 bottom-16 z-50 flex flex-col bg-surface-raised text-ink-primary md:left-16 md:bottom-0">
+    <div className="fixed inset-0 z-[10010] flex flex-col bg-surface-raised text-ink-primary md:left-16">
       <header className="flex items-center gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3">
         <button
           type="button"
