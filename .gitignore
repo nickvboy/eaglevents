@@ -59,3 +59,4 @@ yarn-error.log*
 
 # idea files
 .idea
+exports/other_docs/userinfo.txt

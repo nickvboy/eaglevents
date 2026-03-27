@@ -15,15 +15,24 @@ function resolveBaseUrl(baseUrl: string) {
 }
 
 async function fetchSetupStatus(url: URL) {
+  const statusBase = resolveBaseUrl(url.origin);
+  const statusUrl = new URL("/api/setup/status", statusBase);
   try {
-    const response = await fetch(new URL("/api/setup/status", url), {
+    const response = await fetch(statusUrl, {
       headers: { "x-setup-check": "1" },
       cache: "no-store",
     });
-    if (!response.ok) return { needsSetup: false, statusKnown: false };
+    if (!response.ok) {
+      console.error(`[setup] status check failed: ${response.status} ${response.statusText} (${statusUrl.toString()})`);
+      return { needsSetup: false, statusKnown: false };
+    }
     const data = (await response.json()) as { needsSetup: boolean };
     return { ...data, statusKnown: true };
-  } catch {
+  } catch (error) {
+    console.error(
+      `[setup] status check threw for ${statusUrl.toString()}:`,
+      error instanceof Error ? error.message : error,
+    );
     return { needsSetup: false, statusKnown: false };
   }
 }

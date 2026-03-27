@@ -2,7 +2,7 @@
 /* Run any package script with PROD env overrides from .env
  * Usage: pnpm prod <script> [args...]
  * - If DATABASE_URL_PROD is set, it will override DATABASE_URL
- * - If DEV_SERVER_PROD is set, it will override DEV_SERVER
+ * - If DEV_SERVER_PROD is set, it will override DEV_SERVER and NEXTAUTH_URL
  */
 const { spawn } = require("child_process");
 
@@ -13,6 +13,7 @@ if (process.env.DATABASE_URL_PROD) {
 }
 if (process.env.DEV_SERVER_PROD) {
   process.env.DEV_SERVER = process.env.DEV_SERVER_PROD;
+  process.env.NEXTAUTH_URL = process.env.DEV_SERVER_PROD;
   if (!process.env.PORT) {
     try {
       const url = new URL(process.env.DEV_SERVER_PROD);
