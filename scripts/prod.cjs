@@ -26,8 +26,8 @@ if (process.env.DEV_SERVER_PROD) {
 
 let args = process.argv.slice(2);
 if (args.length === 0) {
-  // Default to a production build + start
-  args = ["preview"];
+  // Default to starting the existing production build.
+  args = ["start"];
 }
 
 // Delegate to pnpm run <script> [args...]
