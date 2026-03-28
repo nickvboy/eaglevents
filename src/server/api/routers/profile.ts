@@ -7,6 +7,28 @@ import { profiles } from "~/server/db/schema";
 const DEFAULT_LIMIT = 8;
 
 export const profileRouter = createTRPCRouter({
+  me: protectedProcedure.query(async ({ ctx }) => {
+    const userId = Number(ctx.session.user.id);
+    if (!Number.isFinite(userId)) {
+      throw new Error("Invalid session user id.");
+    }
+
+    const profile = await ctx.db.query.profiles.findFirst({
+      where: (profile, { eq }) => eq(profile.userId, userId),
+    });
+
+    if (!profile) return null;
+
+    return {
+      profileId: profile.id,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+      username: ctx.session.user.name ?? null,
+      phoneNumber: profile.phoneNumber,
+      displayName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
+    };
+  }),
   search: publicProcedure
     .input(
       z.object({

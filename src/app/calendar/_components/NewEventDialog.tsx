@@ -6,7 +6,6 @@ import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
-import { createPortal } from "react-dom";
 import { ChevronDownIcon, XIcon } from "~/app/_components/icons";
 
 const MIN_DURATION_MS = 30 * 60 * 1000;
@@ -135,38 +134,49 @@ function normalizeTimeInput(value: string) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function formatTimeInputParts(value: string): { time: string; meridiem: "AM" | "PM" } {
-  if (!value) return { time: "", meridiem: "AM" };
-  const parts = value.split(":");
-  if (parts.length < 2) return { time: "", meridiem: "AM" };
-  const hours = Number(parts[0]);
-  const minutes = Number(parts[1]);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return { time: "", meridiem: "AM" };
-  const meridiem = hours >= 12 ? "PM" : "AM";
-  const hours12 = ((hours + 11) % 12) + 1;
-  return { time: `${hours12}:${String(minutes).padStart(2, "0")}`, meridiem };
+function sanitizeTimeInputDraft(raw: string) {
+  const cleaned = raw.replace(/\./g, ":").replace(/[^0-9apm:\s]/gi, "");
+  const meridiemMatch = /\s*([ap](m?)?)\s*$/i.exec(cleaned);
+  const meridiem = meridiemMatch?.[1] ? meridiemMatch[1].toUpperCase() : "";
+  const numericPart = (meridiemMatch ? cleaned.slice(0, meridiemMatch.index) : cleaned).replace(/[^\d:\s]/g, "");
+  const compactNumeric = numericPart.replace(/\s+/g, "");
+
+  let timePart = compactNumeric;
+  if (!compactNumeric.includes(":")) {
+    timePart = compactNumeric.slice(0, 4);
+  } else {
+    const [rawHours = "", rawMinutes = ""] = compactNumeric.split(":", 2);
+    timePart = `${rawHours.slice(0, 2)}:${rawMinutes.slice(0, 2)}`;
+    if (compactNumeric.endsWith(":")) timePart = `${rawHours.slice(0, 2)}:`;
+  }
+
+  return [timePart, meridiem].filter(Boolean).join(" ").trim();
 }
 
-function normalizeTimeInputParts(value: string, meridiem: "AM" | "PM") {
+function formatCompletedTimeDraft(raw: string, meridiem: "AM" | "PM") {
+  const sanitized = sanitizeTimeInputDraft(raw);
+  const withoutMeridiem = sanitized.replace(/\s*(AM|PM|A|P)\s*$/i, "").trim();
+  const compactDigits = withoutMeridiem.replace(/\D/g, "").slice(0, 4);
+
+  let timePart = withoutMeridiem;
+  if (!withoutMeridiem.includes(":")) {
+    if (compactDigits.length === 3) timePart = `${compactDigits[0]}:${compactDigits.slice(1)}`;
+    else if (compactDigits.length === 4) timePart = `${compactDigits.slice(0, 2)}:${compactDigits.slice(2, 4)}`;
+    else timePart = compactDigits;
+  }
+
+  return [timePart, meridiem].filter(Boolean).join(" ").trim();
+}
+
+function formatTimeFieldValue(value: string) {
+  return value ? formatTimeLabel(value).toUpperCase() : "";
+}
+
+function isPossiblyValidTimeDraft(value: string) {
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 1 || hours > 12) return null;
-  if (minutes < 0 || minutes > 59) return null;
-  let normalizedHours = hours % 12;
-  if (meridiem === "PM") normalizedHours += 12;
-  return `${String(normalizedHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-}
-
-function formatTimeInputDraft(raw: string) {
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  if (digits.length <= 2) return digits;
-  if (digits.length === 3) return `${digits[0]}:${digits.slice(1)}`;
-  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+  if (!trimmed) return true;
+  if (normalizeTimeInput(trimmed)) return true;
+  return /^(\d{1,2}(:\d{0,2})?)\s*([ap](m?)?)?$/i.test(trimmed);
 }
 
 function parseLocationInput(raw: string) {
@@ -244,91 +254,209 @@ type TimeSelectProps = {
 
 function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty = false }: TimeSelectProps) {
   const [open, setOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editValue, setEditValue] = useState("");
-  const [editMeridiem, setEditMeridiem] = useState<"AM" | "PM">("AM");
+  const [draftValue, setDraftValue] = useState(() => formatTimeFieldValue(value));
+  const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [editPosition, setEditPosition] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const editPopoverRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const activeOptionRef = useRef<HTMLButtonElement | null>(null);
   const defaultOptionRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (!containerRef.current) return;
-      if (editPopoverRef.current?.contains(e.target as Node)) return;
       if (!containerRef.current.contains(e.target as Node)) {
         setOpen(false);
-        setEditOpen(false);
         setEditError(null);
+        setIsEditing(false);
+        setDraftValue(formatTimeFieldValue(value));
       }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  }, [value]);
 
   useEffect(() => {
-    if (!editOpen) return;
-    const width = 16 * 16; // matches w-64
-    const gap = 8;
-    const updatePosition = () => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      let left = rect.left;
-      const maxLeft = window.innerWidth - width - gap;
-      if (left > maxLeft) left = maxLeft;
-      if (left < gap) left = gap;
-      const top = Math.min(window.innerHeight - 220, rect.bottom + gap);
-      setEditPosition({ top, left });
-    };
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [editOpen]);
+    if (isEditing) return;
+    setDraftValue(formatTimeFieldValue(value));
+  }, [isEditing, value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const target = activeOptionRef.current ?? defaultOptionRef.current;
+    target?.scrollIntoView({ block: "nearest" });
+  }, [open, value]);
 
   const optionLabel = value ? options.find((opt) => opt.value === value)?.label ?? null : null;
-  const label = value ? optionLabel ?? formatTimeLabel(value) : placeholder;
   const hasCustomValue = Boolean(value && !optionLabel);
   const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
   activeOptionRef.current = null;
 
+  const commitDraft = () => {
+    const trimmed = draftValue.trim();
+    if (!trimmed) {
+      if (allowEmpty) {
+        onChange("");
+        setDraftValue("");
+        setEditError(null);
+        setOpen(false);
+        setIsEditing(false);
+        return;
+      }
+      setEditError("Enter time as h:mm AM/PM.");
+      return;
+    }
+
+    const normalized = normalizeTimeInput(trimmed);
+    if (!normalized) {
+      setEditError("Enter time as h:mm AM/PM.");
+      return;
+    }
+
+    onChange(normalized);
+    setDraftValue(formatTimeFieldValue(normalized));
+    setEditError(null);
+    setOpen(false);
+    setIsEditing(false);
+  };
+
+  const commitDraftOnBlur = () => {
+    const trimmed = draftValue.trim();
+    if (!trimmed) {
+      if (allowEmpty) onChange("");
+      setDraftValue(allowEmpty ? "" : formatTimeFieldValue(value));
+      setEditError(null);
+      setOpen(false);
+      setIsEditing(false);
+      return;
+    }
+
+    const normalized = normalizeTimeInput(trimmed);
+    if (!normalized) {
+      setDraftValue(formatTimeFieldValue(value));
+      setEditError(null);
+      setOpen(false);
+      setIsEditing(false);
+      return;
+    }
+
+    onChange(normalized);
+    setDraftValue(formatTimeFieldValue(normalized));
+    setEditError(null);
+    setOpen(false);
+    setIsEditing(false);
+  };
+
+  const applyMeridiemShortcut = (nextMeridiem: "AM" | "PM") => {
+    const baseValue = draftValue.trim() || formatTimeFieldValue(value);
+    if (!baseValue) return;
+    setDraftValue(formatCompletedTimeDraft(baseValue, nextMeridiem));
+    setEditError(null);
+    setOpen(true);
+    setIsEditing(true);
+  };
+
   return (
-    <div className="relative min-w-[9rem]" ref={containerRef}>
-      <button
-        type="button"
+    <div className="relative w-[8.5rem] min-w-0" ref={containerRef}>
+      <div
         className={
-          "flex w-full items-center justify-between gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong " +
+          "flex w-full items-center gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong focus-within:ring-2 focus-within:ring-accent-strong " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
-        onClick={() => setOpen((prev) => !prev)}
-        onDoubleClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const parts = formatTimeInputParts(value);
-          setEditValue(parts.time);
-          setEditMeridiem(parts.meridiem);
-          setEditError(null);
-          setEditOpen(true);
-          setOpen(false);
-        }}
       >
-        <span className={value ? "text-ink-primary" : "text-ink-muted"}>{label}</span>
-        <ChevronDownIcon className="h-3.5 w-3.5 text-ink-muted" />
-      </button>
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="text"
+          placeholder={placeholder}
+          value={draftValue}
+          onFocus={(event) => {
+            setOpen(true);
+            setIsEditing(true);
+            event.currentTarget.select();
+          }}
+          onChange={(event) => {
+            const nextDraft = sanitizeTimeInputDraft(event.target.value);
+            setDraftValue(nextDraft);
+            setEditError(isPossiblyValidTimeDraft(nextDraft) ? null : "Enter time as h:mm AM/PM.");
+            setOpen(true);
+            setIsEditing(true);
+          }}
+          onBlur={() => {
+            commitDraftOnBlur();
+          }}
+          onKeyDown={(event) => {
+            if (
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              (event.key === "a" || event.key === "A") &&
+              !/\s*[ap]m?$/i.test(draftValue)
+            ) {
+              event.preventDefault();
+              applyMeridiemShortcut("AM");
+            } else if (
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              (event.key === "p" || event.key === "P") &&
+              !/\s*[ap]m?$/i.test(draftValue)
+            ) {
+              event.preventDefault();
+              applyMeridiemShortcut("PM");
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraft();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setDraftValue(formatTimeFieldValue(value));
+              setEditError(null);
+              setOpen(false);
+              setIsEditing(false);
+              inputRef.current?.blur();
+            } else if (event.key === "ArrowDown") {
+              setOpen(true);
+            }
+          }}
+          className="min-w-0 flex-1 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-muted"
+        />
+        <button
+          type="button"
+          className="shrink-0 text-ink-muted transition hover:text-ink-primary"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+              setIsEditing(false);
+              setEditError(null);
+              setDraftValue(formatTimeFieldValue(value));
+              inputRef.current?.blur();
+              return;
+            }
+            setOpen(true);
+            setIsEditing(true);
+            inputRef.current?.focus();
+            inputRef.current?.select();
+          }}
+          aria-label="Toggle time options"
+        >
+          <ChevronDownIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {editError && <div className="mt-1 text-xs text-status-danger">{editError}</div>}
       {open && (
         <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur scrollbar-hidden">
           {hasCustomValue && customOptionLabel && (
             <button
               type="button"
-              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink-primary"
+              ref={activeOptionRef}
+              className="flex w-full items-center justify-between bg-accent-muted px-3 py-2 text-left text-sm font-medium text-ink-primary"
               onClick={() => {
                 onChange(value);
+                setDraftValue(formatTimeFieldValue(value));
+                setEditError(null);
                 setOpen(false);
+                setIsEditing(false);
               }}
             >
               <span>{customOptionLabel}</span>
@@ -341,14 +469,17 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
               <button
                 key={option.value}
                 type="button"
-                ref={active ? activeOptionRef : shouldDefault ? defaultOptionRef : null}
+                ref={active && !hasCustomValue ? activeOptionRef : shouldDefault ? defaultOptionRef : null}
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active ? "text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
+                  (active ? "bg-accent-muted font-medium text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
                 }
                 onClick={() => {
                   onChange(option.value);
+                  setDraftValue(formatTimeFieldValue(option.value));
+                  setEditError(null);
                   setOpen(false);
+                  setIsEditing(false);
                 }}
               >
                 <span>{option.label}</span>
@@ -357,95 +488,6 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
           })}
         </div>
       )}
-      {editOpen && editPosition &&
-        createPortal(
-        <div
-          ref={editPopoverRef}
-          className="fixed z-[10000] w-64 rounded-lg border border-outline-muted bg-surface-overlay p-3 text-sm shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
-          style={{ top: editPosition.top, left: editPosition.left }}
-        >
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Edit time</div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="8:15"
-              value={editValue}
-              onChange={(event) => {
-                setEditValue(formatTimeInputDraft(event.target.value));
-                if (editError) setEditError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  const normalized = normalizeTimeInputParts(editValue, editMeridiem);
-                  if (!normalized) {
-                    if (!allowEmpty || editValue.trim().length > 0) {
-                      setEditError("Enter time as h:mm.");
-                    } else {
-                      onChange("");
-                      setEditOpen(false);
-                    }
-                    return;
-                  }
-                  onChange(normalized);
-                  setEditOpen(false);
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  setEditOpen(false);
-                  setEditError(null);
-                }
-              }}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-            />
-            <select
-              value={editMeridiem}
-              onChange={(event) => setEditMeridiem(event.target.value as "AM" | "PM")}
-              className="rounded-md border border-outline-muted bg-surface-muted px-2 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-            >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
-            </select>
-          </div>
-          <div className="mt-1 text-xs text-ink-muted">Enter time as h:mm.</div>
-          {editError && <div className="mt-1 text-xs text-status-danger">{editError}</div>}
-          <div className="mt-3 flex items-center justify-end gap-2 text-xs">
-            {allowEmpty && (
-              <button
-                type="button"
-                className="text-ink-muted transition hover:text-ink-primary"
-                onClick={() => {
-                  onChange("");
-                  setEditOpen(false);
-                  setEditError(null);
-                }}
-              >
-                Clear
-              </button>
-            )}
-            <button
-              type="button"
-              className="rounded-md bg-accent-soft px-3 py-1 font-semibold text-surface-primary transition hover:bg-accent-strong"
-              onClick={() => {
-                const normalized = normalizeTimeInputParts(editValue, editMeridiem);
-                if (!normalized) {
-                  if (!allowEmpty || editValue.trim().length > 0) {
-                    setEditError("Enter time as h:mm.");
-                  } else {
-                    onChange("");
-                    setEditOpen(false);
-                  }
-                  return;
-                }
-                onChange(normalized);
-                setEditOpen(false);
-              }}
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-        , document.body)}
     </div>
   );
 }
@@ -549,6 +591,24 @@ function resolveProfileLabel(profile: {
 function fallbackSearchLabel(value: string, fallback: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function toAssigneeSelection(
+  profile: {
+    profileId: number;
+    firstName?: string | null;
+    lastName?: string | null;
+    displayName?: string | null;
+    email: string;
+    username?: string | null;
+  },
+): AssigneeSelection {
+  return {
+    profileId: profile.profileId,
+    displayName: resolveProfileLabel(profile),
+    email: profile.email,
+    username: profile.username ?? null,
+  };
 }
 
 function formatPhoneInput(raw: string) {
@@ -717,6 +777,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [assigneeHighlight, setAssigneeHighlight] = useState(-1);
   const [attendeeHighlight, setAttendeeHighlight] = useState(-1);
   const [coOwnerHighlight, setCoOwnerHighlight] = useState(-1);
+  const [autoAssignPending, setAutoAssignPending] = useState(false);
   const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | "coOwner" | null>(null);
   const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
@@ -731,6 +792,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     zendeskTicket.trim().length > 0 && !ZENDESK_TICKET_REGEX.test(zendeskTicket.trim())
       ? "Zendesk ticket must be exactly 6 digits."
       : null;
+  const currentProfile = api.profile.me.useQuery(undefined, { enabled: open });
   const calendarOptions = useMemo(() => {
     return (calendars ?? [])
       .filter((c) => c.canWrite)
@@ -893,8 +955,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           displayName: resolveProfileLabel(event.assigneeProfile),
           email: event.assigneeProfile.email,
         });
+        setAutoAssignPending(false);
       } else {
         setAssignee(null);
+        setAutoAssignPending(false);
       }
       setAssigneeSearch("");
       setAssigneeQuery("");
@@ -999,6 +1063,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setSetupInfoTime(parseDraftDate(draft.setupInfoTime));
       setError(null);
       setAssignee(draft.assignee ?? null);
+      setAutoAssignPending(!draft.assignee);
       setAssigneeSearch("");
       setAssigneeQuery("");
       setSelectedAttendees(Array.isArray(draft.selectedAttendees) ? draft.selectedAttendees : []);
@@ -1046,7 +1111,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setEventInfoEnd(null);
     setSetupInfoTime(null);
     setError(null);
-    setAssignee(null);
+    setAssignee(currentProfile.data ? toAssigneeSelection(currentProfile.data) : null);
+    setAutoAssignPending(!currentProfile.data);
     setAssigneeSearch("");
     setAssigneeQuery("");
     setSelectedAttendees([]);
@@ -1061,7 +1127,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setSelectedCalendarId(fallbackCalendarId);
     setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
-  }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds]);
+  }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds, currentProfile.data]);
+
+  useEffect(() => {
+    if (!open || !autoAssignPending || assignee || !currentProfile.data) return;
+    setAssignee(toAssigneeSelection(currentProfile.data));
+    setAutoAssignPending(false);
+  }, [open, autoAssignPending, assignee, currentProfile.data]);
 
   useEffect(() => {
     if (!open) return;
@@ -1309,19 +1381,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     { enabled: open && assigneeQuery.length > 1 },
   );
   const assigneeMatches = assigneeResults.data ?? [];
-  const shouldShowAssigneeResults = assigneeQuery.length > 1 && quickCreateTarget !== "assignee";
+  const shouldShowAssigneeResults = assigneeQuery.length > 1 && quickCreateTarget === null;
   const attendeeResults = api.profile.search.useQuery(
     { query: attendeeQuery, limit: 7 },
     { enabled: open && attendeeQuery.length > 1 },
   );
   const attendeeMatches = attendeeResults.data ?? [];
-  const shouldShowAttendeeResults = attendeeQuery.length > 1;
+  const shouldShowAttendeeResults = attendeeQuery.length > 1 && quickCreateTarget === null;
   const coOwnerResults = api.profile.search.useQuery(
     { query: coOwnerQuery, limit: 7 },
     { enabled: open && coOwnerQuery.length > 1 },
   );
   const coOwnerMatches = coOwnerResults.data ?? [];
-  const shouldShowCoOwnerResults = coOwnerQuery.length > 1;
+  const shouldShowCoOwnerResults = coOwnerQuery.length > 1 && quickCreateTarget === null;
   const createProfile = api.profile.create.useMutation();
   // Facilities data
   const buildingList = api.facility.listBuildings.useQuery(undefined, { enabled: open });
@@ -1559,6 +1631,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleSelectAssignee = (option: RouterOutputs["profile"]["search"][number]) => {
+    if (assignee && assignee.profileId !== option.profileId) {
+      handleAddCoOwner(option);
+      setAssigneeSearch("");
+      setAssigneeQuery("");
+      return;
+    }
+    setAutoAssignPending(false);
     setAssignee({
       profileId: option.profileId,
       displayName: resolveProfileLabel(option),
@@ -1570,6 +1649,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleClearAssignee = () => {
+    setAutoAssignPending(false);
     setAssignee(null);
     setAssigneeSearch("");
     setAssigneeQuery("");
@@ -1598,6 +1678,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleAddCoOwner = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
+    if (assignee?.profileId === option.profileId) {
+      setCoOwnerSearch("");
+      setCoOwnerQuery("");
+      return;
+    }
     setSelectedCoOwners((prev) => {
       if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
       const displayName = resolveProfileLabel(option);
@@ -1668,9 +1753,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         username: created.username,
       };
       if (quickCreateTarget === "assignee") {
-        setAssignee(selection);
-        setAssigneeSearch("");
-        setAssigneeQuery("");
+        if (assignee && assignee.profileId !== selection.profileId) {
+          handleAddCoOwner(selection);
+          setAssigneeSearch("");
+          setAssigneeQuery("");
+        } else {
+          setAutoAssignPending(false);
+          setAssignee(selection);
+          setAssigneeSearch("");
+          setAssigneeQuery("");
+        }
       } else if (quickCreateTarget === "attendee") {
         handleAddAttendee(selection);
       } else if (quickCreateTarget === "coOwner") {
@@ -2236,6 +2328,99 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
 
           <div>
+            <div className="mb-1 text-xs text-ink-muted">Assign to</div>
+            <div className="space-y-2">
+              {assignee && (
+                <div className="flex items-center justify-between rounded-md border border-outline-accent bg-accent-muted px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-medium text-ink-primary">{assignee.displayName}</div>
+                    <div className="text-xs text-ink-muted">{assignee.email}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-status-success hover:text-accent-soft"
+                    onClick={handleClearAssignee}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+              <div className="relative">
+              <input
+                placeholder={assignee ? "Search to add co-owners or clear to reassign" : "Search by name, username, or email"}
+                value={assigneeSearch}
+                onChange={(e) => setAssigneeSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setAssigneeHighlight((prev) => Math.min(prev + 1, assigneeMatches.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (assigneeMatches.length === 1) {
+                      handleSelectAssignee(assigneeMatches[0]!);
+                    } else if (assigneeHighlight >= 0 && assigneeHighlight < assigneeMatches.length) {
+                      handleSelectAssignee(assigneeMatches[assigneeHighlight]!);
+                    }
+                  }
+                }}
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+              />
+                {shouldShowAssigneeResults && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                    {assigneeResults.isFetching ? (
+                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                    ) : assigneeMatches.length > 0 ? (
+                      <>
+                        {assigneeMatches.map((match, index) => {
+                          const isActive = index === assigneeHighlight;
+                          return (
+                            <button
+                              key={match.profileId}
+                              type="button"
+                              className={
+                                "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                              }
+                              onClick={() => handleSelectAssignee(match)}
+                              onMouseEnter={() => setAssigneeHighlight(index)}
+                            >
+                              <span className="font-medium">{match.displayName}</span>
+                              <span className="text-xs text-ink-muted">{match.email}</span>
+                            </button>
+                          );
+                        })}
+                        <div className="px-3 py-2 text-sm text-ink-muted">
+                          <button
+                            type="button"
+                            className="text-accent-soft hover:text-accent-strong"
+                            onClick={() => openQuickCreate("assignee")}
+                          >
+                            Create new profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                        <div>No profiles found</div>
+                        <button
+                          type="button"
+                          className="text-accent-soft hover:text-accent-strong"
+                          onClick={() => openQuickCreate("assignee")}
+                        >
+                          Create profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+              )}
+            </div>
+            {quickCreateTarget === "assignee" ? renderQuickCreateForm() : null}
+          </div>
+
+          <div>
             <div className="mb-1 text-xs text-ink-muted">Co-owners</div>
             <div className="flex flex-wrap gap-2">
               {selectedCoOwners.length === 0 ? (
@@ -2333,99 +2518,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               )}
             </div>
             {quickCreateTarget === "coOwner" ? renderQuickCreateForm() : null}
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-ink-muted">Assign to</div>
-            <div className="space-y-2">
-              {assignee && (
-                <div className="flex items-center justify-between rounded-md border border-outline-accent bg-accent-muted px-3 py-2 text-sm">
-                  <div>
-                    <div className="font-medium text-ink-primary">{assignee.displayName}</div>
-                    <div className="text-xs text-ink-muted">{assignee.email}</div>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-status-success hover:text-accent-soft"
-                    onClick={handleClearAssignee}
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              <div className="relative">
-              <input
-                placeholder={assignee ? "Search to reassign" : "Search by name, username, or email"}
-                value={assigneeSearch}
-                onChange={(e) => setAssigneeSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setAssigneeHighlight((prev) => Math.min(prev + 1, assigneeMatches.length - 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (assigneeMatches.length === 1) {
-                      handleSelectAssignee(assigneeMatches[0]!);
-                    } else if (assigneeHighlight >= 0 && assigneeHighlight < assigneeMatches.length) {
-                      handleSelectAssignee(assigneeMatches[assigneeHighlight]!);
-                    }
-                  }
-                }}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-              />
-                {shouldShowAssigneeResults && (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
-                    {assigneeResults.isFetching ? (
-                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
-                    ) : assigneeMatches.length > 0 ? (
-                      <>
-                        {assigneeMatches.map((match, index) => {
-                          const isActive = index === assigneeHighlight;
-                          return (
-                            <button
-                              key={match.profileId}
-                              type="button"
-                              className={
-                                "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
-                              }
-                              onClick={() => handleSelectAssignee(match)}
-                              onMouseEnter={() => setAssigneeHighlight(index)}
-                            >
-                              <span className="font-medium">{match.displayName}</span>
-                              <span className="text-xs text-ink-muted">{match.email}</span>
-                            </button>
-                          );
-                        })}
-                        <div className="px-3 py-2 text-sm text-ink-muted">
-                          <button
-                            type="button"
-                            className="text-accent-soft hover:text-accent-strong"
-                            onClick={() => openQuickCreate("assignee")}
-                          >
-                            Create new profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
-                        <div>No profiles found</div>
-                        <button
-                          type="button"
-                          className="text-accent-soft hover:text-accent-strong"
-                          onClick={() => openQuickCreate("assignee")}
-                        >
-                          Create profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
-                        </button>
-                      </div>
-                    )}
-                  </div>
-              )}
-            </div>
-            {quickCreateTarget === "assignee" ? renderQuickCreateForm() : null}
           </div>
           </div>
 
