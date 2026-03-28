@@ -2085,11 +2085,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   return (
     <div
       data-scroll-lock="allow"
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 px-4"
+      className="fixed inset-0 z-[10020] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 px-4"
       onMouseDown={handleBackdropMouseDown}
     >
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+        <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
           <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
             <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
             <div className="mt-2 text-ink-primary">Delete this event? This cannot be undone.</div>
