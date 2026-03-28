@@ -18,25 +18,30 @@ type SnapshotSummary = {
   counts: Array<{ label: string; count: number }>;
 };
 
-const SUPPORTED_SNAPSHOT_VERSION = 1;
+const SUPPORTED_SNAPSHOT_VERSION = 2;
+const SNAPSHOT_FORMAT_LABEL = `Version ${SUPPORTED_SNAPSHOT_VERSION} (JSON)`;
 
 const snapshotDataSections = [
   { key: "users", label: "Users" },
+  { key: "posts", label: "Posts" },
   { key: "profiles", label: "Profiles" },
   { key: "organizationRoles", label: "Org roles" },
+  { key: "visibilityGrants", label: "Visibility grants" },
   { key: "businesses", label: "Businesses" },
   { key: "departments", label: "Departments" },
   { key: "buildings", label: "Buildings" },
   { key: "rooms", label: "Rooms" },
+  { key: "themePalettes", label: "Theme palettes" },
+  { key: "themeProfiles", label: "Theme profiles" },
   { key: "calendars", label: "Calendars" },
   { key: "events", label: "Events" },
+  { key: "eventRooms", label: "Event rooms" },
+  { key: "eventCoOwners", label: "Event co-owners" },
   { key: "eventAttendees", label: "Event attendees" },
   { key: "eventReminders", label: "Event reminders" },
   { key: "eventHourLogs", label: "Event hour logs" },
   { key: "eventZendeskConfirmations", label: "Event confirmations" },
-  { key: "themePalettes", label: "Theme palettes" },
-  { key: "themeProfiles", label: "Theme profiles" },
-  { key: "posts", label: "Posts" },
+  { key: "auditLogs", label: "Audit logs" },
 ] as const;
 
 type SnapshotDataKey = (typeof snapshotDataSections)[number]["key"];
@@ -97,7 +102,7 @@ function validateSnapshotPayload(value: unknown): { snapshot: ImportSnapshotInpu
   }
 
   for (const section of snapshotDataSections) {
-    if (!Array.isArray(data[section.key])) {
+    if (section.key in data && !Array.isArray(data[section.key])) {
       return { error: `Snapshot section "${section.label}" is missing or invalid.` };
     }
   }
@@ -390,7 +395,7 @@ export function ImportExportView() {
           </label>
           <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
             <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Snapshot format</p>
-            <p className="text-sm font-semibold text-ink-primary">Version 1 (JSON)</p>
+            <p className="text-sm font-semibold text-ink-primary">{SNAPSHOT_FORMAT_LABEL}</p>
             <button
               type="button"
               onClick={handleExport}

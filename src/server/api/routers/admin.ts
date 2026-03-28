@@ -15,6 +15,7 @@ import {
   eventAttendees,
   eventHourLogs,
   eventReminders,
+  eventRooms,
   eventZendeskConfirmations,
   events,
   organizationRoles,
@@ -212,6 +213,7 @@ const snapshotSchema = z.object({
         color: z.string(),
         isPrimary: z.boolean(),
         isPersonal: z.boolean().optional(),
+        isArchived: z.boolean().optional().default(false),
         scopeType: z.enum(organizationScopeTypeValues).optional(),
         scopeId: z.number().int().positive().optional(),
         createdAt: timestampSchema,
@@ -231,6 +233,7 @@ const snapshotSchema = z.object({
         title: z.string(),
         description: z.string().nullable(),
         location: z.string().nullable(),
+        isVirtual: z.boolean().optional().default(false),
         isAllDay: z.boolean(),
         startDatetime: timestampSchema,
         endDatetime: timestampSchema,
@@ -243,10 +246,21 @@ const snapshotSchema = z.object({
         eventEndTime: nullableTimestampSchema,
         setupTime: nullableTimestampSchema,
         zendeskTicketNumber: z.string().nullable(),
+        isArchived: z.boolean().optional().default(false),
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
       }),
     ),
+    eventRooms: z
+      .array(
+        z.object({
+          id: z.number().int().positive(),
+          eventId: z.number().int().positive(),
+          roomId: z.number().int().positive(),
+          createdAt: timestampSchema,
+        }),
+      )
+      .default([]),
     eventCoOwners: z.array(
       z.object({
         id: z.number().int().positive(),
@@ -825,6 +839,7 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
     organizationRoleRows,
     calendarRows,
     eventRows,
+    eventRoomRows,
     eventCoOwnerRows,
     attendeeRows,
     reminderRows,
@@ -845,6 +860,7 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
     db.select().from(organizationRoles).orderBy(organizationRoles.id),
     db.select().from(calendars).orderBy(calendars.id),
     db.select().from(events).orderBy(events.id),
+    db.select().from(eventRooms).orderBy(eventRooms.id),
     db.select().from(eventCoOwners).orderBy(eventCoOwners.id),
     db.select().from(eventAttendees).orderBy(eventAttendees.id),
     db.select().from(eventReminders).orderBy(eventReminders.id),
@@ -953,6 +969,7 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       color: row.color,
       isPrimary: row.isPrimary,
       isPersonal: row.isPersonal,
+      isArchived: row.isArchived,
       scopeType: row.scopeType,
       scopeId: row.scopeId,
       createdAt: serializeRequiredTimestamp(row.createdAt),
@@ -970,6 +987,7 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       title: row.title,
       description: row.description ?? null,
       location: row.location ?? null,
+      isVirtual: row.isVirtual,
       isAllDay: row.isAllDay,
       startDatetime: serializeRequiredTimestamp(row.startDatetime),
       endDatetime: serializeRequiredTimestamp(row.endDatetime),
@@ -982,8 +1000,15 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       eventEndTime: serializeTimestamp(row.eventEndTime),
       setupTime: serializeTimestamp(row.setupTime),
       zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+      isArchived: row.isArchived,
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
+    })),
+    eventRooms: eventRoomRows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      roomId: row.roomId,
+      createdAt: serializeRequiredTimestamp(row.createdAt),
     })),
     eventCoOwners: eventCoOwnerRows.map((row) => ({
       id: row.id,
@@ -1057,6 +1082,7 @@ async function resetIdentitySequences(db: DbExecutor) {
     "organization_role",
     "calendar",
     "event",
+    "event_room",
     "event_co_owner",
     "event_attendee",
     "event_reminder",
@@ -1999,6 +2025,7 @@ export const adminRouter = createTRPCRouter({
         await tx.delete(eventReminders);
         await tx.delete(eventAttendees);
         await tx.delete(eventCoOwners);
+        await tx.delete(eventRooms);
         await tx.delete(events);
         await tx.delete(calendars);
         await tx.delete(organizationRoles);
@@ -2160,6 +2187,7 @@ export const adminRouter = createTRPCRouter({
               color: row.color,
               isPrimary: row.isPrimary,
               isPersonal: row.isPersonal ?? true,
+              isArchived: row.isArchived ?? false,
               scopeType: row.scopeType ?? "business",
               scopeId: row.scopeId ?? fallbackBusinessId ?? row.id,
               createdAt: parseRequiredTimestamp(row.createdAt),
@@ -2182,6 +2210,7 @@ export const adminRouter = createTRPCRouter({
               title: row.title,
               description: row.description ?? null,
               location: row.location ?? null,
+              isVirtual: row.isVirtual ?? false,
               isAllDay: row.isAllDay,
               startDatetime: parseRequiredTimestamp(row.startDatetime),
               endDatetime: parseRequiredTimestamp(row.endDatetime),
@@ -2194,8 +2223,20 @@ export const adminRouter = createTRPCRouter({
               eventEndTime: parseTimestamp(row.eventEndTime),
               setupTime: parseTimestamp(row.setupTime),
               zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+              isArchived: row.isArchived ?? false,
               createdAt: parseRequiredTimestamp(row.createdAt),
               updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
+        if (data.eventRooms.length > 0) {
+          await tx.insert(eventRooms).values(
+            data.eventRooms.map((row) => ({
+              id: row.id,
+              eventId: row.eventId,
+              roomId: row.roomId,
+              createdAt: parseRequiredTimestamp(row.createdAt),
             })),
           );
         }
@@ -2345,6 +2386,7 @@ export const adminRouter = createTRPCRouter({
           organizationRoles: data.organizationRoles.length,
           calendars: data.calendars.length,
           events: data.events.length,
+          eventRooms: data.eventRooms.length,
           eventCoOwners: data.eventCoOwners.length,
           eventAttendees: data.eventAttendees.length,
           eventReminders: data.eventReminders.length,
