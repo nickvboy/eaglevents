@@ -257,6 +257,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
   const [draftValue, setDraftValue] = useState(() => formatTimeFieldValue(value));
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [pendingConfirmedValue, setPendingConfirmedValue] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const activeOptionRef = useRef<HTMLButtonElement | null>(null);
@@ -277,9 +278,17 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
   }, [value]);
 
   useEffect(() => {
+    if (pendingConfirmedValue !== null) {
+      if (value === pendingConfirmedValue) {
+        setPendingConfirmedValue(null);
+      } else if (!isEditing) {
+        setDraftValue(formatTimeFieldValue(pendingConfirmedValue));
+      }
+      return;
+    }
     if (isEditing) return;
     setDraftValue(formatTimeFieldValue(value));
-  }, [isEditing, value]);
+  }, [isEditing, pendingConfirmedValue, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -298,6 +307,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
       if (allowEmpty) {
         onChange("");
         setDraftValue("");
+        setPendingConfirmedValue("");
         setEditError(null);
         setOpen(false);
         setIsEditing(false);
@@ -314,6 +324,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
     }
 
     onChange(normalized);
+    setPendingConfirmedValue(normalized);
     setDraftValue(formatTimeFieldValue(normalized));
     setEditError(null);
     setOpen(false);
@@ -323,7 +334,10 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
   const commitDraftOnBlur = () => {
     const trimmed = draftValue.trim();
     if (!trimmed) {
-      if (allowEmpty) onChange("");
+      if (allowEmpty) {
+        onChange("");
+        setPendingConfirmedValue("");
+      }
       setDraftValue(allowEmpty ? "" : formatTimeFieldValue(value));
       setEditError(null);
       setOpen(false);
@@ -341,6 +355,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
     }
 
     onChange(normalized);
+    setPendingConfirmedValue(normalized);
     setDraftValue(formatTimeFieldValue(normalized));
     setEditError(null);
     setOpen(false);
