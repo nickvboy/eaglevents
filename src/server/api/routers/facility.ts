@@ -63,6 +63,7 @@ export const facilityRouter = createTRPCRouter({
     .input(
       z.object({
         query: z.string().trim().min(1),
+        buildingId: z.number().int().positive().optional(),
         limit: z.number().int().min(1).max(50).optional(),
       }),
     )
@@ -106,32 +107,54 @@ export const facilityRouter = createTRPCRouter({
         })
         .from(rooms)
         .innerJoin(buildings, eq(rooms.buildingId, buildings.id));
+      const buildingFilter = input.buildingId ? eq(buildings.id, input.buildingId) : undefined;
+      const matchAny = (value: string) =>
+        or(ilike(buildings.acronym, value), ilike(rooms.roomNumber, value), ilike(buildings.name, value));
+      const matchBuilding = (value: string) => or(ilike(buildings.acronym, value), ilike(buildings.name, value));
+      const tokens = raw
+        .split(/[\s-]+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+      const tokenConditions = tokens.map((token) => matchAny(`%${escapeLike(token)}%`));
 
       if (parsedAcronym && parsedRoom) {
-        // Strong match: specific building and room (ILIKE to allow partials like 210 vs 210A)
-        const rows = await baseSelect
-          .where(and(eq(buildings.acronym, parsedAcronym), ilike(rooms.roomNumber, `${parsedRoom}%`)))
-          .limit(limit);
+        const acronymLike = `%${escapeLike(parsedAcronym)}%`;
+        const roomLike = `%${escapeLike(parsedRoom)}%`;
+        const rows = await baseSelect.where(
+          and(
+            buildingFilter,
+            input.buildingId ? undefined : matchBuilding(acronymLike),
+            ilike(rooms.roomNumber, roomLike),
+          ),
+        ).limit(limit);
         return rows;
       }
 
       if (parsedAcronym && !parsedRoom) {
-        // Only acronym known: return first rooms in that building
-        const rows = await baseSelect.where(eq(buildings.acronym, parsedAcronym)).limit(limit);
+        const acronymLike = `%${escapeLike(parsedAcronym)}%`;
+        const rows = await baseSelect
+          .where(and(buildingFilter, matchAny(acronymLike)))
+          .limit(limit);
         return rows;
       }
 
       if (!parsedAcronym && parsedRoom) {
-        // Only room known: search across buildings
+        // Room-only searches remain flexible for values like 210A while honoring the building filter.
         const like = `%${parsedRoom.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-        const rows = await baseSelect.where(ilike(rooms.roomNumber, like)).limit(limit);
+        const rows = await baseSelect.where(and(buildingFilter, ilike(rooms.roomNumber, like))).limit(limit);
         return rows;
       }
 
-      // Fallback: search both acronym and room loosely
-      const like = `%${upper.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+      // Fallback: every token can match acronym, room number, or building name.
+      const like = `%${escapeLike(upper)}%`;
+      const tokenMatch = tokenConditions.length > 0 ? and(...tokenConditions) : undefined;
       const rows = await baseSelect
-        .where(or(ilike(buildings.acronym, like), ilike(rooms.roomNumber, like), ilike(buildings.name, like)))
+        .where(
+          and(
+            buildingFilter,
+            tokenMatch ?? matchAny(like),
+          ),
+        )
         .limit(limit);
       return rows;
     }),
@@ -144,4 +167,8 @@ function matchAcronymSafe(input: string | null): string | null {
   // Prevent overly long or non-alpha acronyms
   if (!/^[A-Z]{1,16}$/.test(trimmed)) return null;
   return trimmed;
+}
+
+function escapeLike(input: string): string {
+  return input.replace(/[%_]/g, (match) => `\\${match}`);
 }

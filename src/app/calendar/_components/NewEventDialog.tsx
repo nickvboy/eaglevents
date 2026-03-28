@@ -768,6 +768,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
   const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
   const [roomNumber, setRoomNumber] = useState<string>("");
+  const [generalLocationSearch, setGeneralLocationSearch] = useState("");
   const [selectedRooms, setSelectedRooms] = useState<LocationMatch[]>([]);
   const [description, setDescription] = useState("");
   const [recurring, setRecurring] = useState(false);
@@ -799,7 +800,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addRoomError, setAddRoomError] = useState<string | null>(null);
-  const locationWrapRef = useRef<HTMLDivElement | null>(null);
+  const specificLocationWrapRef = useRef<HTMLDivElement | null>(null);
+  const generalLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
   const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
@@ -887,6 +889,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         );
         setAllDay(Boolean(editDraft.allDay));
         setLocation(editDraft.location ?? "");
+        setGeneralLocationSearch(editDraft.location ?? "");
         setIsVirtual(Boolean(editDraft.isVirtual));
         setSelectedBuildingId(typeof editDraft.selectedBuildingId === "number" ? editDraft.selectedBuildingId : null);
         setSelectedBuildingAcronym(editDraft.selectedBuildingAcronym ?? "");
@@ -945,6 +948,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       const eventLocations = Array.isArray(event.locations) ? event.locations : [];
       const hasLocations = eventLocations.length > 0;
       setLocation(hasLocations ? "" : event.location ?? "");
+      setGeneralLocationSearch(hasLocations ? "" : event.location ?? "");
       setIsVirtual(Boolean(event.isVirtual));
       setSelectedBuildingId(event.buildingId ?? null);
       setSelectedRooms(eventLocations);
@@ -1061,6 +1065,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setSegments(nextSegments.length > 0 ? nextSegments : [makeSegment(defaultDate)]);
       setAllDay(Boolean(draft.allDay));
       setLocation(draft.location ?? "");
+      setGeneralLocationSearch(draft.location ?? "");
       setIsVirtual(Boolean(draft.isVirtual));
       setSelectedBuildingId(typeof draft.selectedBuildingId === "number" ? draft.selectedBuildingId : null);
       setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
@@ -1413,8 +1418,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   // Facilities data
   const buildingList = api.facility.listBuildings.useQuery(undefined, { enabled: open });
   const [locationQuery, setLocationQuery] = useState("");
+  const [activeLocationSearch, setActiveLocationSearch] = useState<"all" | "selected-building" | null>(null);
   const locationResults = api.facility.searchRooms.useQuery(
-    { query: locationQuery, limit: 7 },
+    {
+      query: locationQuery,
+      buildingId: activeLocationSearch === "selected-building" ? selectedBuildingId ?? undefined : undefined,
+      limit: 7,
+    },
     { enabled: open && locationQuery.length > 0 },
   );
   const locationMatches = locationResults.data ?? [];
@@ -1443,39 +1453,41 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (match) setSelectedBuildingId(match.id);
   }, [selectedBuildingAcronym, selectedBuildingId, buildingList.data]);
 
-  useEffect(() => {
-    if (!selectedBuildingAcronym || roomNumber.trim().length === 0) return;
-    const query = `${selectedBuildingAcronym} ${roomNumber}`.trim();
-    setLocation(query);
-    setLocationQuery(query);
-    setLocationHighlight(-1);
-  }, [selectedBuildingAcronym, roomNumber]);
-
   // Location search + sync effects
   useEffect(() => {
     setLocationHighlight(-1);
-  }, [location, locationMatches.length]);
+  }, [roomNumber, generalLocationSearch, locationMatches.length]);
 
   useEffect(() => {
     if (addRoomError) setAddRoomError(null);
   }, [roomNumber, selectedBuildingId, addRoomError]);
 
   useEffect(() => {
-    if (!locationQuery.length) return;
+    if (!locationQuery.length || !activeLocationSearch) return;
     const handleClick = (event: MouseEvent) => {
-      if (!locationWrapRef.current) return;
-      if (!locationWrapRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const activeWrap =
+        activeLocationSearch === "selected-building" ? specificLocationWrapRef.current : generalLocationWrapRef.current;
+      if (!activeWrap) return;
+      if (!activeWrap.contains(target)) {
         setLocationQuery("");
+        setActiveLocationSearch(null);
         setLocationHighlight(-1);
       }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [locationQuery.length]);
+  }, [locationQuery.length, activeLocationSearch]);
 
   useEffect(() => {
+    const sourceValue =
+      activeLocationSearch === "selected-building"
+        ? roomNumber
+        : activeLocationSearch === "all"
+          ? generalLocationSearch
+          : "";
     const handle = window.setTimeout(() => {
-      const trimmed = location.trim();
+      const trimmed = sourceValue.trim();
       if (trimmed.length === 0) {
         setLocationQuery("");
         return;
@@ -1483,7 +1495,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setLocationQuery(trimmed);
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [location]);
+  }, [roomNumber, generalLocationSearch, activeLocationSearch]);
   const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
   const hourLogsValidationMessage = hourLogsInvalid
     ? "Each log's end time must be after its start time."
@@ -1524,7 +1536,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setSelectedBuildingAcronym(match.acronym);
     addSelectedRoom(match);
     setLocation("");
+    setGeneralLocationSearch("");
+    setRoomNumber("");
     setLocationQuery("");
+    setActiveLocationSearch(null);
     setLocationHighlight(-1);
   };
 
@@ -1542,6 +1557,8 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setSelectedBuildingId(null);
     setSelectedBuildingAcronym("");
     setRoomNumber("");
+    setGeneralLocationSearch("");
+    setActiveLocationSearch(null);
     setSelectedRooms([]);
     setDescription("");
     setRecurring(false);
@@ -1584,8 +1601,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       return;
     }
     setAddRoomError(null);
-    const searchQuery = selectedBuildingAcronym ? `${selectedBuildingAcronym} ${nextRoom}` : nextRoom;
-    const matches = await utils.facility.searchRooms.fetch({ query: searchQuery, limit: 5 });
+    const searchQuery = nextRoom;
+    const matches = await utils.facility.searchRooms.fetch({
+      query: searchQuery,
+      buildingId: selectedBuildingId,
+      limit: 5,
+    });
     const existing = matches.find(
       (match) => match.buildingId === selectedBuildingId && match.roomNumber.toUpperCase() === nextRoom,
     );
@@ -2770,7 +2791,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             )}
           </div>
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Add a room or location</div>
+            <div className="mb-1 text-xs text-ink-muted">Location</div>
             <label className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
               <input
                 type="checkbox"
@@ -2780,6 +2801,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               />
               Virtual location
             </label>
+            <div className="mb-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-subtle">Specific building search</div>
+              <div className="mt-1 text-xs text-ink-muted">
+                Choose a building, then search only within that building&apos;s rooms.
+              </div>
+            </div>
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
               <div>
                 <div className="mb-1 text-xs text-ink-muted">Building</div>
@@ -2803,21 +2830,85 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   </select>
                 </div>
               </div>
-              <div>
+              <div ref={specificLocationWrapRef}>
                 <div className="mb-1 text-xs text-ink-muted">Room</div>
                 <input
-                  placeholder="e.g., 210 or 210A"
+                  placeholder="Search selected building rooms, e.g. 210 or 210A"
                   value={roomNumber}
                   onChange={(e) => {
                     const next = e.target.value.toUpperCase();
                     setRoomNumber(next);
-                    const query = next.trim().length > 0 ? `${selectedBuildingAcronym} ${next}`.trim() : "";
-                    setLocation(query);
-                    setLocationQuery(query);
+                    setActiveLocationSearch("selected-building");
                     setLocationHighlight(-1);
+                  }}
+                  onFocus={() => {
+                    if (roomNumber.trim().length > 0) setActiveLocationSearch("selected-building");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setLocationHighlight((prev) => Math.max(prev - 1, 0));
+                    } else if (e.key === "Enter") {
+                      if (locationMatches.length > 0 && locationHighlight >= 0) {
+                        e.preventDefault();
+                        const match = locationMatches[locationHighlight]!;
+                        handleLocationSelect(match);
+                      }
+                    }
                   }}
                   className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
                 />
+                {activeLocationSearch === "selected-building" && locationQuery.length > 0 && (
+                  <div className="relative">
+                    <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                      {locationResults.isFetching ? (
+                        <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                      ) : locationMatches.length > 0 ? (
+                        <>
+                          {locationMatches.map((match, index) => {
+                            const isActive = index === locationHighlight;
+                            return (
+                              <button
+                                key={`${match.acronym}:${match.roomNumber}:${match.buildingId}:specific`}
+                                type="button"
+                                className={
+                                  "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
+                                  (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                                }
+                                onMouseEnter={() => setLocationHighlight(index)}
+                                onClick={() => handleLocationSelect(match)}
+                              >
+                                <span>
+                                  <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
+                                </span>
+                                <span className="text-xs text-ink-subtle">{match.buildingName}</span>
+                              </button>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-ink-muted">
+                          <div>No rooms found</div>
+                          {!isVirtual && selectedBuildingId && roomNumber.trim() ? (
+                            <button
+                              type="button"
+                              className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
+                              onClick={handleAddRoom}
+                              disabled={createRoom.isPending}
+                            >
+                              {createRoom.isPending ? "Adding room..." : `Add room ${roomNumber.trim().toUpperCase()}`}
+                            </button>
+                          ) : !isVirtual ? (
+                            <div className="mt-2 text-xs text-ink-subtle">Select a building and room to add it.</div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleAddRoom()}
@@ -2848,11 +2939,23 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 ))}
               </div>
             )}
-            <div ref={locationWrapRef}>
+            <div ref={generalLocationWrapRef}>
+              <div className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-ink-subtle">General building search</div>
+              <div className="mb-2 text-xs text-ink-muted">
+                Searches all buildings by acronym, room number, building name, or combinations of those terms.
+              </div>
               <input
-                placeholder="Search rooms (try: BHG 210 or just 210)"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Search all buildings, e.g. BHG 210A, 210A, BHG, or Brown Hall"
+                value={generalLocationSearch}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setGeneralLocationSearch(next);
+                  setLocation(next);
+                  setActiveLocationSearch("all");
+                }}
+                onFocus={() => {
+                  if (generalLocationSearch.trim().length > 0) setActiveLocationSearch("all");
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
@@ -2870,7 +2973,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 }}
                 className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
               />
-              {locationQuery.length > 0 && (
+              {activeLocationSearch === "all" && locationQuery.length > 0 && (
                 <div className="relative">
                   <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
                     {locationResults.isFetching ? (
@@ -2901,18 +3004,6 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     ) : (
                       <div className="px-3 py-2 text-sm text-ink-muted">
                         <div>No rooms found</div>
-                        {!isVirtual && selectedBuildingId && roomNumber.trim() ? (
-                          <button
-                            type="button"
-                            className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
-                            onClick={handleAddRoom}
-                            disabled={createRoom.isPending}
-                          >
-                            {createRoom.isPending ? "Adding room..." : `Add room ${roomNumber.trim().toUpperCase()}`}
-                          </button>
-                        ) : !isVirtual ? (
-                          <div className="mt-2 text-xs text-ink-subtle">Select a building and room to add it.</div>
-                        ) : null}
                       </div>
                     )}
                   </div>
