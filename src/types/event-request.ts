@@ -15,7 +15,12 @@ export const EVENT_TYPE_OPTIONS = [
   "Recording",
   "Stream",
   "Panel",
-  "Audio PA",
+  "Inside Audio PA",
+  "Outside Audio PA",
+  "Concert",
+  "Additional Mics/Soundboard",
+  "General Tech Support",
+  "Other",
 ] as const;
 
 export type EquipmentNeededOption = (typeof EQUIPMENT_NEEDED_OPTIONS)[number];
@@ -29,21 +34,26 @@ export type EventRequestDetailsV1 = {
 export type EventRequestDetailsV2 = {
   version: 2;
   equipmentNeeded: EquipmentNeededOption[];
-  additionalInformation: string;
+  additionalInformation?: string;
+  equipmentOtherDetails?: string;
   eventTypes: EventTypeOption[];
+  eventTypeOtherDetails?: string;
 };
 
 export type EventRequestDetails = EventRequestDetailsV1 | EventRequestDetailsV2;
 
 export type EventRequestFormState = {
   selectedEquipment: EquipmentNeededOption[];
-  additionalInformation: string;
+  equipmentOtherDetails: string;
   selectedEventTypes: EventTypeOption[];
+  eventTypeOtherDetails: string;
 };
 
 const EQUIPMENT_SECTION_LABEL = "Equipment Needed:";
 const EVENT_TYPE_SECTION_LABEL = "Event Type:";
 const ADDITIONAL_INFO_LABEL = "Additional Information:";
+const EQUIPMENT_OTHER_LABEL = "Equipment Other Details:";
+const EVENT_TYPE_OTHER_LABEL = "Event Type Other Details:";
 
 function isEquipmentNeededOption(value: string): value is EquipmentNeededOption {
   return (EQUIPMENT_NEEDED_OPTIONS as readonly string[]).includes(value);
@@ -87,8 +97,9 @@ function parseLegacyEquipmentNeededText(rawValue: string): EventRequestFormState
   if (!normalized) {
     return {
       selectedEquipment: [],
-      additionalInformation: "",
+      equipmentOtherDetails: "",
       selectedEventTypes: [],
+      eventTypeOtherDetails: "",
     };
   }
 
@@ -107,23 +118,33 @@ function parseLegacyEquipmentNeededText(rawValue: string): EventRequestFormState
     EVENT_TYPE_SECTION_LABEL,
     isEventTypeOption,
   ) as EventTypeOption[] | null;
-  const additionalInformation = parseStructuredFieldLine(
+  const equipmentOtherDetails =
+    parseStructuredFieldLine(lines, EQUIPMENT_OTHER_LABEL) ||
+    parseStructuredFieldLine(lines, ADDITIONAL_INFO_LABEL);
+  const eventTypeOtherDetails = parseStructuredFieldLine(
     lines,
-    ADDITIONAL_INFO_LABEL,
+    EVENT_TYPE_OTHER_LABEL,
   );
 
-  if (selectedEquipment || selectedEventTypes || additionalInformation) {
+  if (
+    selectedEquipment ||
+    selectedEventTypes ||
+    equipmentOtherDetails ||
+    eventTypeOtherDetails
+  ) {
     return {
       selectedEquipment: selectedEquipment ?? [],
-      additionalInformation,
+      equipmentOtherDetails,
       selectedEventTypes: selectedEventTypes ?? [],
+      eventTypeOtherDetails,
     };
   }
 
   return {
     selectedEquipment: ["Other"],
-    additionalInformation: normalized,
+    equipmentOtherDetails: normalized,
     selectedEventTypes: [],
+    eventTypeOtherDetails: "",
   };
 }
 
@@ -140,8 +161,11 @@ function normalizeV2Details(details: EventRequestDetailsV2): EventRequestFormSta
   );
   return {
     selectedEquipment,
-    additionalInformation: details.additionalInformation.trim(),
+    equipmentOtherDetails: (
+      details.equipmentOtherDetails ?? details.additionalInformation ?? ""
+    ).trim(),
     selectedEventTypes,
+    eventTypeOtherDetails: (details.eventTypeOtherDetails ?? "").trim(),
   };
 }
 
@@ -151,8 +175,9 @@ export function toEventRequestFormState(
   if (!value) {
     return {
       selectedEquipment: [],
-      additionalInformation: "",
+      equipmentOtherDetails: "",
       selectedEventTypes: [],
+      eventTypeOtherDetails: "",
     };
   }
   if (typeof value === "string") {
@@ -168,13 +193,15 @@ export function buildEventRequestDetailsV2(
   formState: EventRequestFormState,
 ): EventRequestDetailsV2 | null {
   const selectedEquipment = unique(formState.selectedEquipment);
-  const additionalInformation = formState.additionalInformation.trim();
+  const equipmentOtherDetails = formState.equipmentOtherDetails.trim();
   const selectedEventTypes = unique(formState.selectedEventTypes);
+  const eventTypeOtherDetails = formState.eventTypeOtherDetails.trim();
 
   if (
     selectedEquipment.length === 0 &&
-    additionalInformation.length === 0 &&
-    selectedEventTypes.length === 0
+    equipmentOtherDetails.length === 0 &&
+    selectedEventTypes.length === 0 &&
+    eventTypeOtherDetails.length === 0
   ) {
     return null;
   }
@@ -182,9 +209,11 @@ export function buildEventRequestDetailsV2(
   return {
     version: 2,
     equipmentNeeded: selectedEquipment,
-    additionalInformation:
-      selectedEquipment.includes("Other") ? additionalInformation : "",
+    equipmentOtherDetails:
+      selectedEquipment.includes("Other") ? equipmentOtherDetails : "",
     eventTypes: selectedEventTypes,
+    eventTypeOtherDetails:
+      selectedEventTypes.includes("Other") ? eventTypeOtherDetails : "",
   };
 }
 
@@ -194,8 +223,16 @@ export function summarizeEventRequestDetails(
   const formState = toEventRequestFormState(value);
   return {
     equipmentNeeded: formState.selectedEquipment.join(", "),
-    additionalInformation: formState.additionalInformation,
-    eventTypes: formState.selectedEventTypes.join(", "),
+    additionalInformation: formState.equipmentOtherDetails,
+    eventTypes: [
+      formState.selectedEventTypes.join(", "),
+      formState.selectedEventTypes.includes("Other") &&
+      formState.eventTypeOtherDetails
+        ? `Other: ${formState.eventTypeOtherDetails}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" | "),
   };
 }
 
@@ -219,13 +256,26 @@ export function formatLegacyEquipmentNeededText(
       ...value.equipmentNeeded.map((option) => `- ${option}`),
     );
   }
-  if (value.additionalInformation.trim() && value.equipmentNeeded.includes("Other")) {
-    lines.push(`${ADDITIONAL_INFO_LABEL} ${value.additionalInformation.trim()}`);
+  if (
+    (value.equipmentOtherDetails ?? value.additionalInformation ?? "").trim() &&
+    value.equipmentNeeded.includes("Other")
+  ) {
+    lines.push(
+      `${EQUIPMENT_OTHER_LABEL} ${(value.equipmentOtherDetails ?? value.additionalInformation ?? "").trim()}`,
+    );
   }
   if (value.eventTypes.length > 0) {
     lines.push(
       EVENT_TYPE_SECTION_LABEL,
       ...value.eventTypes.map((option) => `- ${option}`),
+    );
+  }
+  if (
+    (value.eventTypeOtherDetails ?? "").trim() &&
+    value.eventTypes.includes("Other")
+  ) {
+    lines.push(
+      `${EVENT_TYPE_OTHER_LABEL} ${(value.eventTypeOtherDetails ?? "").trim()}`,
     );
   }
   const joined = lines.join("\n").trim();

@@ -12,6 +12,7 @@ import {
   formatLegacyEquipmentNeededText,
   type EquipmentNeededOption,
   type EventRequestDetailsV2,
+  type EventTypeOption,
 } from "~/types/event-request";
 
 type DbClient = typeof db;
@@ -87,16 +88,19 @@ function buildSeedRequestDetails(): EventRequestDetailsV2 | undefined {
   const includeOther = faker.number.int({ min: 0, max: 99 }) < 20;
   if (includeOther) selectedEquipment.push("Other");
 
-  const selectedEventTypes = faker.helpers.arrayElements(
-    EVENT_TYPE_OPTIONS,
-    faker.number.int({ min: 0, max: Math.min(2, EVENT_TYPE_OPTIONS.length) }),
+  const selectedEventTypes: EventTypeOption[] = faker.helpers.arrayElements(
+    EVENT_TYPE_OPTIONS.filter((option) => option !== "Other"),
+    faker.number.int({ min: 0, max: Math.min(2, EVENT_TYPE_OPTIONS.length - 1) }),
   );
+  const includeEventTypeOther = faker.number.int({ min: 0, max: 99 }) < 15;
+  if (includeEventTypeOther) selectedEventTypes.push("Other");
 
   return {
     version: 2,
     equipmentNeeded: Array.from(new Set(selectedEquipment)),
-    additionalInformation: includeOther ? faker.company.buzzPhrase() : "",
+    equipmentOtherDetails: includeOther ? faker.company.buzzPhrase() : "",
     eventTypes: Array.from(new Set(selectedEventTypes)),
+    eventTypeOtherDetails: includeEventTypeOther ? faker.company.buzzPhrase() : "",
   };
 }
 

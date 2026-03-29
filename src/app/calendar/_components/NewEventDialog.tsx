@@ -113,6 +113,14 @@ function formatTimeLabel(value: string) {
   });
 }
 
+function splitOptionsIntoColumns<T>(options: readonly T[], columnCount: number) {
+  if (columnCount <= 1) return [Array.from(options)];
+  const rowsPerColumn = Math.ceil(options.length / columnCount);
+  return Array.from({ length: columnCount }, (_, index) =>
+    options.slice(index * rowsPerColumn, (index + 1) * rowsPerColumn),
+  );
+}
+
 function normalizeTimeInput(value: string) {
   if (!value) return null;
   const trimmed = value.trim().toLowerCase();
@@ -928,11 +936,12 @@ export function NewEventDialog({
   const [selectedEquipmentNeeded, setSelectedEquipmentNeeded] = useState<
     EquipmentNeededOption[]
   >([]);
-  const [equipmentAdditionalInformation, setEquipmentAdditionalInformation] =
+  const [equipmentOtherDetails, setEquipmentOtherDetails] =
     useState("");
   const [selectedEventTypes, setSelectedEventTypes] = useState<
     EventTypeOption[]
   >([]);
+  const [eventTypeOtherDetails, setEventTypeOtherDetails] = useState("");
   const [zendeskTicket, setZendeskTicket] = useState("");
   const [eventInfoStart, setEventInfoStart] = useState<Date | null>(null);
   const [eventInfoEnd, setEventInfoEnd] = useState<Date | null>(null);
@@ -990,11 +999,13 @@ export function NewEventDialog({
     () =>
       buildEventRequestDetailsV2({
         selectedEquipment: selectedEquipmentNeeded,
-        additionalInformation: equipmentAdditionalInformation,
+        equipmentOtherDetails,
         selectedEventTypes,
+        eventTypeOtherDetails,
       }),
     [
-      equipmentAdditionalInformation,
+      equipmentOtherDetails,
+      eventTypeOtherDetails,
       selectedEquipmentNeeded,
       selectedEventTypes,
     ],
@@ -1002,6 +1013,14 @@ export function NewEventDialog({
   const equipmentNeeded = useMemo(
     () => formatLegacyEquipmentNeededText(requestDetails) ?? "",
     [requestDetails],
+  );
+  const equipmentOptionColumns = useMemo(
+    () => splitOptionsIntoColumns(EQUIPMENT_NEEDED_OPTIONS, 2),
+    [],
+  );
+  const eventTypeOptionColumns = useMemo(
+    () => splitOptionsIntoColumns(EVENT_TYPE_OPTIONS, 2),
+    [],
   );
   const calendarOptions = useMemo(() => {
     return (calendars ?? [])
@@ -1037,6 +1056,7 @@ export function NewEventDialog({
   }, []);
   const showEquipmentAdditionalInformation =
     selectedEquipmentNeeded.includes("Other");
+  const showEventTypeOtherDetails = selectedEventTypes.includes("Other");
 
   function toggleEquipmentNeeded(option: EquipmentNeededOption) {
     setSelectedEquipmentNeeded((current) => {
@@ -1046,7 +1066,7 @@ export function NewEventDialog({
       return [...current, option];
     });
     if (option === "Other" && showEquipmentAdditionalInformation) {
-      setEquipmentAdditionalInformation("");
+      setEquipmentOtherDetails("");
     }
   }
 
@@ -1057,6 +1077,9 @@ export function NewEventDialog({
       }
       return [...current, option];
     });
+    if (option === "Other" && showEventTypeOtherDetails) {
+      setEventTypeOtherDetails("");
+    }
   }
 
   useEffect(() => {
@@ -1147,10 +1170,9 @@ export function NewEventDialog({
           editDraft.requestDetails,
         );
         setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
-        setEquipmentAdditionalInformation(
-          parsedEquipmentDetails.additionalInformation,
-        );
+        setEquipmentOtherDetails(parsedEquipmentDetails.equipmentOtherDetails);
         setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
+        setEventTypeOtherDetails(parsedEquipmentDetails.eventTypeOtherDetails);
         setZendeskTicket(editDraft.zendeskTicket ?? "");
         setEventInfoStart(parseDraftDate(editDraft.eventInfoStart));
         setEventInfoEnd(parseDraftDate(editDraft.eventInfoEnd));
@@ -1230,10 +1252,9 @@ export function NewEventDialog({
         event.requestDetails ?? event.equipmentNeeded,
       );
       setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
-      setEquipmentAdditionalInformation(
-        parsedEquipmentDetails.additionalInformation,
-      );
+      setEquipmentOtherDetails(parsedEquipmentDetails.equipmentOtherDetails);
       setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
+      setEventTypeOtherDetails(parsedEquipmentDetails.eventTypeOtherDetails);
       setZendeskTicket(event.zendeskTicketNumber ?? "");
       setEventInfoStart(
         event.eventStartTime ? new Date(event.eventStartTime) : null,
@@ -1367,10 +1388,9 @@ export function NewEventDialog({
         draft.requestDetails,
       );
       setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
-      setEquipmentAdditionalInformation(
-        parsedEquipmentDetails.additionalInformation,
-      );
+      setEquipmentOtherDetails(parsedEquipmentDetails.equipmentOtherDetails);
       setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
+      setEventTypeOtherDetails(parsedEquipmentDetails.eventTypeOtherDetails);
       setZendeskTicket(draft.zendeskTicket ?? "");
       setEventInfoStart(parseDraftDate(draft.eventInfoStart));
       setEventInfoEnd(parseDraftDate(draft.eventInfoEnd));
@@ -1429,8 +1449,9 @@ export function NewEventDialog({
     setTechnicianNeeded(false);
     setRequestCategory("");
     setSelectedEquipmentNeeded([]);
-    setEquipmentAdditionalInformation("");
+    setEquipmentOtherDetails("");
     setSelectedEventTypes([]);
+    setEventTypeOtherDetails("");
     setZendeskTicket("");
     setEventInfoStart(null);
     setEventInfoEnd(null);
@@ -1939,8 +1960,9 @@ export function NewEventDialog({
     setTechnicianNeeded(false);
     setRequestCategory("");
     setSelectedEquipmentNeeded([]);
-    setEquipmentAdditionalInformation("");
+    setEquipmentOtherDetails("");
     setSelectedEventTypes([]);
+    setEventTypeOtherDetails("");
     setZendeskTicket("");
     setEventInfoStart(null);
     setEventInfoEnd(null);
@@ -3332,34 +3354,36 @@ export function NewEventDialog({
                 Equipment needed
               </label>
               <div className="border-outline-muted bg-surface-muted space-y-3 rounded-md border p-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {EQUIPMENT_NEEDED_OPTIONS.map((option) => (
-                    <label
-                      key={option}
-                      className="text-ink-primary flex items-center gap-2 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedEquipmentNeeded.includes(option)}
-                        onChange={() => toggleEquipmentNeeded(option)}
-                        className="accent-accent-strong h-4 w-4"
-                      />
-                      {option}
-                    </label>
+                <div className="grid gap-2 sm:grid-cols-2 sm:gap-x-6">
+                  {equipmentOptionColumns.map((column, columnIndex) => (
+                    <div key={columnIndex} className="space-y-2">
+                      {column.map((option) => (
+                        <label
+                          key={option}
+                          className="text-ink-primary flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedEquipmentNeeded.includes(option)}
+                            onChange={() => toggleEquipmentNeeded(option)}
+                            className="accent-accent-strong h-4 w-4"
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </div>
                 {showEquipmentAdditionalInformation ? (
                   <div>
                     <label className="text-ink-muted mb-1 block text-xs">
-                      Additional information
+                      Other equipment details
                     </label>
-                    <textarea
-                      rows={3}
-                      value={equipmentAdditionalInformation}
-                      onChange={(e) =>
-                        setEquipmentAdditionalInformation(e.target.value)
-                      }
-                      className="border-outline-muted bg-surface-raised text-ink-primary placeholder:text-ink-faint w-full rounded-md border p-3 outline-none"
+                    <input
+                      type="text"
+                      value={equipmentOtherDetails}
+                      onChange={(e) => setEquipmentOtherDetails(e.target.value)}
+                      className="border-outline-muted bg-surface-raised text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
                       placeholder="Provide any other equipment details"
                     />
                   </div>
@@ -3370,21 +3394,41 @@ export function NewEventDialog({
               <label className="text-ink-muted mb-1 block text-xs">
                 Event type
               </label>
-              <div className="border-outline-muted bg-surface-muted grid gap-2 rounded-md border p-3 sm:grid-cols-2">
-                {EVENT_TYPE_OPTIONS.map((option) => (
-                  <label
-                    key={option}
-                    className="text-ink-primary flex items-center gap-2 text-sm"
-                  >
+              <div className="border-outline-muted bg-surface-muted space-y-3 rounded-md border p-3">
+                <div className="grid gap-2 sm:grid-cols-2 sm:gap-x-6">
+                  {eventTypeOptionColumns.map((column, columnIndex) => (
+                    <div key={columnIndex} className="space-y-2">
+                      {column.map((option) => (
+                        <label
+                          key={option}
+                          className="text-ink-primary flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedEventTypes.includes(option)}
+                            onChange={() => toggleEventType(option)}
+                            className="accent-accent-strong h-4 w-4"
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                {showEventTypeOtherDetails ? (
+                  <div>
+                    <label className="text-ink-muted mb-1 block text-xs">
+                      Other event type details
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={selectedEventTypes.includes(option)}
-                      onChange={() => toggleEventType(option)}
-                      className="accent-accent-strong h-4 w-4"
+                      type="text"
+                      value={eventTypeOtherDetails}
+                      onChange={(e) => setEventTypeOtherDetails(e.target.value)}
+                      className="border-outline-muted bg-surface-raised text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                      placeholder="Provide any other event type details"
                     />
-                    {option}
-                  </label>
-                ))}
+                  </div>
+                ) : null}
               </div>
             </div>
             <div>

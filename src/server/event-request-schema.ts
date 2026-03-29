@@ -19,8 +19,10 @@ export const eventRequestDetailsV1Schema = z.object({
 export const eventRequestDetailsV2Schema = z.object({
   version: z.literal(2),
   equipmentNeeded: z.array(equipmentNeededOptionSchema).max(EQUIPMENT_NEEDED_OPTIONS.length),
-  additionalInformation: z.string().trim().max(2000),
+  additionalInformation: z.string().trim().max(2000).optional(),
+  equipmentOtherDetails: z.string().trim().max(2000).optional(),
   eventTypes: z.array(eventTypeOptionSchema).max(EVENT_TYPE_OPTIONS.length),
+  eventTypeOtherDetails: z.string().trim().max(2000).optional(),
 });
 
 export const eventRequestDetailsSchema = z.discriminatedUnion("version", [
@@ -41,12 +43,16 @@ export function normalizeEventRequestDetails(
 
   const equipmentNeeded = Array.from(new Set(value.equipmentNeeded));
   const eventTypes = Array.from(new Set(value.eventTypes));
-  const additionalInformation = value.additionalInformation.trim();
+  const equipmentOtherDetails = (
+    value.equipmentOtherDetails ?? value.additionalInformation ?? ""
+  ).trim();
+  const eventTypeOtherDetails = (value.eventTypeOtherDetails ?? "").trim();
 
   if (
     equipmentNeeded.length === 0 &&
-    additionalInformation.length === 0 &&
-    eventTypes.length === 0
+    equipmentOtherDetails.length === 0 &&
+    eventTypes.length === 0 &&
+    eventTypeOtherDetails.length === 0
   ) {
     return null;
   }
@@ -54,8 +60,10 @@ export function normalizeEventRequestDetails(
   return {
     version: 2,
     equipmentNeeded,
-    additionalInformation:
-      equipmentNeeded.includes("Other") ? additionalInformation : "",
+    equipmentOtherDetails:
+      equipmentNeeded.includes("Other") ? equipmentOtherDetails : "",
     eventTypes,
+    eventTypeOtherDetails:
+      eventTypes.includes("Other") ? eventTypeOtherDetails : "",
   } satisfies EventRequestDetailsV2;
 }
