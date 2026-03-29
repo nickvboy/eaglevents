@@ -301,6 +301,15 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
   const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
   activeOptionRef.current = null;
 
+  const commitSelection = (nextValue: string) => {
+    onChange(nextValue);
+    setPendingConfirmedValue(nextValue);
+    setDraftValue(formatTimeFieldValue(nextValue));
+    setEditError(null);
+    setOpen(false);
+    setIsEditing(false);
+  };
+
   const commitDraft = () => {
     const trimmed = draftValue.trim();
     if (!trimmed) {
@@ -466,12 +475,9 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
               type="button"
               ref={activeOptionRef}
               className="flex w-full items-center justify-between bg-accent-muted px-3 py-2 text-left text-sm font-medium text-ink-primary"
-              onClick={() => {
-                onChange(value);
-                setDraftValue(formatTimeFieldValue(value));
-                setEditError(null);
-                setOpen(false);
-                setIsEditing(false);
+              onMouseDown={(event) => {
+                event.preventDefault();
+                commitSelection(value);
               }}
             >
               <span>{customOptionLabel}</span>
@@ -489,12 +495,9 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
                   (active ? "bg-accent-muted font-medium text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
                 }
-                onClick={() => {
-                  onChange(option.value);
-                  setDraftValue(formatTimeFieldValue(option.value));
-                  setEditError(null);
-                  setOpen(false);
-                  setIsEditing(false);
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  commitSelection(option.value);
                 }}
               >
                 <span>{option.label}</span>

@@ -357,6 +357,34 @@ function normalizeHourLogs(
   return normalized;
 }
 
+function assertReasonableDate(date: Date, fieldName: string) {
+  const timestamp = date.getTime();
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(timestamp) || year < 1900 || year > 2100) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `${fieldName} must be a valid date between January 1, 1900 and December 31, 2100.`,
+    });
+  }
+}
+
+function assertValidEventTimestamps(input: {
+  startDatetime: Date;
+  endDatetime: Date;
+  eventStartTime?: Date | null | undefined;
+  eventEndTime?: Date | null | undefined;
+  setupTime?: Date | null | undefined;
+}) {
+  assertReasonableDate(input.startDatetime, "Start date");
+  assertReasonableDate(input.endDatetime, "End date");
+  if (input.endDatetime <= input.startDatetime) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Event end time must be after the start time." });
+  }
+  if (input.eventStartTime) assertReasonableDate(input.eventStartTime, "Event info start time");
+  if (input.eventEndTime) assertReasonableDate(input.eventEndTime, "Event info end time");
+  if (input.setupTime) assertReasonableDate(input.setupTime, "Setup time");
+}
+
 function generateEventCode() {
   return String(Math.floor(1000000 + Math.random() * 9000000));
 }
@@ -877,6 +905,13 @@ export const eventRouter = createTRPCRouter({
       const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
         .filter((id) => Number.isFinite(id))
         .filter((id) => (ownerProfileId ? id !== ownerProfileId : true));
+      assertValidEventTimestamps({
+        startDatetime: input.startDatetime,
+        endDatetime: input.endDatetime,
+        eventStartTime: input.eventStartTime,
+        eventEndTime: input.eventEndTime,
+        setupTime: input.setupTime,
+      });
 
       const created = await ctx.db.transaction(async (tx) => {
         // Assign to the first user who logs hours (on create),
@@ -1093,8 +1128,18 @@ export const eventRouter = createTRPCRouter({
       const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
         .filter((id) => Number.isFinite(id))
         .filter((id) => (current.ownerProfileId ? id !== current.ownerProfileId : true));
+      const nextEventStartTime = input.eventStartTime === undefined ? current.eventStartTime : input.eventStartTime;
+      const nextEventEndTime = input.eventEndTime === undefined ? current.eventEndTime : input.eventEndTime;
+      const nextSetupTime = input.setupTime === undefined ? current.setupTime : input.setupTime;
+      assertValidEventTimestamps({
+        startDatetime: input.startDatetime,
+        endDatetime: input.endDatetime,
+        eventStartTime: nextEventStartTime,
+        eventEndTime: nextEventEndTime,
+        setupTime: nextSetupTime,
+      });
 
-  const updated = await ctx.db.transaction(async (tx) => {
+      const updated = await ctx.db.transaction(async (tx) => {
         // Determine next assignee
         let nextAssignee: number | null | undefined =
           input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId;
@@ -1134,9 +1179,9 @@ export const eventRouter = createTRPCRouter({
             technicianNeeded: input.technicianNeeded ?? current.technicianNeeded,
             requestCategory: input.requestCategory === undefined ? current.requestCategory : input.requestCategory,
             equipmentNeeded: input.equipmentNeeded === undefined ? current.equipmentNeeded : input.equipmentNeeded,
-            eventStartTime: input.eventStartTime === undefined ? current.eventStartTime : input.eventStartTime,
-            eventEndTime: input.eventEndTime === undefined ? current.eventEndTime : input.eventEndTime,
-            setupTime: input.setupTime === undefined ? current.setupTime : input.setupTime,
+            eventStartTime: nextEventStartTime,
+            eventEndTime: nextEventEndTime,
+            setupTime: nextSetupTime,
             zendeskTicketNumber: zendeskTicketNumber,
           })
           .where(eq(events.id, input.id))
