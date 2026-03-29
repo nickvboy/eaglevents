@@ -75,6 +75,49 @@ function formatSheetName(value: string) {
   return cleaned.length > 31 ? cleaned.slice(0, 31) : cleaned;
 }
 
+function formatSheetLabel(input: {
+  displayName: string;
+  profileEmail: string;
+  profileId: number | null;
+}) {
+  const fallbackLabel =
+    input.displayName || input.profileEmail || "Unknown";
+  const suffix =
+    input.profileId !== null && Number.isFinite(input.profileId)
+      ? ` #${input.profileId}`
+      : "";
+  return `${fallbackLabel}${suffix}`;
+}
+
+function createUniqueSheetName(
+  usedNames: Set<string>,
+  label: string,
+  fallbackSeed: string,
+) {
+  const baseName = formatSheetName(label);
+  let candidate = baseName;
+  let counter = 2;
+
+  while (usedNames.has(candidate)) {
+    const suffix = ` (${counter})`;
+    const maxBaseLength = Math.max(1, 31 - suffix.length);
+    const trimmedBase = formatSheetName(baseName).slice(0, maxBaseLength);
+    candidate = `${trimmedBase}${suffix}`;
+    counter += 1;
+  }
+
+  if (!candidate.trim()) {
+    candidate = createUniqueSheetName(
+      usedNames,
+      `Unknown ${fallbackSeed}`,
+      fallbackSeed,
+    );
+  }
+
+  usedNames.add(candidate);
+  return candidate;
+}
+
 function formatTimestamp(value: Date | null) {
   return value ? value.toISOString() : "";
 }
@@ -126,9 +169,17 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
   const profileMap = new Map(data.profiles.map((row) => [row.id, row]));
   const userMap = new Map(data.users.map((row) => [row.id, row]));
 
-  const grouped = new Map<string, Array<Array<string | number>>>();
+  const grouped = new Map<
+    string,
+    {
+      sheetName: string;
+      rows: Array<Array<string | number>>;
+    }
+  >();
+  const usedSheetNames = new Set<string>(["All Logs", "Empty"]);
   const headers = [
     "Log ID",
+    "Profile ID",
     "User Name",
     "User Email",
     "Profile Email",
@@ -161,12 +212,28 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
     const profileName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
     const displayName = userDisplayName && userDisplayName.length > 0 ? userDisplayName : profileName;
     const profileEmail = profile?.email?.trim();
-    const sheetLabel = displayName && displayName.length > 0 ? displayName : profileEmail ?? "Unknown";
-    const sheetKey = formatSheetName(sheetLabel);
-    const rows = grouped.get(sheetKey) ?? [];
+    const groupKey =
+      profile?.id != null && Number.isFinite(profile.id)
+        ? `profile:${profile.id}`
+        : user?.id != null && Number.isFinite(user.id)
+          ? `user:${user.id}`
+          : "unknown";
+    const existingGroup = grouped.get(groupKey);
+    const sheetLabel = formatSheetLabel({
+      displayName: displayName && displayName.length > 0 ? displayName : "",
+      profileEmail: profileEmail ?? "",
+      profileId: profile?.id ?? null,
+    });
+    const group =
+      existingGroup ??
+      {
+        sheetName: createUniqueSheetName(usedSheetNames, sheetLabel, groupKey),
+        rows: [],
+      };
 
-    rows.push([
+    group.rows.push([
       log.id,
+      profile?.id ?? "",
       displayName && displayName.length > 0 ? displayName : "Unknown",
       user?.email ?? "",
       profile?.email ?? "",
@@ -188,28 +255,35 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
       log.durationMinutes ?? 0,
     ]);
 
-    grouped.set(sheetKey, rows);
+    grouped.set(groupKey, group);
   }
 
   const workbook = XLSX.utils.book_new();
-  const sortedKeys = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
-  const allRows = sortedKeys.flatMap((key) => grouped.get(key) ?? []);
+  const sortedGroups = Array.from(grouped.values()).sort((a, b) =>
+    a.sheetName.localeCompare(b.sheetName),
+  );
+  const allRows = sortedGroups.flatMap((group) => group.rows);
   const allWorksheet = XLSX.utils.aoa_to_sheet([headers, ...allRows]);
   XLSX.utils.book_append_sheet(workbook, allWorksheet, "All Logs");
-  for (const key of sortedKeys) {
-    const rows = grouped.get(key) ?? [];
-    const matrix = [headers, ...rows];
+  for (const group of sortedGroups) {
+    const matrix = [headers, ...group.rows];
     const worksheet = XLSX.utils.aoa_to_sheet(matrix);
-    XLSX.utils.book_append_sheet(workbook, worksheet, key);
+    XLSX.utils.book_append_sheet(workbook, worksheet, group.sheetName);
   }
 
-  if (sortedKeys.length === 0) {
+  if (sortedGroups.length === 0) {
     const worksheet = XLSX.utils.aoa_to_sheet([headers]);
     XLSX.utils.book_append_sheet(workbook, worksheet, "Empty");
   }
 
   return { workbook, rowCount: data.logs.length };
 }
+
+export const __hourLogExportTestUtils = {
+  buildWorkbook,
+  createUniqueSheetName,
+  formatSheetLabel,
+};
 
 async function writeHourLogExport(database: DbClient): Promise<HourLogExportResult> {
   const { exportDir, backupDir, filePath } = getExportPaths();
