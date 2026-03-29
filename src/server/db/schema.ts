@@ -2,11 +2,23 @@
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
 import { sql } from "drizzle-orm";
-import { index, pgTableCreator, text, foreignKey, jsonb } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgTableCreator,
+  text,
+  foreignKey,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { sql as psql } from "drizzle-orm";
 
 // Drizzle column builders
-import { varchar, integer, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
+import {
+  varchar,
+  integer,
+  timestamp,
+  uniqueIndex,
+  pgEnum,
+} from "drizzle-orm/pg-core";
 import { withDbTablePrefix } from "~/config/app";
 import type { ThemePaletteTokens } from "~/types/theme";
 
@@ -21,10 +33,29 @@ import type { ThemePaletteTokens } from "~/types/theme";
  */
 export const createTable = pgTableCreator((name) => withDbTablePrefix(name));
 
-export const businessTypeEnum = pgEnum("business_type", ["university", "nonprofit", "corporation", "government", "venue", "other"]);
-export const organizationRoleTypeEnum = pgEnum("organization_role_type", ["admin", "co_admin", "manager", "employee"]);
-export const organizationScopeTypeEnum = pgEnum("organization_scope_type", ["business", "department", "division"]);
-export const themeProfileScopeEnum = pgEnum("theme_profile_scope", ["business", "department"]);
+export const businessTypeEnum = pgEnum("business_type", [
+  "university",
+  "nonprofit",
+  "corporation",
+  "government",
+  "venue",
+  "other",
+]);
+export const organizationRoleTypeEnum = pgEnum("organization_role_type", [
+  "admin",
+  "co_admin",
+  "manager",
+  "employee",
+]);
+export const organizationScopeTypeEnum = pgEnum("organization_scope_type", [
+  "business",
+  "department",
+  "division",
+]);
+export const themeProfileScopeEnum = pgEnum("theme_profile_scope", [
+  "business",
+  "department",
+]);
 export const eventRequestCategoryEnum = pgEnum("event_request_category", [
   "university_affiliated_request_to_university_business",
   "university_affiliated_nonrequest_to_university_business",
@@ -86,7 +117,6 @@ export const profiles = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [
-    uniqueIndex("profile_email_unique").on(t.email),
     uniqueIndex("profile_user_unique")
       .on(t.userId)
       .where(sql`${t.userId} IS NOT NULL`),
@@ -113,7 +143,10 @@ export const buildings = createTable(
   "building",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: d
+      .integer()
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     name: d.varchar({ length: 255 }).notNull(),
     acronym: d.varchar({ length: 32 }).notNull(),
     createdAt: d
@@ -132,7 +165,10 @@ export const rooms = createTable(
   "room",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    buildingId: d.integer().notNull().references(() => buildings.id, { onDelete: "cascade" }),
+    buildingId: d
+      .integer()
+      .notNull()
+      .references(() => buildings.id, { onDelete: "cascade" }),
     roomNumber: d.varchar({ length: 64 }).notNull(),
     createdAt: d
       .timestamp({ withTimezone: true })
@@ -150,7 +186,10 @@ export const departments = createTable(
   "department",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: d
+      .integer()
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     parentDepartmentId: d.integer(),
     name: d.varchar({ length: 255 }).notNull(),
     createdAt: d
@@ -174,12 +213,17 @@ export const themePalettes = createTable(
   "theme_palette",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: d
+      .integer()
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     name: d.varchar({ length: 120 }).notNull(),
     description: text().default("").notNull(),
     tokens: jsonb("tokens").$type<ThemePaletteTokens>().notNull(),
     isDefault: d.boolean().default(false).notNull(),
-    createdByUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: d
+      .integer()
+      .references(() => users.id, { onDelete: "set null" }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -196,12 +240,18 @@ export const themeProfiles = createTable(
   "theme_profile",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    businessId: d.integer().notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: d
+      .integer()
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     scopeType: themeProfileScopeEnum().notNull(),
     scopeId: d.integer().notNull(),
     label: d.varchar({ length: 120 }).default("").notNull(),
     description: text().default("").notNull(),
-    paletteId: d.integer().notNull().references(() => themePalettes.id, { onDelete: "cascade" }),
+    paletteId: d
+      .integer()
+      .notNull()
+      .references(() => themePalettes.id, { onDelete: "cascade" }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -209,7 +259,11 @@ export const themeProfiles = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [
-    uniqueIndex("theme_profile_scope_idx").on(t.businessId, t.scopeType, t.scopeId),
+    uniqueIndex("theme_profile_scope_idx").on(
+      t.businessId,
+      t.scopeType,
+      t.scopeId,
+    ),
     index("theme_profile_palette_idx").on(t.paletteId),
   ],
 );
@@ -218,8 +272,14 @@ export const organizationRoles = createTable(
   "organization_role",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d.integer().notNull().references(() => users.id, { onDelete: "cascade" }),
-    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    userId: d
+      .integer()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    profileId: d
+      .integer()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
     roleType: organizationRoleTypeEnum().notNull(),
     scopeType: organizationScopeTypeEnum().notNull(),
     scopeId: d.integer().notNull(),
@@ -232,7 +292,12 @@ export const organizationRoles = createTable(
   (t) => [
     index("organization_role_user_idx").on(t.userId),
     index("organization_role_scope_idx").on(t.scopeType, t.scopeId),
-    uniqueIndex("organization_role_unique").on(t.userId, t.scopeType, t.scopeId, t.roleType),
+    uniqueIndex("organization_role_unique").on(
+      t.userId,
+      t.scopeType,
+      t.scopeId,
+      t.roleType,
+    ),
   ],
 );
 
@@ -240,10 +305,15 @@ export const visibilityGrants = createTable(
   "visibility_grant",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d.integer().notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: d
+      .integer()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     scopeType: organizationScopeTypeEnum().notNull(),
     scopeId: d.integer().notNull(),
-    createdByUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: d
+      .integer()
+      .references(() => users.id, { onDelete: "set null" }),
     reason: d.varchar({ length: 255 }).default("").notNull(),
     createdAt: d
       .timestamp({ withTimezone: true })
@@ -261,7 +331,10 @@ export const calendars = createTable(
   "calendar",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d.integer().notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: d
+      .integer()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     name: d.varchar({ length: 100 }).notNull(),
     color: d.varchar({ length: 32 }).default("#22c55e").notNull(),
     isPrimary: d.boolean().default(false).notNull(),
@@ -285,10 +358,19 @@ export const events = createTable(
   "event",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    calendarId: d.integer().notNull().references(() => calendars.id, { onDelete: "cascade" }),
-    buildingId: d.integer().references(() => buildings.id, { onDelete: "set null" }),
-    assigneeProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
-    ownerProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    calendarId: d
+      .integer()
+      .notNull()
+      .references(() => calendars.id, { onDelete: "cascade" }),
+    buildingId: d
+      .integer()
+      .references(() => buildings.id, { onDelete: "set null" }),
+    assigneeProfileId: d
+      .integer()
+      .references(() => profiles.id, { onDelete: "set null" }),
+    ownerProfileId: d
+      .integer()
+      .references(() => profiles.id, { onDelete: "set null" }),
     scopeType: organizationScopeTypeEnum().notNull(),
     scopeId: d.integer().notNull(),
     eventCode: d.varchar({ length: 7 }).notNull(),
@@ -330,8 +412,14 @@ export const eventRooms = createTable(
   "event_room",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
-    roomId: d.integer().notNull().references(() => rooms.id, { onDelete: "cascade" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    roomId: d
+      .integer()
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -348,8 +436,14 @@ export const eventCoOwners = createTable(
   "event_co_owner",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
-    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    profileId: d
+      .integer()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
     createdAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -366,19 +460,30 @@ export const eventAttendees = createTable(
   "event_attendee",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
-    profileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    profileId: d
+      .integer()
+      .references(() => profiles.id, { onDelete: "set null" }),
     email: d.varchar({ length: 255 }).notNull(),
     responseStatus: d.varchar({ length: 32 }).default("needsAction").notNull(),
   }),
-  (t) => [index("attendee_event_idx").on(t.eventId), index("attendee_profile_idx").on(t.profileId)],
+  (t) => [
+    index("attendee_event_idx").on(t.eventId),
+    index("attendee_profile_idx").on(t.profileId),
+  ],
 );
 
 export const eventReminders = createTable(
   "event_reminder",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
     reminderMinutes: integer().default(30).notNull(),
   }),
   (t) => [index("reminder_event_idx").on(t.eventId)],
@@ -388,8 +493,13 @@ export const eventHourLogs = createTable(
   "event_hour_log",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
-    loggedByProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    loggedByProfileId: d
+      .integer()
+      .references(() => profiles.id, { onDelete: "set null" }),
     startTime: d.timestamp({ withTimezone: true }).notNull(),
     endTime: d.timestamp({ withTimezone: true }).notNull(),
     durationMinutes: integer().notNull(),
@@ -398,15 +508,24 @@ export const eventHourLogs = createTable(
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
   }),
-  (t) => [index("event_hour_log_event_idx").on(t.eventId), index("event_hour_log_profile_idx").on(t.loggedByProfileId)],
+  (t) => [
+    index("event_hour_log_event_idx").on(t.eventId),
+    index("event_hour_log_profile_idx").on(t.loggedByProfileId),
+  ],
 );
 
 export const eventZendeskConfirmations = createTable(
   "event_zendesk_confirmation",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    eventId: d.integer().notNull().references(() => events.id, { onDelete: "cascade" }),
-    profileId: d.integer().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    eventId: d
+      .integer()
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    profileId: d
+      .integer()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
     confirmedAt: d
       .timestamp({ withTimezone: true })
       .default(sql`CURRENT_TIMESTAMP`)
@@ -415,7 +534,10 @@ export const eventZendeskConfirmations = createTable(
   (t) => [
     index("zendesk_confirmation_event_idx").on(t.eventId),
     index("zendesk_confirmation_profile_idx").on(t.profileId),
-    uniqueIndex("zendesk_confirmation_event_profile_idx").on(t.eventId, t.profileId),
+    uniqueIndex("zendesk_confirmation_event_profile_idx").on(
+      t.eventId,
+      t.profileId,
+    ),
   ],
 );
 
@@ -423,9 +545,15 @@ export const auditLogs = createTable(
   "audit_log",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    businessId: d.integer().references(() => businesses.id, { onDelete: "set null" }),
-    actorUserId: d.integer().references(() => users.id, { onDelete: "set null" }),
-    actorProfileId: d.integer().references(() => profiles.id, { onDelete: "set null" }),
+    businessId: d
+      .integer()
+      .references(() => businesses.id, { onDelete: "set null" }),
+    actorUserId: d
+      .integer()
+      .references(() => users.id, { onDelete: "set null" }),
+    actorProfileId: d
+      .integer()
+      .references(() => profiles.id, { onDelete: "set null" }),
     action: d.varchar({ length: 120 }).notNull(),
     targetType: d.varchar({ length: 120 }).notNull(),
     targetId: d.integer(),

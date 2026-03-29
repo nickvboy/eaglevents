@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { TRPCClientError } from "@trpc/client";
 import { addDays, startOfDay } from "../utils/date";
 import { api } from "~/trpc/react";
@@ -28,7 +34,10 @@ type HourLogDraft = {
   sourceId?: number | null;
 };
 
-const randomId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+const randomId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
 
 const REQUEST_CATEGORY_OPTIONS = [
   {
@@ -86,7 +95,10 @@ function formatHourLogTime(date: Date | null) {
 function formatTimeLabel(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return value;
-  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function normalizeTimeInput(value: string) {
@@ -100,7 +112,9 @@ function normalizeTimeInput(value: string) {
     const token = meridiemMatch[1];
     if (!token) return null;
     meridiem = token.startsWith("p") ? "pm" : "am";
-    numericPart = numericPart.slice(0, numericPart.length - meridiemMatch[0].length).trim();
+    numericPart = numericPart
+      .slice(0, numericPart.length - meridiemMatch[0].length)
+      .trim();
   }
   if (!numericPart) return null;
   let hours: number | null = null;
@@ -138,7 +152,9 @@ function sanitizeTimeInputDraft(raw: string) {
   const cleaned = raw.replace(/\./g, ":").replace(/[^0-9apm:\s]/gi, "");
   const meridiemMatch = /\s*([ap](m?)?)\s*$/i.exec(cleaned);
   const meridiem = meridiemMatch?.[1] ? meridiemMatch[1].toUpperCase() : "";
-  const numericPart = (meridiemMatch ? cleaned.slice(0, meridiemMatch.index) : cleaned).replace(/[^\d:\s]/g, "");
+  const numericPart = (
+    meridiemMatch ? cleaned.slice(0, meridiemMatch.index) : cleaned
+  ).replace(/[^\d:\s]/g, "");
   const compactNumeric = numericPart.replace(/\s+/g, "");
 
   let timePart = compactNumeric;
@@ -160,8 +176,10 @@ function formatCompletedTimeDraft(raw: string, meridiem: "AM" | "PM") {
 
   let timePart = withoutMeridiem;
   if (!withoutMeridiem.includes(":")) {
-    if (compactDigits.length === 3) timePart = `${compactDigits[0]}:${compactDigits.slice(1)}`;
-    else if (compactDigits.length === 4) timePart = `${compactDigits.slice(0, 2)}:${compactDigits.slice(2, 4)}`;
+    if (compactDigits.length === 3)
+      timePart = `${compactDigits[0]}:${compactDigits.slice(1)}`;
+    else if (compactDigits.length === 4)
+      timePart = `${compactDigits.slice(0, 2)}:${compactDigits.slice(2, 4)}`;
     else timePart = compactDigits;
   }
 
@@ -186,7 +204,9 @@ function parseLocationInput(raw: string) {
   const compact = upper.replace(/\s+|-/g, "");
   let acronym: string | null = null;
   let room: string | null = null;
-  const m2 = /^\s*([A-Z][A-Z0-9]{0,15})\s*[- ]\s*([0-9][A-Z0-9]*)\s*$/.exec(upper);
+  const m2 = /^\s*([A-Z][A-Z0-9]{0,15})\s*[- ]\s*([0-9][A-Z0-9]*)\s*$/.exec(
+    upper,
+  );
   if (m2) {
     acronym = m2[1] ?? null;
     room = m2[2] ?? null;
@@ -213,7 +233,10 @@ function formatLocationSummaryFromRooms(rooms: LocationMatch[]) {
     if (existing) {
       existing.rooms.push(entry.roomNumber);
     } else {
-      grouped.set(entry.buildingId, { acronym: entry.acronym, rooms: [entry.roomNumber] });
+      grouped.set(entry.buildingId, {
+        acronym: entry.acronym,
+        rooms: [entry.roomNumber],
+      });
     }
   }
   const segments = Array.from(grouped.values()).map((group) => {
@@ -252,12 +275,23 @@ type TimeSelectProps = {
   allowEmpty?: boolean;
 };
 
-function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty = false }: TimeSelectProps) {
+function TimeSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+  invalid,
+  allowEmpty = false,
+}: TimeSelectProps) {
   const [open, setOpen] = useState(false);
-  const [draftValue, setDraftValue] = useState(() => formatTimeFieldValue(value));
+  const [draftValue, setDraftValue] = useState(() =>
+    formatTimeFieldValue(value),
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [pendingConfirmedValue, setPendingConfirmedValue] = useState<string | null>(null);
+  const [pendingConfirmedValue, setPendingConfirmedValue] = useState<
+    string | null
+  >(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const activeOptionRef = useRef<HTMLButtonElement | null>(null);
@@ -296,7 +330,9 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
     target?.scrollIntoView({ block: "nearest" });
   }, [open, value]);
 
-  const optionLabel = value ? options.find((opt) => opt.value === value)?.label ?? null : null;
+  const optionLabel = value
+    ? (options.find((opt) => opt.value === value)?.label ?? null)
+    : null;
   const hasCustomValue = Boolean(value && !optionLabel);
   const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
   activeOptionRef.current = null;
@@ -384,7 +420,7 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
     <div className="relative w-[8.5rem] min-w-0" ref={containerRef}>
       <div
         className={
-          "flex w-full items-center gap-2 rounded-md border border-outline-muted bg-surface-muted px-3 py-1.5 text-sm text-ink-primary transition hover:border-outline-strong focus-within:ring-2 focus-within:ring-accent-strong " +
+          "border-outline-muted bg-surface-muted text-ink-primary hover:border-outline-strong focus-within:ring-accent-strong flex w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition focus-within:ring-2 " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
       >
@@ -402,7 +438,11 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
           onChange={(event) => {
             const nextDraft = sanitizeTimeInputDraft(event.target.value);
             setDraftValue(nextDraft);
-            setEditError(isPossiblyValidTimeDraft(nextDraft) ? null : "Enter time as h:mm AM/PM.");
+            setEditError(
+              isPossiblyValidTimeDraft(nextDraft)
+                ? null
+                : "Enter time as h:mm AM/PM.",
+            );
             setOpen(true);
             setIsEditing(true);
           }}
@@ -442,11 +482,11 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
               setOpen(true);
             }
           }}
-          className="min-w-0 flex-1 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-muted"
+          className="text-ink-primary placeholder:text-ink-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
         />
         <button
           type="button"
-          className="shrink-0 text-ink-muted transition hover:text-ink-primary"
+          className="text-ink-muted hover:text-ink-primary shrink-0 transition"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
             if (open) {
@@ -467,14 +507,16 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
           <ChevronDownIcon className="h-3.5 w-3.5" />
         </button>
       </div>
-      {editError && <div className="mt-1 text-xs text-status-danger">{editError}</div>}
+      {editError && (
+        <div className="text-status-danger mt-1 text-xs">{editError}</div>
+      )}
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border border-outline-muted bg-surface-overlay shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur scrollbar-hidden">
+        <div className="border-outline-muted bg-surface-overlay scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
           {hasCustomValue && customOptionLabel && (
             <button
               type="button"
               ref={activeOptionRef}
-              className="flex w-full items-center justify-between bg-accent-muted px-3 py-2 text-left text-sm font-medium text-ink-primary"
+              className="bg-accent-muted text-ink-primary flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
               onMouseDown={(event) => {
                 event.preventDefault();
                 commitSelection(value);
@@ -490,10 +532,18 @@ function TimeSelect({ value, onChange, placeholder, options, invalid, allowEmpty
               <button
                 key={option.value}
                 type="button"
-                ref={active && !hasCustomValue ? activeOptionRef : shouldDefault ? defaultOptionRef : null}
+                ref={
+                  active && !hasCustomValue
+                    ? activeOptionRef
+                    : shouldDefault
+                      ? defaultOptionRef
+                      : null
+                }
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active ? "bg-accent-muted font-medium text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
+                  (active
+                    ? "bg-accent-muted text-ink-primary font-medium"
+                    : "text-ink-subtle hover:bg-surface-muted")
                 }
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -516,7 +566,13 @@ type Props = {
   defaultDate: Date;
   calendarId?: number;
   visibleCalendarIds?: number[];
-  calendars?: Array<{ id: number; name: string; color: string; isPersonal: boolean; canWrite: boolean }>;
+  calendars?: Array<{
+    id: number;
+    name: string;
+    color: string;
+    isPersonal: boolean;
+    canWrite: boolean;
+  }>;
   event?: RouterOutputs["event"]["list"][number] | null;
 };
 
@@ -526,6 +582,7 @@ type AssigneeSelection = {
   email: string;
   username?: string | null;
 };
+type ContactConflict = RouterOutputs["profile"]["findContactConflicts"][number];
 type ProfileDraft = {
   firstName: string;
   lastName: string;
@@ -601,7 +658,10 @@ function resolveProfileLabel(profile: {
 }) {
   const displayName = profile.displayName?.trim();
   if (displayName) return displayName;
-  const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  const fullName = [profile.firstName, profile.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
   if (fullName) return fullName;
   return profile.email;
 }
@@ -611,16 +671,14 @@ function fallbackSearchLabel(value: string, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-function toAssigneeSelection(
-  profile: {
-    profileId: number;
-    firstName?: string | null;
-    lastName?: string | null;
-    displayName?: string | null;
-    email: string;
-    username?: string | null;
-  },
-): AssigneeSelection {
+function toAssigneeSelection(profile: {
+  profileId: number;
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  email: string;
+  username?: string | null;
+}): AssigneeSelection {
   return {
     profileId: profile.profileId,
     displayName: resolveProfileLabel(profile),
@@ -635,13 +693,20 @@ function formatPhoneInput(raw: string) {
   const hasPlus = trimmed.startsWith("+");
   const digits = trimmed.replace(/\D/g, "");
   if (!digits) return hasPlus ? "+" : "";
-  const normalized = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  const normalized =
+    digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
   if (normalized.length <= 3) return (hasPlus ? "+" : "") + normalized;
   if (normalized.length <= 6) {
-    return (hasPlus ? "+" : "") + `(${normalized.slice(0, 3)}) ${normalized.slice(3)}`;
+    return (
+      (hasPlus ? "+" : "") +
+      `(${normalized.slice(0, 3)}) ${normalized.slice(3)}`
+    );
   }
   const line = normalized.slice(6, 10);
-  return (hasPlus ? "+" : "") + `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${line}`;
+  return (
+    (hasPlus ? "+" : "") +
+    `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${line}`
+  );
 }
 
 function parseDraftDate(value: string | null | undefined) {
@@ -654,14 +719,18 @@ function parseDraftDate(value: string | null | undefined) {
 function getWritableCalendarIds(
   calendars?: Array<{ id: number; canWrite: boolean }>,
 ) {
-  return (calendars ?? []).filter((calendar) => calendar.canWrite).map((calendar) => calendar.id);
+  return (calendars ?? [])
+    .filter((calendar) => calendar.canWrite)
+    .map((calendar) => calendar.id);
 }
 
 function getVisibleWritableCalendarIds(
   writableCalendarIds: number[],
   visibleCalendarIds?: number[],
 ) {
-  return writableCalendarIds.filter((id) => (visibleCalendarIds ?? []).includes(id));
+  return writableCalendarIds.filter((id) =>
+    (visibleCalendarIds ?? []).includes(id),
+  );
 }
 
 function readNewEventDraft(): NewEventDraft | null {
@@ -708,7 +777,10 @@ function writeEditEventDraft(eventId: number, draft: NewEventDraft) {
   if (typeof window === "undefined") return;
   if (!Number.isFinite(eventId)) return;
   try {
-    window.sessionStorage.setItem(getEditEventDraftKey(eventId), JSON.stringify(draft));
+    window.sessionStorage.setItem(
+      getEditEventDraftKey(eventId),
+      JSON.stringify(draft),
+    );
   } catch {
     // Ignore storage failures (private mode, quota, etc.).
   }
@@ -740,13 +812,22 @@ function getQuickCreateErrorMessage(err: unknown) {
     if (fieldErrors.firstName?.length) return "First name is required.";
     if (fieldErrors.lastName?.length) return "Last name is required.";
     if (fieldErrors.email?.length) return "Enter a valid email address.";
-    if (zodError?.formErrors?.length) return zodError.formErrors[0] ?? err.message;
+    if (zodError?.formErrors?.length)
+      return zodError.formErrors[0] ?? err.message;
   }
   if (err instanceof Error && err.message.trim()) return err.message;
   return "Failed to create profile.";
 }
 
-export function NewEventDialog({ open, onClose, defaultDate, calendarId, visibleCalendarIds, calendars, event }: Props) {
+export function NewEventDialog({
+  open,
+  onClose,
+  defaultDate,
+  calendarId,
+  visibleCalendarIds,
+  calendars,
+  event,
+}: Props) {
   const utils = api.useUtils();
   const create = api.event.create.useMutation();
   const update = api.event.update.useMutation();
@@ -762,14 +843,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const isEditing = Boolean(event);
 
   const [title, setTitle] = useState("");
-  const [selectedCalendarId, setSelectedCalendarId] = useState<number | null>(calendarId ?? null);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<number | null>(
+    calendarId ?? null,
+  );
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<number[]>([]);
-  const [segments, setSegments] = useState<Segment[]>(() => [makeSegment(defaultDate)]);
+  const [segments, setSegments] = useState<Segment[]>(() => [
+    makeSegment(defaultDate),
+  ]);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [isVirtual, setIsVirtual] = useState(false);
-  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(null);
-  const [selectedBuildingAcronym, setSelectedBuildingAcronym] = useState<string>("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(
+    null,
+  );
+  const [selectedBuildingAcronym, setSelectedBuildingAcronym] =
+    useState<string>("");
   const [roomNumber, setRoomNumber] = useState<string>("");
   const [generalLocationSearch, setGeneralLocationSearch] = useState("");
   const [selectedRooms, setSelectedRooms] = useState<LocationMatch[]>([]);
@@ -777,7 +865,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [recurring, setRecurring] = useState(false);
   const [participantCount, setParticipantCount] = useState("");
   const [technicianNeeded, setTechnicianNeeded] = useState(false);
-  const [requestCategory, setRequestCategory] = useState<RequestCategoryValue | "">("");
+  const [requestCategory, setRequestCategory] = useState<
+    RequestCategoryValue | ""
+  >("");
   const [equipmentNeeded, setEquipmentNeeded] = useState("");
   const [zendeskTicket, setZendeskTicket] = useState("");
   const [eventInfoStart, setEventInfoStart] = useState<Date | null>(null);
@@ -787,8 +877,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [assignee, setAssignee] = useState<AssigneeSelection | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [assigneeQuery, setAssigneeQuery] = useState("");
-  const [selectedAttendees, setSelectedAttendees] = useState<AssigneeSelection[]>([]);
-  const [selectedCoOwners, setSelectedCoOwners] = useState<AssigneeSelection[]>([]);
+  const [selectedAttendees, setSelectedAttendees] = useState<
+    AssigneeSelection[]
+  >([]);
+  const [selectedCoOwners, setSelectedCoOwners] = useState<AssigneeSelection[]>(
+    [],
+  );
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [attendeeQuery, setAttendeeQuery] = useState("");
   const [coOwnerSearch, setCoOwnerSearch] = useState("");
@@ -797,19 +891,34 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   const [attendeeHighlight, setAttendeeHighlight] = useState(-1);
   const [coOwnerHighlight, setCoOwnerHighlight] = useState(-1);
   const [autoAssignPending, setAutoAssignPending] = useState(false);
-  const [quickCreateTarget, setQuickCreateTarget] = useState<"assignee" | "attendee" | "coOwner" | null>(null);
-  const [quickCreateDraft, setQuickCreateDraft] = useState<ProfileDraft>(emptyProfileDraft);
+  const [quickCreateTarget, setQuickCreateTarget] = useState<
+    "assignee" | "attendee" | "coOwner" | null
+  >(null);
+  const [quickCreateDraft, setQuickCreateDraft] =
+    useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
+  const [duplicateContactMatches, setDuplicateContactMatches] = useState<
+    ContactConflict[]
+  >([]);
+  const [showDuplicateContactConfirm, setShowDuplicateContactConfirm] =
+    useState(false);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addRoomError, setAddRoomError] = useState<string | null>(null);
   const specificLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const generalLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
-  const logBaseDate = useMemo(() => startOfDay(event ? new Date(event.startDatetime) : defaultDate), [event, defaultDate]);
-  const infoBaseDate = useMemo(() => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)), [segments, defaultDate]);
+  const logBaseDate = useMemo(
+    () => startOfDay(event ? new Date(event.startDatetime) : defaultDate),
+    [event, defaultDate],
+  );
+  const infoBaseDate = useMemo(
+    () => (segments[0] ? new Date(segments[0].start) : new Date(defaultDate)),
+    [segments, defaultDate],
+  );
   const zendeskTicketError =
-    zendeskTicket.trim().length > 0 && !ZENDESK_TICKET_REGEX.test(zendeskTicket.trim())
+    zendeskTicket.trim().length > 0 &&
+    !ZENDESK_TICKET_REGEX.test(zendeskTicket.trim())
       ? "Zendesk ticket must be exactly 6 digits."
       : null;
   const currentProfile = api.profile.me.useQuery(undefined, { enabled: open });
@@ -837,7 +946,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       const hours = Math.floor(mins / 60);
       const minutes = mins % 60;
       const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-      const label = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const label = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(
+        [],
+        { hour: "numeric", minute: "2-digit" },
+      );
       opts.push({ value, label });
     }
     return opts;
@@ -847,35 +959,53 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     if (!open) return;
     skipNextDraftPersistRef.current = true;
     setShowDeleteConfirm(false);
+    setShowDuplicateContactConfirm(false);
+    setDuplicateContactMatches([]);
     const preferred = getWritableCalendarIds(calendars);
-    const visiblePreferred = getVisibleWritableCalendarIds(preferred, visibleCalendarIds);
+    const visiblePreferred = getVisibleWritableCalendarIds(
+      preferred,
+      visibleCalendarIds,
+    );
     if (event) {
       const editDraft = readEditEventDraft(event.id);
       if (editDraft) {
-        const writableIds = new Set((calendars ?? []).filter((c) => c.canWrite).map((c) => c.id));
+        const writableIds = new Set(
+          (calendars ?? []).filter((c) => c.canWrite).map((c) => c.id),
+        );
         const draftCalendarIds = Array.isArray(editDraft.selectedCalendarIds)
           ? editDraft.selectedCalendarIds.filter((id) => writableIds.has(id))
           : [];
         const draftCalendarId =
-          typeof editDraft.selectedCalendarId === "number" && writableIds.has(editDraft.selectedCalendarId)
+          typeof editDraft.selectedCalendarId === "number" &&
+          writableIds.has(editDraft.selectedCalendarId)
             ? editDraft.selectedCalendarId
-            : draftCalendarIds[0] ?? null;
+            : (draftCalendarIds[0] ?? null);
         const fallbackCalendarId =
-          draftCalendarId ?? event.calendarId ?? calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+          draftCalendarId ??
+          event.calendarId ??
+          calendarId ??
+          visiblePreferred[0] ??
+          preferred[0] ??
+          null;
         const initialSelections =
-          draftCalendarIds.length > 0 ? draftCalendarIds : fallbackCalendarId ? [fallbackCalendarId] : [];
-        const nextSegments =
-          Array.isArray(editDraft.segments)
-            ? editDraft.segments
-                .map((segment) => {
-                  const start = parseDraftDate(segment?.start);
-                  const end = parseDraftDate(segment?.end);
-                  if (!start || !end) return null;
-                  return { id: randomId(), start, end };
-                })
-                .filter((segment): segment is Segment => Boolean(segment))
-            : [];
-        const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some((opt) => opt.value === editDraft.requestCategory)
+          draftCalendarIds.length > 0
+            ? draftCalendarIds
+            : fallbackCalendarId
+              ? [fallbackCalendarId]
+              : [];
+        const nextSegments = Array.isArray(editDraft.segments)
+          ? editDraft.segments
+              .map((segment) => {
+                const start = parseDraftDate(segment?.start);
+                const end = parseDraftDate(segment?.end);
+                if (!start || !end) return null;
+                return { id: randomId(), start, end };
+              })
+              .filter((segment): segment is Segment => Boolean(segment))
+          : [];
+        const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some(
+          (opt) => opt.value === editDraft.requestCategory,
+        )
           ? editDraft.requestCategory
           : "";
         setTitle(editDraft.title ?? "");
@@ -894,10 +1024,16 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         setLocation(editDraft.location ?? "");
         setGeneralLocationSearch(editDraft.location ?? "");
         setIsVirtual(Boolean(editDraft.isVirtual));
-        setSelectedBuildingId(typeof editDraft.selectedBuildingId === "number" ? editDraft.selectedBuildingId : null);
+        setSelectedBuildingId(
+          typeof editDraft.selectedBuildingId === "number"
+            ? editDraft.selectedBuildingId
+            : null,
+        );
         setSelectedBuildingAcronym(editDraft.selectedBuildingAcronym ?? "");
         setRoomNumber(editDraft.roomNumber ?? "");
-        setSelectedRooms(Array.isArray(editDraft.locationRooms) ? editDraft.locationRooms : []);
+        setSelectedRooms(
+          Array.isArray(editDraft.locationRooms) ? editDraft.locationRooms : [],
+        );
         setDescription(editDraft.description ?? "");
         setRecurring(Boolean(editDraft.recurring));
         setParticipantCount(editDraft.participantCount ?? "");
@@ -912,10 +1048,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         setAssignee(editDraft.assignee ?? null);
         setAssigneeSearch("");
         setAssigneeQuery("");
-        setSelectedAttendees(Array.isArray(editDraft.selectedAttendees) ? editDraft.selectedAttendees : []);
+        setSelectedAttendees(
+          Array.isArray(editDraft.selectedAttendees)
+            ? editDraft.selectedAttendees
+            : [],
+        );
         setAttendeeSearch("");
         setAttendeeQuery("");
-        setSelectedCoOwners(Array.isArray(editDraft.selectedCoOwners) ? editDraft.selectedCoOwners : []);
+        setSelectedCoOwners(
+          Array.isArray(editDraft.selectedCoOwners)
+            ? editDraft.selectedCoOwners
+            : [],
+        );
         setCoOwnerSearch("");
         setCoOwnerQuery("");
         setQuickCreateTarget(null);
@@ -930,12 +1074,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 start: parseDraftDate(log?.start),
                 end: parseDraftDate(log?.end),
               }))
-            : event.hourLogs?.map((log) => ({
+            : (event.hourLogs?.map((log) => ({
                 id: randomId(),
                 sourceId: log.id,
                 start: log.startTime ? new Date(log.startTime) : null,
                 end: log.endTime ? new Date(log.endTime) : null,
-              })) ?? [],
+              })) ?? []),
         );
         return;
       }
@@ -948,10 +1092,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         },
       ]);
       setAllDay(event.isAllDay);
-      const eventLocations = Array.isArray(event.locations) ? event.locations : [];
+      const eventLocations = Array.isArray(event.locations)
+        ? event.locations
+        : [];
       const hasLocations = eventLocations.length > 0;
-      setLocation(hasLocations ? "" : event.location ?? "");
-      setGeneralLocationSearch(hasLocations ? "" : event.location ?? "");
+      setLocation(hasLocations ? "" : (event.location ?? ""));
+      setGeneralLocationSearch(hasLocations ? "" : (event.location ?? ""));
       setIsVirtual(Boolean(event.isVirtual));
       setSelectedBuildingId(event.buildingId ?? null);
       setSelectedRooms(eventLocations);
@@ -962,12 +1108,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       }
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
-      setParticipantCount(typeof event.participantCount === "number" ? String(event.participantCount) : "");
+      setParticipantCount(
+        typeof event.participantCount === "number"
+          ? String(event.participantCount)
+          : "",
+      );
       setTechnicianNeeded(Boolean(event.technicianNeeded));
       setRequestCategory(event.requestCategory ?? "");
       setEquipmentNeeded(event.equipmentNeeded ?? "");
       setZendeskTicket(event.zendeskTicketNumber ?? "");
-      setEventInfoStart(event.eventStartTime ? new Date(event.eventStartTime) : null);
+      setEventInfoStart(
+        event.eventStartTime ? new Date(event.eventStartTime) : null,
+      );
       setEventInfoEnd(event.eventEndTime ? new Date(event.eventEndTime) : null);
       setSetupInfoTime(event.setupTime ? new Date(event.setupTime) : null);
       setError(null);
@@ -1039,9 +1191,10 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         ? draft.selectedCalendarIds.filter((id) => writableIds.has(id))
         : [];
       const draftCalendarId =
-        typeof draft.selectedCalendarId === "number" && writableIds.has(draft.selectedCalendarId)
+        typeof draft.selectedCalendarId === "number" &&
+        writableIds.has(draft.selectedCalendarId)
           ? draft.selectedCalendarId
-          : draftCalendarIds[0] ?? null;
+          : (draftCalendarIds[0] ?? null);
       const initialSelections =
         visiblePreferred.length > 0
           ? visiblePreferred
@@ -1049,31 +1202,44 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             ? draftCalendarIds
             : [];
       const fallbackCalendarId =
-        initialSelections[0] ?? draftCalendarId ?? calendarId ?? preferred[0] ?? null;
-      const nextSegments =
-        Array.isArray(draft.segments)
-          ? draft.segments
-              .map((segment) => {
-                const start = parseDraftDate(segment?.start);
-                const end = parseDraftDate(segment?.end);
-                if (!start || !end) return null;
-                return { id: randomId(), start, end };
-              })
-              .filter((segment): segment is Segment => Boolean(segment))
-          : [];
-      const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some((opt) => opt.value === draft.requestCategory)
+        initialSelections[0] ??
+        draftCalendarId ??
+        calendarId ??
+        preferred[0] ??
+        null;
+      const nextSegments = Array.isArray(draft.segments)
+        ? draft.segments
+            .map((segment) => {
+              const start = parseDraftDate(segment?.start);
+              const end = parseDraftDate(segment?.end);
+              if (!start || !end) return null;
+              return { id: randomId(), start, end };
+            })
+            .filter((segment): segment is Segment => Boolean(segment))
+        : [];
+      const nextRequestCategory = REQUEST_CATEGORY_OPTIONS.some(
+        (opt) => opt.value === draft.requestCategory,
+      )
         ? draft.requestCategory
         : "";
       setTitle(draft.title ?? "");
-      setSegments(nextSegments.length > 0 ? nextSegments : [makeSegment(defaultDate)]);
+      setSegments(
+        nextSegments.length > 0 ? nextSegments : [makeSegment(defaultDate)],
+      );
       setAllDay(Boolean(draft.allDay));
       setLocation(draft.location ?? "");
       setGeneralLocationSearch(draft.location ?? "");
       setIsVirtual(Boolean(draft.isVirtual));
-      setSelectedBuildingId(typeof draft.selectedBuildingId === "number" ? draft.selectedBuildingId : null);
+      setSelectedBuildingId(
+        typeof draft.selectedBuildingId === "number"
+          ? draft.selectedBuildingId
+          : null,
+      );
       setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
       setRoomNumber(draft.roomNumber ?? "");
-      setSelectedRooms(Array.isArray(draft.locationRooms) ? draft.locationRooms : []);
+      setSelectedRooms(
+        Array.isArray(draft.locationRooms) ? draft.locationRooms : [],
+      );
       setDescription(draft.description ?? "");
       setRecurring(Boolean(draft.recurring));
       setParticipantCount(draft.participantCount ?? "");
@@ -1089,10 +1255,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       setAutoAssignPending(!draft.assignee);
       setAssigneeSearch("");
       setAssigneeQuery("");
-      setSelectedAttendees(Array.isArray(draft.selectedAttendees) ? draft.selectedAttendees : []);
+      setSelectedAttendees(
+        Array.isArray(draft.selectedAttendees) ? draft.selectedAttendees : [],
+      );
       setAttendeeSearch("");
       setAttendeeQuery("");
-      setSelectedCoOwners(Array.isArray(draft.selectedCoOwners) ? draft.selectedCoOwners : []);
+      setSelectedCoOwners(
+        Array.isArray(draft.selectedCoOwners) ? draft.selectedCoOwners : [],
+      );
       setCoOwnerSearch("");
       setCoOwnerQuery("");
       setQuickCreateTarget(null);
@@ -1111,9 +1281,14 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       );
       return;
     }
-    const fallbackCalendarId = calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
+    const fallbackCalendarId =
+      calendarId ?? visiblePreferred[0] ?? preferred[0] ?? null;
     const initialSelections =
-      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
+      visiblePreferred.length > 0
+        ? visiblePreferred
+        : fallbackCalendarId
+          ? [fallbackCalendarId]
+          : [];
     setTitle("");
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
@@ -1134,7 +1309,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setEventInfoEnd(null);
     setSetupInfoTime(null);
     setError(null);
-    setAssignee(currentProfile.data ? toAssigneeSelection(currentProfile.data) : null);
+    setAssignee(
+      currentProfile.data ? toAssigneeSelection(currentProfile.data) : null,
+    );
     setAutoAssignPending(!currentProfile.data);
     setAssigneeSearch("");
     setAssigneeQuery("");
@@ -1147,10 +1324,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
+    setDuplicateContactMatches([]);
+    setShowDuplicateContactConfirm(false);
     setSelectedCalendarId(fallbackCalendarId);
     setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
-  }, [open, defaultDate, event, calendarId, calendarOptions, calendars, visibleCalendarIds, currentProfile.data]);
+  }, [
+    open,
+    defaultDate,
+    event,
+    calendarId,
+    calendarOptions,
+    calendars,
+    visibleCalendarIds,
+    currentProfile.data,
+  ]);
 
   useEffect(() => {
     if (!open || !autoAssignPending || assignee || !currentProfile.data) return;
@@ -1262,8 +1450,13 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
   // Location search + sync effects are defined after facility hooks
 
-  const updateSegment = (id: string, updater: (current: Segment) => Segment) => {
-    setSegments((prev) => prev.map((segment) => (segment.id === id ? updater(segment) : segment)));
+  const updateSegment = (
+    id: string,
+    updater: (current: Segment) => Segment,
+  ) => {
+    setSegments((prev) =>
+      prev.map((segment) => (segment.id === id ? updater(segment) : segment)),
+    );
   };
 
   const handleDateChange = (id: string, value: string) => {
@@ -1370,13 +1563,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const removeSegment = (id: string) => {
-    setSegments((prev) => (prev.length === 1 ? prev : prev.filter((segment) => segment.id !== id)));
+    setSegments((prev) =>
+      prev.length === 1 ? prev : prev.filter((segment) => segment.id !== id),
+    );
   };
 
-  const segmentsInvalid = segments.some((segment) => segment.start >= segment.end);
+  const segmentsInvalid = segments.some(
+    (segment) => segment.start >= segment.end,
+  );
   const isSaving = isEditing ? update.isPending : create.isPending;
-  const hourLogsIncomplete = hourLogs.some((log) => Boolean(log.start) !== Boolean(log.end));
-  const hourLogsInvalid = hourLogs.some((log) => log.start && log.end && log.end <= log.start);
+  const hourLogsIncomplete = hourLogs.some(
+    (log) => Boolean(log.start) !== Boolean(log.end),
+  );
+  const hourLogsInvalid = hourLogs.some(
+    (log) => log.start && log.end && log.end <= log.start,
+  );
   const trimmedParticipantCount = participantCount.trim();
   const parsedParticipantCount =
     trimmedParticipantCount === ""
@@ -1386,8 +1587,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         : NaN;
   const participantCountInvalid =
     parsedParticipantCount !== null &&
-    (Number.isNaN(parsedParticipantCount) || parsedParticipantCount < 0 || parsedParticipantCount > 100000);
-  const hasCalendar = Boolean(selectedCalendarId ?? calendarId ?? event?.calendarId);
+    (Number.isNaN(parsedParticipantCount) ||
+      parsedParticipantCount < 0 ||
+      parsedParticipantCount > 100000);
+  const hasCalendar = Boolean(
+    selectedCalendarId ?? calendarId ?? event?.calendarId,
+  );
   const canSave =
     Boolean(title.trim()) &&
     hasCalendar &&
@@ -1398,34 +1603,48 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     !isSaving &&
     !deleteMutation.isPending;
   const dialogTitle = isEditing ? "Edit event" : "Create event";
-  const primaryButtonLabel = isSaving ? "Saving..." : isEditing ? "Save changes" : "Save";
+  const primaryButtonLabel = isSaving
+    ? "Saving..."
+    : isEditing
+      ? "Save changes"
+      : "Save";
   const assigneeResults = api.profile.search.useQuery(
     { query: assigneeQuery, limit: 7 },
     { enabled: open && assigneeQuery.length > 1 },
   );
   const assigneeMatches = assigneeResults.data ?? [];
-  const shouldShowAssigneeResults = assigneeQuery.length > 1 && quickCreateTarget === null;
+  const shouldShowAssigneeResults =
+    assigneeQuery.length > 1 && quickCreateTarget === null;
   const attendeeResults = api.profile.search.useQuery(
     { query: attendeeQuery, limit: 7 },
     { enabled: open && attendeeQuery.length > 1 },
   );
   const attendeeMatches = attendeeResults.data ?? [];
-  const shouldShowAttendeeResults = attendeeQuery.length > 1 && quickCreateTarget === null;
+  const shouldShowAttendeeResults =
+    attendeeQuery.length > 1 && quickCreateTarget === null;
   const coOwnerResults = api.profile.search.useQuery(
     { query: coOwnerQuery, limit: 7 },
     { enabled: open && coOwnerQuery.length > 1 },
   );
   const coOwnerMatches = coOwnerResults.data ?? [];
-  const shouldShowCoOwnerResults = coOwnerQuery.length > 1 && quickCreateTarget === null;
+  const shouldShowCoOwnerResults =
+    coOwnerQuery.length > 1 && quickCreateTarget === null;
   const createProfile = api.profile.create.useMutation();
   // Facilities data
-  const buildingList = api.facility.listBuildings.useQuery(undefined, { enabled: open });
+  const buildingList = api.facility.listBuildings.useQuery(undefined, {
+    enabled: open,
+  });
   const [locationQuery, setLocationQuery] = useState("");
-  const [activeLocationSearch, setActiveLocationSearch] = useState<"all" | "selected-building" | null>(null);
+  const [activeLocationSearch, setActiveLocationSearch] = useState<
+    "all" | "selected-building" | null
+  >(null);
   const locationResults = api.facility.searchRooms.useQuery(
     {
       query: locationQuery,
-      buildingId: activeLocationSearch === "selected-building" ? selectedBuildingId ?? undefined : undefined,
+      buildingId:
+        activeLocationSearch === "selected-building"
+          ? (selectedBuildingId ?? undefined)
+          : undefined,
       limit: 7,
     },
     { enabled: open && locationQuery.length > 0 },
@@ -1452,7 +1671,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
   useEffect(() => {
     if (!selectedBuildingAcronym || selectedBuildingId) return;
-    const match = (buildingList.data ?? []).find((b) => b.acronym === selectedBuildingAcronym);
+    const match = (buildingList.data ?? []).find(
+      (b) => b.acronym === selectedBuildingAcronym,
+    );
     if (match) setSelectedBuildingId(match.id);
   }, [selectedBuildingAcronym, selectedBuildingId, buildingList.data]);
 
@@ -1470,7 +1691,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     const handleClick = (event: MouseEvent) => {
       const target = event.target as Node;
       const activeWrap =
-        activeLocationSearch === "selected-building" ? specificLocationWrapRef.current : generalLocationWrapRef.current;
+        activeLocationSearch === "selected-building"
+          ? specificLocationWrapRef.current
+          : generalLocationWrapRef.current;
       if (!activeWrap) return;
       if (!activeWrap.contains(target)) {
         setLocationQuery("");
@@ -1499,19 +1722,31 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     }, 250);
     return () => window.clearTimeout(handle);
   }, [roomNumber, generalLocationSearch, activeLocationSearch]);
-  const totalLoggedHours = hourLogs.reduce((sum, log) => sum + diffHours(log.start, log.end), 0);
+  const totalLoggedHours = hourLogs.reduce(
+    (sum, log) => sum + diffHours(log.start, log.end),
+    0,
+  );
   const hourLogsValidationMessage = hourLogsInvalid
     ? "Each log's end time must be after its start time."
     : hourLogsIncomplete
       ? "Provide both a start and end time or remove the log."
       : null;
   const primarySegment = segments[0] ?? null;
-  const fallbackEventInfoStart = eventInfoStart ?? (primarySegment ? new Date(primarySegment.start) : null);
-  const fallbackEventInfoEnd = eventInfoEnd ?? (primarySegment ? new Date(primarySegment.end) : null);
-  const fallbackSetupInfoTime = setupInfoTime ?? (primarySegment ? new Date(primarySegment.start) : null);
-  const fallbackEventInfoStartValue = fallbackEventInfoStart ? formatTimeValue(fallbackEventInfoStart) : "";
-  const fallbackEventInfoEndValue = fallbackEventInfoEnd ? formatTimeValue(fallbackEventInfoEnd) : "";
-  const fallbackSetupInfoValue = fallbackSetupInfoTime ? formatTimeValue(fallbackSetupInfoTime) : "";
+  const fallbackEventInfoStart =
+    eventInfoStart ?? (primarySegment ? new Date(primarySegment.start) : null);
+  const fallbackEventInfoEnd =
+    eventInfoEnd ?? (primarySegment ? new Date(primarySegment.end) : null);
+  const fallbackSetupInfoTime =
+    setupInfoTime ?? (primarySegment ? new Date(primarySegment.start) : null);
+  const fallbackEventInfoStartValue = fallbackEventInfoStart
+    ? formatTimeValue(fallbackEventInfoStart)
+    : "";
+  const fallbackEventInfoEndValue = fallbackEventInfoEnd
+    ? formatTimeValue(fallbackEventInfoEnd)
+    : "";
+  const fallbackSetupInfoValue = fallbackSetupInfoTime
+    ? formatTimeValue(fallbackSetupInfoTime)
+    : "";
 
   useEffect(() => {
     setAssigneeHighlight(-1);
@@ -1548,10 +1783,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
 
   const handleClearForm = () => {
     const preferred = getWritableCalendarIds(calendars);
-    const visiblePreferred = getVisibleWritableCalendarIds(preferred, visibleCalendarIds);
-    const fallbackCalendarId = visiblePreferred[0] ?? calendarId ?? preferred[0] ?? null;
+    const visiblePreferred = getVisibleWritableCalendarIds(
+      preferred,
+      visibleCalendarIds,
+    );
+    const fallbackCalendarId =
+      visiblePreferred[0] ?? calendarId ?? preferred[0] ?? null;
     const initialSelections =
-      visiblePreferred.length > 0 ? visiblePreferred : fallbackCalendarId ? [fallbackCalendarId] : [];
+      visiblePreferred.length > 0
+        ? visiblePreferred
+        : fallbackCalendarId
+          ? [fallbackCalendarId]
+          : [];
     setTitle("");
     setSegments([makeSegment(defaultDate)]);
     setAllDay(false);
@@ -1611,15 +1854,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       limit: 5,
     });
     const existing = matches.find(
-      (match) => match.buildingId === selectedBuildingId && match.roomNumber.toUpperCase() === nextRoom,
+      (match) =>
+        match.buildingId === selectedBuildingId &&
+        match.roomNumber.toUpperCase() === nextRoom,
     );
     if (existing) {
       addSelectedRoom(existing);
       setRoomNumber("");
       return;
     }
-    const created = await createRoom.mutateAsync({ buildingId: selectedBuildingId, roomNumber: nextRoom });
-    const building = (buildingList.data ?? []).find((entry) => entry.id === selectedBuildingId);
+    const created = await createRoom.mutateAsync({
+      buildingId: selectedBuildingId,
+      roomNumber: nextRoom,
+    });
+    const building = (buildingList.data ?? []).find(
+      (entry) => entry.id === selectedBuildingId,
+    );
     if (!building) {
       setAddRoomError("Building could not be resolved for the new room.");
       return;
@@ -1638,7 +1888,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setHourLogs((prev) => {
       const last = prev[prev.length - 1];
       const fallbackStart = last?.end ?? logBaseDate;
-      const start = fallbackStart ? new Date(fallbackStart) : new Date(logBaseDate);
+      const start = fallbackStart
+        ? new Date(fallbackStart)
+        : new Date(logBaseDate);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
       return [
         ...prev,
@@ -1652,7 +1904,11 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     });
   };
 
-  const handleHourLogChange = (id: string, field: "start" | "end", value: string) => {
+  const handleHourLogChange = (
+    id: string,
+    field: "start" | "end",
+    value: string,
+  ) => {
     setHourLogs((prev) =>
       prev.map((log) =>
         log.id === id
@@ -1669,7 +1925,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setHourLogs((prev) => prev.filter((log) => log.id !== id));
   };
 
-  const handleSelectAssignee = (option: RouterOutputs["profile"]["search"][number]) => {
+  const handleSelectAssignee = (
+    option: RouterOutputs["profile"]["search"][number],
+  ) => {
     if (assignee && assignee.profileId !== option.profileId) {
       handleAddCoOwner(option);
       setAssigneeSearch("");
@@ -1694,9 +1952,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setAssigneeQuery("");
   };
 
-  const handleAddAttendee = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
+  const handleAddAttendee = (
+    option: RouterOutputs["profile"]["search"][number] | AssigneeSelection,
+  ) => {
     setSelectedAttendees((prev) => {
-      if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
+      if (prev.some((entry) => entry.profileId === option.profileId))
+        return prev;
       const displayName = resolveProfileLabel(option);
       return [
         ...prev,
@@ -1713,17 +1974,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleRemoveAttendee = (profileId: number) => {
-    setSelectedAttendees((prev) => prev.filter((entry) => entry.profileId !== profileId));
+    setSelectedAttendees((prev) =>
+      prev.filter((entry) => entry.profileId !== profileId),
+    );
   };
 
-  const handleAddCoOwner = (option: RouterOutputs["profile"]["search"][number] | AssigneeSelection) => {
+  const handleAddCoOwner = (
+    option: RouterOutputs["profile"]["search"][number] | AssigneeSelection,
+  ) => {
     if (assignee?.profileId === option.profileId) {
       setCoOwnerSearch("");
       setCoOwnerQuery("");
       return;
     }
     setSelectedCoOwners((prev) => {
-      if (prev.some((entry) => entry.profileId === option.profileId)) return prev;
+      if (prev.some((entry) => entry.profileId === option.profileId))
+        return prev;
       const displayName = resolveProfileLabel(option);
       return [
         ...prev,
@@ -1740,19 +2006,30 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
   };
 
   const handleRemoveCoOwner = (profileId: number) => {
-    setSelectedCoOwners((prev) => prev.filter((entry) => entry.profileId !== profileId));
+    setSelectedCoOwners((prev) =>
+      prev.filter((entry) => entry.profileId !== profileId),
+    );
   };
 
   const closeQuickCreate = () => {
     setQuickCreateTarget(null);
     setQuickCreateDraft(emptyProfileDraft);
     setQuickCreateError(null);
+    setDuplicateContactMatches([]);
+    setShowDuplicateContactConfirm(false);
   };
 
-  const openQuickCreate = (target: "assignee" | "attendee" | "coOwner", seed?: string) => {
+  const openQuickCreate = (
+    target: "assignee" | "attendee" | "coOwner",
+    seed?: string,
+  ) => {
     const source =
       seed ??
-      (target === "assignee" ? assigneeSearch : target === "coOwner" ? coOwnerSearch : attendeeSearch);
+      (target === "assignee"
+        ? assigneeSearch
+        : target === "coOwner"
+          ? coOwnerSearch
+          : attendeeSearch);
     const derived = deriveProfileDraft(source);
     setQuickCreateTarget(target);
     setQuickCreateDraft({
@@ -1762,11 +2039,41 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     setQuickCreateError(null);
   };
 
-  const handleQuickCreateSubmit = async () => {
+  const applyQuickCreateSelection = (selection: AssigneeSelection) => {
+    if (quickCreateTarget === "assignee") {
+      if (assignee && assignee.profileId !== selection.profileId) {
+        handleAddCoOwner(selection);
+        setAssigneeSearch("");
+        setAssigneeQuery("");
+      } else {
+        setAutoAssignPending(false);
+        setAssignee(selection);
+        setAssigneeSearch("");
+        setAssigneeQuery("");
+      }
+    } else if (quickCreateTarget === "attendee") {
+      handleAddAttendee(selection);
+    } else if (quickCreateTarget === "coOwner") {
+      handleAddCoOwner(selection);
+    }
+  };
+
+  const handleReviewExistingProfile = (profile: ContactConflict) => {
+    applyQuickCreateSelection({
+      profileId: profile.profileId,
+      displayName: resolveProfileLabel(profile),
+      email: profile.email,
+      username: profile.username,
+    });
+    closeQuickCreate();
+  };
+
+  const submitQuickCreate = async (ignoreDuplicateContactCheck = false) => {
     setQuickCreateError(null);
     const firstName = quickCreateDraft.firstName.trim();
     const lastName = quickCreateDraft.lastName.trim();
     const email = quickCreateDraft.email.trim();
+    const phoneNumber = quickCreateDraft.phoneNumber.trim();
     if (!firstName || !lastName || !email) {
       setQuickCreateError("Add a first name, last name, and email.");
       return;
@@ -1776,56 +2083,65 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       return;
     }
     try {
+      if (!ignoreDuplicateContactCheck) {
+        const matches = await utils.profile.findContactConflicts.fetch({
+          email,
+          phoneNumber: phoneNumber.length > 0 ? phoneNumber : undefined,
+        });
+        if (matches.length > 0) {
+          setDuplicateContactMatches(matches);
+          setShowDuplicateContactConfirm(true);
+          return;
+        }
+      }
       const created = await createProfile.mutateAsync({
         firstName,
         lastName,
         email,
-        phoneNumber: quickCreateDraft.phoneNumber.trim(),
+        phoneNumber,
+        ignoreDuplicateContactCheck,
       });
       if (!created.profileId) {
         throw new Error("Profile could not be created.");
       }
-      const selection: AssigneeSelection = {
+      applyQuickCreateSelection({
         profileId: created.profileId,
         displayName: resolveProfileLabel(created),
         email: created.email,
         username: created.username,
-      };
-      if (quickCreateTarget === "assignee") {
-        if (assignee && assignee.profileId !== selection.profileId) {
-          handleAddCoOwner(selection);
-          setAssigneeSearch("");
-          setAssigneeQuery("");
-        } else {
-          setAutoAssignPending(false);
-          setAssignee(selection);
-          setAssigneeSearch("");
-          setAssigneeQuery("");
-        }
-      } else if (quickCreateTarget === "attendee") {
-        handleAddAttendee(selection);
-      } else if (quickCreateTarget === "coOwner") {
-        handleAddCoOwner(selection);
-      }
+      });
       closeQuickCreate();
     } catch (err) {
       setQuickCreateError(getQuickCreateErrorMessage(err));
     }
   };
 
+  const handleQuickCreateSubmit = async () => {
+    await submitQuickCreate(false);
+  };
+
+  const handleConfirmDuplicateQuickCreate = async () => {
+    await submitQuickCreate(true);
+  };
+
   function renderQuickCreateForm() {
     if (quickCreateTarget === null) return null;
     return (
-      <div className="mt-2 rounded-md border border-outline-muted bg-surface-muted p-3">
-        <div className="flex items-center justify-between text-sm font-semibold text-ink-primary">
+      <div className="border-outline-muted bg-surface-muted mt-2 rounded-md border p-3">
+        <div className="text-ink-primary flex items-center justify-between text-sm font-semibold">
           <span>
             Create{" "}
-            {quickCreateTarget === "assignee" ? "assignee" : quickCreateTarget === "coOwner" ? "co-owner" : "attendee"} profile
+            {quickCreateTarget === "assignee"
+              ? "assignee"
+              : quickCreateTarget === "coOwner"
+                ? "co-owner"
+                : "attendee"}{" "}
+            profile
           </span>
           <button
             type="button"
             onClick={closeQuickCreate}
-            className="text-xs font-medium text-ink-muted transition hover:text-ink-primary"
+            className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
           >
             Cancel
           </button>
@@ -1835,22 +2151,37 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             <input
               placeholder="First name"
               value={quickCreateDraft.firstName}
-              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, firstName: e.target.value }))}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              onChange={(e) =>
+                setQuickCreateDraft((prev) => ({
+                  ...prev,
+                  firstName: e.target.value,
+                }))
+              }
+              className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
             <input
               placeholder="Last name"
               value={quickCreateDraft.lastName}
-              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, lastName: e.target.value }))}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              onChange={(e) =>
+                setQuickCreateDraft((prev) => ({
+                  ...prev,
+                  lastName: e.target.value,
+                }))
+              }
+              className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
           </div>
           <div className="space-y-2">
             <input
               placeholder="Email"
               value={quickCreateDraft.email}
-              onChange={(e) => setQuickCreateDraft((prev) => ({ ...prev, email: e.target.value }))}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              onChange={(e) =>
+                setQuickCreateDraft((prev) => ({
+                  ...prev,
+                  email: e.target.value,
+                }))
+              }
+              className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
             <input
               placeholder="Phone (optional)"
@@ -1861,22 +2192,26 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   phoneNumber: formatPhoneInput(e.target.value),
                 }))
               }
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
           </div>
         </div>
-        {quickCreateError && <div className="mt-2 text-xs text-status-danger">{quickCreateError}</div>}
+        {quickCreateError && (
+          <div className="text-status-danger mt-2 text-xs">
+            {quickCreateError}
+          </div>
+        )}
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="text-xs font-medium text-ink-muted transition hover:text-ink-primary"
+            className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
             onClick={closeQuickCreate}
           >
             Dismiss
           </button>
           <button
             type="button"
-            className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
+            className="bg-accent-strong text-ink-inverted rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             disabled={createProfile.isPending}
             onClick={handleQuickCreateSubmit}
           >
@@ -1912,25 +2247,55 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           const base = { startTime: log.start, endTime: log.end };
           return log.sourceId ? { ...base, id: log.sourceId } : base;
         })
-        .filter((log): log is { id?: number; startTime: Date; endTime: Date } => Boolean(log));
+        .filter((log): log is { id?: number; startTime: Date; endTime: Date } =>
+          Boolean(log),
+        );
       const participantCountValue =
         trimmedParticipantCount === ""
           ? isEditing
             ? null
             : undefined
-          : parsedParticipantCount ?? undefined;
+          : (parsedParticipantCount ?? undefined);
       const equipmentValue = equipmentNeeded.trim();
       const equipmentPayload =
-        equipmentValue.length > 0 ? equipmentValue : isEditing ? null : undefined;
-      const requestCategoryValue = requestCategory ? requestCategory : isEditing ? null : undefined;
-      const eventInfoStartValue = eventInfoStart ? new Date(eventInfoStart) : isEditing ? null : undefined;
-      const eventInfoEndValue = eventInfoEnd ? new Date(eventInfoEnd) : isEditing ? null : undefined;
-      const setupInfoValue = setupInfoTime ? new Date(setupInfoTime) : isEditing ? null : undefined;
+        equipmentValue.length > 0
+          ? equipmentValue
+          : isEditing
+            ? null
+            : undefined;
+      const requestCategoryValue = requestCategory
+        ? requestCategory
+        : isEditing
+          ? null
+          : undefined;
+      const eventInfoStartValue = eventInfoStart
+        ? new Date(eventInfoStart)
+        : isEditing
+          ? null
+          : undefined;
+      const eventInfoEndValue = eventInfoEnd
+        ? new Date(eventInfoEnd)
+        : isEditing
+          ? null
+          : undefined;
+      const setupInfoValue = setupInfoTime
+        ? new Date(setupInfoTime)
+        : isEditing
+          ? null
+          : undefined;
       const zendeskTicketValueRaw = zendeskTicket.replace(/\D/g, "");
       const zendeskTicketPayload =
-        zendeskTicketValueRaw.length > 0 ? zendeskTicketValueRaw : isEditing ? null : undefined;
-      const attendeeProfileIds = selectedAttendees.map((entry) => entry.profileId).filter((id) => id > 0);
-      const coOwnerProfileIds = selectedCoOwners.map((entry) => entry.profileId).filter((id) => id > 0);
+        zendeskTicketValueRaw.length > 0
+          ? zendeskTicketValueRaw
+          : isEditing
+            ? null
+            : undefined;
+      const attendeeProfileIds = selectedAttendees
+        .map((entry) => entry.profileId)
+        .filter((id) => id > 0);
+      const coOwnerProfileIds = selectedCoOwners
+        .map((entry) => entry.profileId)
+        .filter((id) => id > 0);
       const targetCalendarIds = Array.from(new Set(selectedCalendarIds));
       if (targetCalendarIds.length === 0) {
         setError("Select at least one calendar before saving.");
@@ -1939,8 +2304,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       const targetCalendarId = targetCalendarIds[0] ?? null;
       const selectedRoomIds = selectedRooms.map((entry) => entry.roomId);
       const roomLocationSummary = formatLocationSummaryFromRooms(selectedRooms);
-      const locationPayload = selectedRoomIds.length > 0 ? roomLocationSummary : location.trim();
-      const buildingIdPayload = selectedRoomIds.length > 0 ? selectedRooms[0]?.buildingId ?? null : selectedBuildingId;
+      const locationPayload =
+        selectedRoomIds.length > 0 ? roomLocationSummary : location.trim();
+      const buildingIdPayload =
+        selectedRoomIds.length > 0
+          ? (selectedRooms[0]?.buildingId ?? null)
+          : selectedBuildingId;
 
       if (isEditing && event) {
         const segment = segments[0];
@@ -1948,7 +2317,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           throw new Error("Unable to determine event time range.");
         }
         const dayStart = allDay ? startOfDay(segment.start) : segment.start;
-        const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
+        const dayEnd = allDay
+          ? addDays(startOfDay(segment.start), 1)
+          : segment.end;
         await update.mutateAsync({
           id: event.id,
           calendarId: targetCalendarId ?? targetCalendarIds[0]!,
@@ -1961,7 +2332,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           isAllDay: allDay,
           startDatetime: dayStart,
           endDatetime: dayEnd,
-          recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
+          recurrenceRule: recurring
+            ? (event.recurrenceRule ?? "FREQ=DAILY")
+            : null,
           assigneeProfileId: assignee ? assignee.profileId : null,
           coOwnerProfileIds,
           hourLogs: payloadHourLogs,
@@ -1997,7 +2370,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               isAllDay: allDay,
               startDatetime: dayStart,
               endDatetime: dayEnd,
-              recurrenceRule: recurring ? event.recurrenceRule ?? "FREQ=DAILY" : null,
+              recurrenceRule: recurring
+                ? (event.recurrenceRule ?? "FREQ=DAILY")
+                : null,
               assigneeProfileId: assignee?.profileId ?? undefined,
               coOwnerProfileIds,
               hourLogs: payloadHourLogs,
@@ -2023,7 +2398,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
         const zendeskTicketPayloadCreate = zendeskTicketPayload ?? undefined;
         for (const segment of segments) {
           const dayStart = allDay ? startOfDay(segment.start) : segment.start;
-          const dayEnd = allDay ? addDays(startOfDay(segment.start), 1) : segment.end;
+          const dayEnd = allDay
+            ? addDays(startOfDay(segment.start), 1)
+            : segment.end;
           for (const calendarId of targetCalendarIds) {
             await create.mutateAsync({
               calendarId,
@@ -2062,7 +2439,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
       onClose();
     } catch (err) {
       console.error(err);
-      const fallback = isEditing ? "Failed to update event" : "Failed to create event";
+      const fallback = isEditing
+        ? "Failed to update event"
+        : "Failed to create event";
       setError(err instanceof Error ? err.message : fallback);
     }
   };
@@ -2093,13 +2472,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
     >
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
-            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
-            <div className="mt-2 text-ink-primary">Delete this event? This cannot be undone.</div>
+          <div className="border-status-danger bg-surface-raised w-full max-w-md rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-status-danger text-xs font-semibold tracking-wide uppercase">
+              Confirm delete
+            </div>
+            <div className="text-ink-primary mt-2">
+              Delete this event? This cannot be undone.
+            </div>
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
-                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
+                className="border-outline-muted text-ink-primary hover:bg-surface-muted rounded-md border px-3 py-1.5 text-sm"
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleteMutation.isPending}
               >
@@ -2107,7 +2490,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </button>
               <button
                 type="button"
-                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong disabled:opacity-60"
+                className="bg-status-danger text-ink-inverted hover:bg-status-danger-strong rounded-md px-3 py-1.5 text-sm font-semibold transition disabled:opacity-60"
                 onClick={confirmDelete}
                 disabled={deleteMutation.isPending}
               >
@@ -2117,10 +2500,86 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
         </div>
       )}
-      <div className="relative max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border border-outline-muted bg-surface-raised p-6 text-ink-primary shadow-2xl shadow-[var(--shadow-pane)]">
+      {showDuplicateContactConfirm && quickCreateTarget !== null && (
+        <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+          <div className="border-status-danger bg-surface-raised w-full max-w-lg rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-status-danger text-xs font-semibold tracking-wide uppercase">
+              Possible duplicate profile
+            </div>
+            <div className="text-ink-primary mt-2">
+              A profile with the same email address or phone number already
+              exists. Review an existing profile or continue creating a new one
+              anyway.
+            </div>
+            <div className="mt-4 space-y-3">
+              {duplicateContactMatches.map((match) => {
+                const reasons = [
+                  match.matchesEmail ? "email" : null,
+                  match.matchesPhoneNumber ? "phone" : null,
+                ].filter(Boolean);
+                return (
+                  <div
+                    key={match.profileId}
+                    className="border-outline-muted bg-surface-muted rounded-xl border px-4 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-ink-primary font-medium">
+                          {match.displayName}
+                        </div>
+                        <div className="text-ink-muted text-xs">
+                          {match.email}
+                        </div>
+                        {match.phoneNumber ? (
+                          <div className="text-ink-muted text-xs">
+                            {match.phoneNumber}
+                          </div>
+                        ) : null}
+                        <div className="text-status-danger mt-1 text-[11px] tracking-wide uppercase">
+                          Matching {reasons.join(" and ")}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="border-outline-muted text-ink-primary hover:bg-surface-raised rounded-md border px-3 py-1.5 text-xs font-medium transition"
+                        onClick={() => handleReviewExistingProfile(match)}
+                        disabled={createProfile.isPending}
+                      >
+                        Review existing
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="border-outline-muted text-ink-primary hover:bg-surface-muted rounded-md border px-3 py-1.5 text-sm"
+                onClick={() => setShowDuplicateContactConfirm(false)}
+                disabled={createProfile.isPending}
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                className="bg-status-danger text-ink-inverted hover:bg-status-danger-strong rounded-md px-3 py-1.5 text-sm font-semibold transition disabled:opacity-60"
+                onClick={handleConfirmDuplicateQuickCreate}
+                disabled={createProfile.isPending}
+              >
+                {createProfile.isPending ? "Saving..." : "Continue creating"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="border-outline-muted bg-surface-raised text-ink-primary relative max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl border p-6 shadow-2xl shadow-[var(--shadow-pane)]">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-lg font-semibold">{dialogTitle}</div>
-          <button className="rounded-md border border-outline-muted px-2 py-1 hover:bg-surface-muted" onClick={onClose}>
+          <button
+            className="border-outline-muted hover:bg-surface-muted rounded-md border px-2 py-1"
+            onClick={onClose}
+          >
             Close
           </button>
         </div>
@@ -2130,33 +2589,46 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             placeholder="Add a title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+            className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
           />
 
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Calendars</div>
+            <div className="text-ink-muted mb-1 text-xs">Calendars</div>
             {calendarOptions.length === 0 ? (
-              <div className="rounded-md border border-outline-muted bg-surface-muted p-3 text-xs text-ink-muted">
+              <div className="border-outline-muted bg-surface-muted text-ink-muted rounded-md border p-3 text-xs">
                 No writable calendars available.
               </div>
             ) : (
               <>
-                <div className="rounded-md border border-outline-muted bg-surface-muted p-2">
+                <div className="border-outline-muted bg-surface-muted rounded-md border p-2">
                   {selectedCalendarIds.length === 0 ? (
-                    <div className="text-xs text-ink-muted">Select at least one calendar.</div>
+                    <div className="text-ink-muted text-xs">
+                      Select at least one calendar.
+                    </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {calendarOptions
-                        .filter((option) => selectedCalendarIds.includes(option.id))
+                        .filter((option) =>
+                          selectedCalendarIds.includes(option.id),
+                        )
                         .map((option) => (
                           <button
                             key={option.id}
                             type="button"
-                            onClick={() => setSelectedCalendarIds((prev) => prev.filter((id) => id !== option.id))}
-                            className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs text-ink-primary hover:bg-surface-muted"
+                            onClick={() =>
+                              setSelectedCalendarIds((prev) =>
+                                prev.filter((id) => id !== option.id),
+                              )
+                            }
+                            className="border-outline-muted bg-surface-raised text-ink-primary hover:bg-surface-muted inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
                           >
-                            <span className="inline-block h-2.5 w-2.5 rounded" style={{ backgroundColor: option.color }} />
-                            <span className="max-w-[12rem] truncate">{option.name}</span>
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded"
+                              style={{ backgroundColor: option.color }}
+                            />
+                            <span className="max-w-[12rem] truncate">
+                              {option.name}
+                            </span>
                             <span className="text-ink-faint">x</span>
                           </button>
                         ))}
@@ -2168,21 +2640,25 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   onChange={(e) => {
                     const nextId = Number(e.target.value);
                     if (!Number.isFinite(nextId)) return;
-                    setSelectedCalendarIds((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]));
+                    setSelectedCalendarIds((prev) =>
+                      prev.includes(nextId) ? prev : [...prev, nextId],
+                    );
                     setSelectedCalendarId(nextId);
                   }}
-                  className="mt-2 w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint mt-2 w-full rounded-md border px-3 py-2 text-sm outline-none"
                 >
                   <option value="">Add calendar</option>
                   {calendarOptions
-                    .filter((option) => !selectedCalendarIds.includes(option.id))
+                    .filter(
+                      (option) => !selectedCalendarIds.includes(option.id),
+                    )
                     .map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.name}
                       </option>
                     ))}
                 </select>
-                <p className="mt-1 text-xs text-ink-subtle">
+                <p className="text-ink-subtle mt-1 text-xs">
                   {selectedCalendarIds.length} selected
                 </p>
               </>
@@ -2190,76 +2666,95 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Zendesk ticket number</div>
+            <div className="text-ink-muted mb-1 text-xs">
+              Zendesk ticket number
+            </div>
             <input
               type="text"
               inputMode="numeric"
               maxLength={6}
               value={zendeskTicket}
-              onChange={(e) => setZendeskTicket(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+              onChange={(e) =>
+                setZendeskTicket(e.target.value.replace(/\D/g, ""))
+              }
+              className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
               placeholder="123456"
             />
             {zendeskTicketError ? (
-              <p className="mt-1 text-xs text-status-danger">{zendeskTicketError}</p>
+              <p className="text-status-danger mt-1 text-xs">
+                {zendeskTicketError}
+              </p>
             ) : (
-              <p className="mt-1 text-xs text-ink-subtle">Enter a 6-digit Zendesk ticket.</p>
+              <p className="text-ink-subtle mt-1 text-xs">
+                Enter a 6-digit Zendesk ticket.
+              </p>
             )}
           </div>
 
-          <div className="space-y-4 border-t border-outline-muted pt-4">
+          <div className="border-outline-muted space-y-4 border-t pt-4">
             {segments.map((segment, index) => {
               const startValue = formatTimeValue(segment.start);
               const endValue = formatTimeValue(segment.end);
               return (
-              <div key={segment.id} className="space-y-2 border-b border-outline-muted pb-3 last:border-b-0 last:pb-0">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                  <span>Day {index + 1}</span>
-                  {!isEditing && segments.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-status-danger transition hover:text-status-danger"
-                      onClick={() => removeSegment(segment.id)}
-                    >
-                      Remove
-                    </button>
-                  )}
+                <div
+                  key={segment.id}
+                  className="border-outline-muted space-y-2 border-b pb-3 last:border-b-0 last:pb-0"
+                >
+                  <div className="text-ink-subtle flex items-center justify-between text-xs font-semibold tracking-wide uppercase">
+                    <span>Day {index + 1}</span>
+                    {!isEditing && segments.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-status-danger hover:text-status-danger transition"
+                        onClick={() => removeSegment(segment.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="date"
+                      value={formatDateInputValue(segment.start)}
+                      onChange={(e) =>
+                        handleDateChange(segment.id, e.target.value)
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
+                    />
+                    {allDay ? (
+                      <span className="border-outline-muted text-ink-subtle rounded-md border px-3 py-2 text-sm">
+                        All day
+                      </span>
+                    ) : (
+                      <>
+                        <TimeSelect
+                          value={startValue}
+                          onChange={(next) =>
+                            handleStartTimeChange(segment.id, next)
+                          }
+                          placeholder="Start"
+                          options={timeOptions}
+                        />
+                        <span className="text-ink-subtle text-sm">to</span>
+                        <TimeSelect
+                          value={endValue}
+                          onChange={(next) =>
+                            handleEndTimeChange(segment.id, next)
+                          }
+                          placeholder="End"
+                          options={timeOptions}
+                        />
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    value={formatDateInputValue(segment.start)}
-                    onChange={(e) => handleDateChange(segment.id, e.target.value)}
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
-                  />
-                  {allDay ? (
-                    <span className="rounded-md border border-outline-muted px-3 py-2 text-sm text-ink-subtle">All day</span>
-                  ) : (
-                    <>
-                      <TimeSelect
-                        value={startValue}
-                        onChange={(next) => handleStartTimeChange(segment.id, next)}
-                        placeholder="Start"
-                        options={timeOptions}
-                      />
-                      <span className="text-sm text-ink-subtle">to</span>
-                      <TimeSelect
-                        value={endValue}
-                        onChange={(next) => handleEndTimeChange(segment.id, next)}
-                        placeholder="End"
-                        options={timeOptions}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-            );
+              );
             })}
             {!isEditing && (
               <button
                 type="button"
                 onClick={addSegmentRow}
-                className="text-sm font-medium text-accent-soft transition hover:text-status-success"
+                className="text-accent-soft hover:text-status-success text-sm font-medium transition"
               >
                 + Add another day
               </button>
@@ -2267,21 +2762,25 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Invite attendees</div>
+            <div className="text-ink-muted mb-1 text-xs">Invite attendees</div>
             <div className="flex flex-wrap gap-2">
               {selectedAttendees.length === 0 ? (
-                <span className="text-xs text-ink-muted">No attendees selected.</span>
+                <span className="text-ink-muted text-xs">
+                  No attendees selected.
+                </span>
               ) : (
                 selectedAttendees.map((attendee) => (
                   <span
                     key={attendee.profileId}
-                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-sm text-ink-primary"
+                    className="border-outline-muted bg-surface-muted text-ink-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
                   >
                     <span className="font-medium">{attendee.displayName}</span>
-                    <span className="text-xs text-ink-muted">{attendee.email}</span>
+                    <span className="text-ink-muted text-xs">
+                      {attendee.email}
+                    </span>
                     <button
                       type="button"
-                      className="text-ink-faint transition hover:text-status-danger"
+                      className="text-ink-faint hover:text-status-danger transition"
                       onClick={() => handleRemoveAttendee(attendee.profileId)}
                       aria-label="Remove attendee"
                     >
@@ -2299,7 +2798,9 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    setAttendeeHighlight((prev) => Math.min(prev + 1, attendeeMatches.length - 1));
+                    setAttendeeHighlight((prev) =>
+                      Math.min(prev + 1, attendeeMatches.length - 1),
+                    );
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
                     setAttendeeHighlight((prev) => Math.max(prev - 1, 0));
@@ -2307,56 +2808,70 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     e.preventDefault();
                     if (attendeeMatches.length === 1) {
                       handleAddAttendee(attendeeMatches[0]!);
-                    } else if (attendeeHighlight >= 0 && attendeeHighlight < attendeeMatches.length) {
+                    } else if (
+                      attendeeHighlight >= 0 &&
+                      attendeeHighlight < attendeeMatches.length
+                    ) {
                       handleAddAttendee(attendeeMatches[attendeeHighlight]!);
                     }
                   }
                 }}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
               />
               {shouldShowAttendeeResults && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
                   {attendeeResults.isFetching ? (
-                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                    <div className="text-ink-muted px-3 py-2 text-sm">
+                      Searching...
+                    </div>
                   ) : attendeeMatches.length > 0 ? (
                     <>
                       {attendeeMatches.map((match, index) => {
                         const isActive = index === attendeeHighlight;
                         return (
-                        <button
-                          key={match.profileId}
-                          type="button"
-                          className={
-                            "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                            (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
-                          }
-                          onClick={() => handleAddAttendee(match)}
-                          onMouseEnter={() => setAttendeeHighlight(index)}
-                        >
-                          <span className="font-medium">{match.displayName}</span>
-                          <span className="text-xs text-ink-muted">{match.email}</span>
-                        </button>
+                          <button
+                            key={match.profileId}
+                            type="button"
+                            className={
+                              "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                              (isActive
+                                ? "bg-accent-muted"
+                                : "hover:bg-surface-muted")
+                            }
+                            onClick={() => handleAddAttendee(match)}
+                            onMouseEnter={() => setAttendeeHighlight(index)}
+                          >
+                            <span className="font-medium">
+                              {match.displayName}
+                            </span>
+                            <span className="text-ink-muted text-xs">
+                              {match.email}
+                            </span>
+                          </button>
                         );
                       })}
-                      <div className="px-3 py-2 text-sm text-ink-muted">
+                      <div className="text-ink-muted px-3 py-2 text-sm">
                         <button
                           type="button"
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("attendee")}
                         >
-                          Create new profile for &quot;{fallbackSearchLabel(attendeeSearch, "attendee")}&quot;
+                          Create new profile for &quot;
+                          {fallbackSearchLabel(attendeeSearch, "attendee")}
+                          &quot;
                         </button>
                       </div>
                     </>
                   ) : (
-                    <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                    <div className="text-ink-muted space-y-2 px-3 py-2 text-sm">
                       <div>No profiles found</div>
                       <button
                         type="button"
                         className="text-accent-soft hover:text-accent-strong"
                         onClick={() => openQuickCreate("attendee")}
                       >
-                        Create profile for &quot;{fallbackSearchLabel(attendeeSearch, "attendee")}&quot;
+                        Create profile for &quot;
+                        {fallbackSearchLabel(attendeeSearch, "attendee")}&quot;
                       </button>
                     </div>
                   )}
@@ -2367,17 +2882,21 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Assign to</div>
+            <div className="text-ink-muted mb-1 text-xs">Assign to</div>
             <div className="space-y-2">
               {assignee && (
-                <div className="flex items-center justify-between rounded-md border border-outline-accent bg-accent-muted px-3 py-2 text-sm">
+                <div className="border-outline-accent bg-accent-muted flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                   <div>
-                    <div className="font-medium text-ink-primary">{assignee.displayName}</div>
-                    <div className="text-xs text-ink-muted">{assignee.email}</div>
+                    <div className="text-ink-primary font-medium">
+                      {assignee.displayName}
+                    </div>
+                    <div className="text-ink-muted text-xs">
+                      {assignee.email}
+                    </div>
                   </div>
                   <button
                     type="button"
-                    className="text-xs font-medium text-status-success hover:text-accent-soft"
+                    className="text-status-success hover:text-accent-soft text-xs font-medium"
                     onClick={handleClearAssignee}
                   >
                     Clear
@@ -2385,32 +2904,45 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 </div>
               )}
               <div className="relative">
-              <input
-                placeholder={assignee ? "Search to add co-owners or clear to reassign" : "Search by name, username, or email"}
-                value={assigneeSearch}
-                onChange={(e) => setAssigneeSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setAssigneeHighlight((prev) => Math.min(prev + 1, assigneeMatches.length - 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (assigneeMatches.length === 1) {
-                      handleSelectAssignee(assigneeMatches[0]!);
-                    } else if (assigneeHighlight >= 0 && assigneeHighlight < assigneeMatches.length) {
-                      handleSelectAssignee(assigneeMatches[assigneeHighlight]!);
-                    }
+                <input
+                  placeholder={
+                    assignee
+                      ? "Search to add co-owners or clear to reassign"
+                      : "Search by name, username, email, or phone"
                   }
-                }}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-              />
+                  value={assigneeSearch}
+                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setAssigneeHighlight((prev) =>
+                        Math.min(prev + 1, assigneeMatches.length - 1),
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (assigneeMatches.length === 1) {
+                        handleSelectAssignee(assigneeMatches[0]!);
+                      } else if (
+                        assigneeHighlight >= 0 &&
+                        assigneeHighlight < assigneeMatches.length
+                      ) {
+                        handleSelectAssignee(
+                          assigneeMatches[assigneeHighlight]!,
+                        );
+                      }
+                    }
+                  }}
+                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                />
                 {shouldShowAssigneeResults && (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                  <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
                     {assigneeResults.isFetching ? (
-                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                      <div className="text-ink-muted px-3 py-2 text-sm">
+                        Searching...
+                      </div>
                     ) : assigneeMatches.length > 0 ? (
                       <>
                         {assigneeMatches.map((match, index) => {
@@ -2420,151 +2952,187 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                               key={match.profileId}
                               type="button"
                               className={
-                                "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                                "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                                (isActive
+                                  ? "bg-accent-muted"
+                                  : "hover:bg-surface-muted")
                               }
                               onClick={() => handleSelectAssignee(match)}
                               onMouseEnter={() => setAssigneeHighlight(index)}
                             >
-                              <span className="font-medium">{match.displayName}</span>
-                              <span className="text-xs text-ink-muted">{match.email}</span>
+                              <span className="font-medium">
+                                {match.displayName}
+                              </span>
+                              <span className="text-ink-muted text-xs">
+                                {match.email}
+                              </span>
                             </button>
                           );
                         })}
-                        <div className="px-3 py-2 text-sm text-ink-muted">
+                        <div className="text-ink-muted px-3 py-2 text-sm">
                           <button
                             type="button"
                             className="text-accent-soft hover:text-accent-strong"
                             onClick={() => openQuickCreate("assignee")}
                           >
-                            Create new profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
+                            Create new profile for &quot;
+                            {fallbackSearchLabel(assigneeSearch, "assignee")}
+                            &quot;
                           </button>
                         </div>
                       </>
                     ) : (
-                      <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
+                      <div className="text-ink-muted space-y-2 px-3 py-2 text-sm">
                         <div>No profiles found</div>
                         <button
                           type="button"
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("assignee")}
                         >
-                          Create profile for &quot;{fallbackSearchLabel(assigneeSearch, "assignee")}&quot;
+                          Create profile for &quot;
+                          {fallbackSearchLabel(assigneeSearch, "assignee")}
+                          &quot;
                         </button>
                       </div>
                     )}
                   </div>
-              )}
+                )}
+              </div>
+              {quickCreateTarget === "assignee"
+                ? renderQuickCreateForm()
+                : null}
             </div>
-            {quickCreateTarget === "assignee" ? renderQuickCreateForm() : null}
-          </div>
 
-          <div>
-            <div className="mb-1 text-xs text-ink-muted">Co-owners</div>
-            <div className="flex flex-wrap gap-2">
-              {selectedCoOwners.length === 0 ? (
-                <span className="text-xs text-ink-muted">No co-owners selected.</span>
-              ) : (
-                selectedCoOwners.map((owner) => (
-                  <span
-                    key={owner.profileId}
-                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-sm text-ink-primary"
-                  >
-                    <span className="font-medium">{owner.displayName}</span>
-                    <span className="text-xs text-ink-muted">{owner.email}</span>
-                    <button
-                      type="button"
-                      className="text-ink-faint transition hover:text-status-danger"
-                      onClick={() => handleRemoveCoOwner(owner.profileId)}
-                      aria-label="Remove co-owner"
-                    >
-                      <XIcon className="h-3 w-3" />
-                    </button>
+            <div>
+              <div className="text-ink-muted mb-1 text-xs">Co-owners</div>
+              <div className="flex flex-wrap gap-2">
+                {selectedCoOwners.length === 0 ? (
+                  <span className="text-ink-muted text-xs">
+                    No co-owners selected.
                   </span>
-                ))
-              )}
-            </div>
-            <div className="relative mt-2">
-              <input
-                placeholder="Search by name, email, or phone"
-                value={coOwnerSearch}
-                onChange={(e) => setCoOwnerSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setCoOwnerHighlight((prev) => Math.min(prev + 1, coOwnerMatches.length - 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setCoOwnerHighlight((prev) => Math.max(prev - 1, 0));
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (coOwnerMatches.length === 1) {
-                      handleAddCoOwner(coOwnerMatches[0]!);
-                    } else if (coOwnerHighlight >= 0 && coOwnerHighlight < coOwnerMatches.length) {
-                      handleAddCoOwner(coOwnerMatches[coOwnerHighlight]!);
+                ) : (
+                  selectedCoOwners.map((owner) => (
+                    <span
+                      key={owner.profileId}
+                      className="border-outline-muted bg-surface-muted text-ink-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
+                    >
+                      <span className="font-medium">{owner.displayName}</span>
+                      <span className="text-ink-muted text-xs">
+                        {owner.email}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-ink-faint hover:text-status-danger transition"
+                        onClick={() => handleRemoveCoOwner(owner.profileId)}
+                        aria-label="Remove co-owner"
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+              <div className="relative mt-2">
+                <input
+                  placeholder="Search by name, email, or phone"
+                  value={coOwnerSearch}
+                  onChange={(e) => setCoOwnerSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setCoOwnerHighlight((prev) =>
+                        Math.min(prev + 1, coOwnerMatches.length - 1),
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setCoOwnerHighlight((prev) => Math.max(prev - 1, 0));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (coOwnerMatches.length === 1) {
+                        handleAddCoOwner(coOwnerMatches[0]!);
+                      } else if (
+                        coOwnerHighlight >= 0 &&
+                        coOwnerHighlight < coOwnerMatches.length
+                      ) {
+                        handleAddCoOwner(coOwnerMatches[coOwnerHighlight]!);
+                      }
                     }
-                  }
-                }}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
-              />
-              {shouldShowCoOwnerResults && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
-                  {coOwnerResults.isFetching ? (
-                    <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
-                  ) : coOwnerMatches.length > 0 ? (
-                    <>
-                      {coOwnerMatches.map((match, index) => {
-                        const isActive = index === coOwnerHighlight;
-                        return (
+                  }}
+                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                />
+                {shouldShowCoOwnerResults && (
+                  <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
+                    {coOwnerResults.isFetching ? (
+                      <div className="text-ink-muted px-3 py-2 text-sm">
+                        Searching...
+                      </div>
+                    ) : coOwnerMatches.length > 0 ? (
+                      <>
+                        {coOwnerMatches.map((match, index) => {
+                          const isActive = index === coOwnerHighlight;
+                          return (
+                            <button
+                              key={match.profileId}
+                              type="button"
+                              className={
+                                "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                                (isActive
+                                  ? "bg-accent-muted"
+                                  : "hover:bg-surface-muted")
+                              }
+                              onClick={() => handleAddCoOwner(match)}
+                              onMouseEnter={() => setCoOwnerHighlight(index)}
+                            >
+                              <span className="font-medium">
+                                {match.displayName}
+                              </span>
+                              <span className="text-ink-muted text-xs">
+                                {match.email}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        <div className="text-ink-muted px-3 py-2 text-sm">
                           <button
-                            key={match.profileId}
                             type="button"
-                            className={
-                              "flex w-full flex-col items-start gap-0.5 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                              (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
-                            }
-                            onClick={() => handleAddCoOwner(match)}
-                            onMouseEnter={() => setCoOwnerHighlight(index)}
+                            className="text-accent-soft hover:text-accent-strong"
+                            onClick={() => openQuickCreate("coOwner")}
                           >
-                            <span className="font-medium">{match.displayName}</span>
-                            <span className="text-xs text-ink-muted">{match.email}</span>
+                            Create new profile for &quot;
+                            {fallbackSearchLabel(coOwnerSearch, "co-owner")}
+                            &quot;
                           </button>
-                        );
-                      })}
-                      <div className="px-3 py-2 text-sm text-ink-muted">
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-ink-muted space-y-2 px-3 py-2 text-sm">
+                        <div>No profiles found</div>
                         <button
                           type="button"
                           className="text-accent-soft hover:text-accent-strong"
                           onClick={() => openQuickCreate("coOwner")}
                         >
-                          Create new profile for &quot;{fallbackSearchLabel(coOwnerSearch, "co-owner")}&quot;
+                          Create profile for &quot;
+                          {fallbackSearchLabel(coOwnerSearch, "co-owner")}&quot;
                         </button>
                       </div>
-                    </>
-                  ) : (
-                    <div className="space-y-2 px-3 py-2 text-sm text-ink-muted">
-                      <div>No profiles found</div>
-                      <button
-                        type="button"
-                        className="text-accent-soft hover:text-accent-strong"
-                        onClick={() => openQuickCreate("coOwner")}
-                      >
-                        Create profile for &quot;{fallbackSearchLabel(coOwnerSearch, "co-owner")}&quot;
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
+              {quickCreateTarget === "coOwner" ? renderQuickCreateForm() : null}
             </div>
-            {quickCreateTarget === "coOwner" ? renderQuickCreateForm() : null}
-          </div>
           </div>
 
-          <div className="space-y-4 border-t border-outline-muted pt-4">
-            <div className="text-xs uppercase tracking-wide text-ink-subtle">Event request details</div>
+          <div className="border-outline-muted space-y-4 border-t pt-4">
+            <div className="text-ink-subtle text-xs tracking-wide uppercase">
+              Event request details
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Number of participants</label>
+                <label className="text-ink-muted mb-1 block text-xs">
+                  Number of participants
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -2573,21 +3141,29 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   value={participantCount}
                   onChange={(e) => setParticipantCount(e.target.value)}
                   className={
-                    "w-full rounded-md border bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint " +
-                    (participantCountInvalid ? "border-status-danger text-status-danger" : "border-outline-muted")
+                    "bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none " +
+                    (participantCountInvalid
+                      ? "border-status-danger text-status-danger"
+                      : "border-outline-muted")
                   }
                   placeholder="Estimated attendance"
                 />
                 {participantCountInvalid && (
-                  <div className="mt-1 text-xs text-status-danger">Enter a whole number up to 100,000.</div>
+                  <div className="text-status-danger mt-1 text-xs">
+                    Enter a whole number up to 100,000.
+                  </div>
                 )}
               </div>
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Technician needed?</label>
+                <label className="text-ink-muted mb-1 block text-xs">
+                  Technician needed?
+                </label>
                 <select
-                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none"
+                  className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 outline-none"
                   value={technicianNeeded ? "yes" : "no"}
-                  onChange={(e) => setTechnicianNeeded(e.target.value === "yes")}
+                  onChange={(e) =>
+                    setTechnicianNeeded(e.target.value === "yes")
+                  }
                 >
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
@@ -2595,11 +3171,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Request category</label>
+              <label className="text-ink-muted mb-1 block text-xs">
+                Request category
+              </label>
               <select
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none"
+                className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 outline-none"
                 value={requestCategory}
-                onChange={(e) => setRequestCategory(e.target.value as RequestCategoryValue | "")}
+                onChange={(e) =>
+                  setRequestCategory(
+                    e.target.value as RequestCategoryValue | "",
+                  )
+                }
               >
                 <option value="">Select a category</option>
                 {REQUEST_CATEGORY_OPTIONS.map((option) => (
@@ -2610,57 +3192,83 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Equipment needed</label>
+              <label className="text-ink-muted mb-1 block text-xs">
+                Equipment needed
+              </label>
               <textarea
                 rows={3}
                 value={equipmentNeeded}
                 onChange={(e) => setEquipmentNeeded(e.target.value)}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
+                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border p-3 outline-none"
                 placeholder="List staging, audio, lighting, or other needs"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Description</label>
+              <label className="text-ink-muted mb-1 block text-xs">
+                Description
+              </label>
               <textarea
                 rows={6}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full resize-y rounded-md border border-outline-muted bg-surface-muted p-3 text-ink-primary outline-none placeholder:text-ink-faint"
+                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full resize-y rounded-md border p-3 outline-none"
                 placeholder="Notes"
               />
             </div>
           </div>
 
-          <div className="space-y-4 border-t border-outline-muted pt-4">
-            <div className="text-xs uppercase tracking-wide text-ink-subtle">Event timeline (informational)</div>
-            <div className="text-xs text-ink-muted">These fields do not change the calendar block.</div>
+          <div className="border-outline-muted space-y-4 border-t pt-4">
+            <div className="text-ink-subtle text-xs tracking-wide uppercase">
+              Event timeline (informational)
+            </div>
+            <div className="text-ink-muted text-xs">
+              These fields do not change the calendar block.
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border border-outline-muted p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Event start</div>
+              <div className="border-outline-muted rounded-lg border p-3">
+                <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
+                  Event start
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="date"
-                    value={fallbackEventInfoStart ? formatDateInputValue(fallbackEventInfoStart) : ""}
-                    onChange={(e) => handleInfoDateChange("eventStart", e.target.value)}
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                    value={
+                      fallbackEventInfoStart
+                        ? formatDateInputValue(fallbackEventInfoStart)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleInfoDateChange("eventStart", e.target.value)
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
                   />
                   <TimeSelect
                     value={fallbackEventInfoStartValue}
-                    onChange={(next) => handleInfoTimeChange("eventStart", next)}
+                    onChange={(next) =>
+                      handleInfoTimeChange("eventStart", next)
+                    }
                     placeholder="Select time"
                     options={timeOptions}
                     allowEmpty
                   />
                 </div>
               </div>
-              <div className="rounded-lg border border-outline-muted p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Event end</div>
+              <div className="border-outline-muted rounded-lg border p-3">
+                <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
+                  Event end
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="date"
-                    value={fallbackEventInfoEnd ? formatDateInputValue(fallbackEventInfoEnd) : ""}
-                    onChange={(e) => handleInfoDateChange("eventEnd", e.target.value)}
-                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                    value={
+                      fallbackEventInfoEnd
+                        ? formatDateInputValue(fallbackEventInfoEnd)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleInfoDateChange("eventEnd", e.target.value)
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
                   />
                   <TimeSelect
                     value={fallbackEventInfoEndValue}
@@ -2672,14 +3280,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 </div>
               </div>
             </div>
-            <div className="rounded-lg border border-outline-muted p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Setup time</div>
+            <div className="border-outline-muted rounded-lg border p-3">
+              <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
+                Setup time
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="date"
-                  value={fallbackSetupInfoTime ? formatDateInputValue(fallbackSetupInfoTime) : ""}
-                  onChange={(e) => handleInfoDateChange("setup", e.target.value)}
-                  className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none transition focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  value={
+                    fallbackSetupInfoTime
+                      ? formatDateInputValue(fallbackSetupInfoTime)
+                      : ""
+                  }
+                  onChange={(e) =>
+                    handleInfoDateChange("setup", e.target.value)
+                  }
+                  className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
                 />
                 <TimeSelect
                   value={fallbackSetupInfoValue}
@@ -2692,16 +3308,19 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
             </div>
           </div>
 
-
-          <div className="space-y-3 border-t border-outline-muted pt-4 text-sm text-ink-subtle">
-            <div className="text-xs uppercase tracking-wide text-ink-subtle">Hour logging</div>
+          <div className="border-outline-muted text-ink-subtle space-y-3 border-t pt-4 text-sm">
+            <div className="text-ink-subtle text-xs tracking-wide uppercase">
+              Hour logging
+            </div>
             {hourLogs.length === 0 ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-ink-muted">No intervals have been added.</span>
+                <span className="text-ink-muted">
+                  No intervals have been added.
+                </span>
                 <button
                   type="button"
                   onClick={addHourLogRow}
-                  className="inline-flex items-center gap-2 rounded-lg border border-outline-accent px-3 py-1.5 text-sm font-semibold text-accent-soft transition hover:bg-accent-muted"
+                  className="border-outline-accent text-accent-soft hover:bg-accent-muted inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold transition"
                 >
                   <span className="text-base leading-none">+</span>
                   Add interval
@@ -2709,20 +3328,30 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </div>
             ) : (
               <>
-                <div className="divide-y divide-outline-muted">
+                <div className="divide-outline-muted divide-y">
                   {hourLogs.map((log, index) => {
                     const hours = diffHours(log.start, log.end);
-                    const invalid = Boolean(log.start && log.end && log.end <= log.start);
+                    const invalid = Boolean(
+                      log.start && log.end && log.end <= log.start,
+                    );
                     const incomplete = Boolean(log.start) !== Boolean(log.end);
                     const pillClass = invalid
                       ? "border border-status-danger bg-status-danger-surface text-status-danger"
                       : hours > 0
                         ? "border border-outline-accent bg-accent-muted text-accent-soft"
                         : "border border-outline-muted bg-surface-muted text-ink-subtle";
-                    const pillText = hours > 0 ? `${hours.toFixed(2)}h` : invalid ? "Invalid" : "-";
+                    const pillText =
+                      hours > 0
+                        ? `${hours.toFixed(2)}h`
+                        : invalid
+                          ? "Invalid"
+                          : "-";
                     return (
-                      <div key={log.id} className="flex flex-wrap items-start gap-3 py-3 transition hover:bg-surface-muted">
-                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                      <div
+                        key={log.id}
+                        className="hover:bg-surface-muted flex flex-wrap items-start gap-3 py-3 transition"
+                      >
+                        <div className="text-ink-faint mt-1 text-[11px] font-semibold tracking-wide uppercase">
                           #{index + 1}
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -2730,18 +3359,22 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                             <div className="flex items-center gap-1">
                               <TimeSelect
                                 value={formatHourLogTime(log.start)}
-                                onChange={(value) => handleHourLogChange(log.id, "start", value)}
+                                onChange={(value) =>
+                                  handleHourLogChange(log.id, "start", value)
+                                }
                                 placeholder="Start"
                                 options={timeOptions}
                                 invalid={invalid}
                                 allowEmpty
                               />
                             </div>
-                            <span className="text-xs text-ink-subtle">to</span>
+                            <span className="text-ink-subtle text-xs">to</span>
                             <div className="flex items-center gap-1">
                               <TimeSelect
                                 value={formatHourLogTime(log.end)}
-                                onChange={(value) => handleHourLogChange(log.id, "end", value)}
+                                onChange={(value) =>
+                                  handleHourLogChange(log.id, "end", value)
+                                }
                                 placeholder="End"
                                 options={timeOptions}
                                 invalid={invalid}
@@ -2750,21 +3383,24 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                             </div>
                             <span
                               className={
-                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold " + pillClass
+                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold " +
+                                pillClass
                               }
                             >
                               {pillText}
                             </span>
                           </div>
                           {(invalid || incomplete) && (
-                            <div className="text-xs text-status-danger">
-                              {invalid ? "End time must be after start time." : "Provide both a start and end time."}
+                            <div className="text-status-danger text-xs">
+                              {invalid
+                                ? "End time must be after start time."
+                                : "Provide both a start and end time."}
                             </div>
                           )}
                         </div>
                         <button
                           type="button"
-                          className="mt-1 rounded-full p-1 text-ink-faint transition hover:bg-surface-muted hover:text-ink-primary"
+                          className="text-ink-faint hover:bg-surface-muted hover:text-ink-primary mt-1 rounded-full p-1 transition"
                           onClick={() => removeHourLogRow(log.id)}
                           aria-label="Remove interval"
                         >
@@ -2774,14 +3410,17 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted">
+                <div className="text-ink-muted flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div>
-                    Total logged: <span className="font-semibold text-ink-primary">{totalLoggedHours.toFixed(2)} hours</span>
+                    Total logged:{" "}
+                    <span className="text-ink-primary font-semibold">
+                      {totalLoggedHours.toFixed(2)} hours
+                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={addHourLogRow}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink-subtle transition hover:text-ink-primary"
+                    className="text-ink-subtle hover:text-ink-primary inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium transition"
                   >
                     <span className="text-base leading-none">+</span>
                     Add interval
@@ -2790,39 +3429,47 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </>
             )}
             {hourLogsValidationMessage && (
-              <div className="text-xs text-status-danger">{hourLogsValidationMessage}</div>
+              <div className="text-status-danger text-xs">
+                {hourLogsValidationMessage}
+              </div>
             )}
           </div>
           <div>
-            <div className="mb-1 text-xs text-ink-muted">Location</div>
-            <label className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
+            <div className="text-ink-muted mb-1 text-xs">Location</div>
+            <label className="text-ink-muted mb-2 flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={isVirtual}
                 onChange={(event) => setIsVirtual(event.target.checked)}
-                className="h-4 w-4 accent-accent-strong"
+                className="accent-accent-strong h-4 w-4"
               />
               Virtual location
             </label>
             <div className="mb-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-subtle">Specific building search</div>
-              <div className="mt-1 text-xs text-ink-muted">
-                Choose a building, then search only within that building&apos;s rooms.
+              <div className="text-ink-subtle text-xs font-semibold tracking-[0.2em] uppercase">
+                Specific building search
+              </div>
+              <div className="text-ink-muted mt-1 text-xs">
+                Choose a building, then search only within that building&apos;s
+                rooms.
               </div>
             </div>
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
               <div>
-                <div className="mb-1 text-xs text-ink-muted">Building</div>
+                <div className="text-ink-muted mb-1 text-xs">Building</div>
                 <div className="relative">
                   <select
                     value={selectedBuildingAcronym}
                     onChange={(e) => {
                       const acr = e.target.value;
                       setSelectedBuildingAcronym(acr);
-                      const b = (buildingList.data ?? []).find((x) => x.acronym === acr) ?? null;
+                      const b =
+                        (buildingList.data ?? []).find(
+                          (x) => x.acronym === acr,
+                        ) ?? null;
                       setSelectedBuildingId(b ? b.id : null);
                     }}
-                    className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none"
+                    className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
                   >
                     <option value="">Select building</option>
                     {(buildingList.data ?? []).map((b) => (
@@ -2834,7 +3481,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 </div>
               </div>
               <div ref={specificLocationWrapRef}>
-                <div className="mb-1 text-xs text-ink-muted">Room</div>
+                <div className="text-ink-muted mb-1 text-xs">Room</div>
                 <input
                   placeholder="Search selected building rooms, e.g. 210 or 210A"
                   value={roomNumber}
@@ -2845,77 +3492,104 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     setLocationHighlight(-1);
                   }}
                   onFocus={() => {
-                    if (roomNumber.trim().length > 0) setActiveLocationSearch("selected-building");
+                    if (roomNumber.trim().length > 0)
+                      setActiveLocationSearch("selected-building");
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
-                      setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
+                      setLocationHighlight((prev) =>
+                        Math.min(
+                          prev + 1,
+                          Math.max(0, locationMatches.length - 1),
+                        ),
+                      );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
                       setLocationHighlight((prev) => Math.max(prev - 1, 0));
                     } else if (e.key === "Enter") {
-                      if (locationMatches.length > 0 && locationHighlight >= 0) {
+                      if (
+                        locationMatches.length > 0 &&
+                        locationHighlight >= 0
+                      ) {
                         e.preventDefault();
                         const match = locationMatches[locationHighlight]!;
                         handleLocationSelect(match);
                       }
                     }
                   }}
-                  className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary outline-none placeholder:text-ink-faint"
+                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
                 />
-                {activeLocationSearch === "selected-building" && locationQuery.length > 0 && (
-                  <div className="relative">
-                    <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
-                      {locationResults.isFetching ? (
-                        <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
-                      ) : locationMatches.length > 0 ? (
-                        <>
-                          {locationMatches.map((match, index) => {
-                            const isActive = index === locationHighlight;
-                            return (
+                {activeLocationSearch === "selected-building" &&
+                  locationQuery.length > 0 && (
+                    <div className="relative">
+                      <div className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl">
+                        {locationResults.isFetching ? (
+                          <div className="text-ink-muted px-3 py-2 text-sm">
+                            Searching...
+                          </div>
+                        ) : locationMatches.length > 0 ? (
+                          <>
+                            {locationMatches.map((match, index) => {
+                              const isActive = index === locationHighlight;
+                              return (
+                                <button
+                                  key={`${match.acronym}:${match.roomNumber}:${match.buildingId}:specific`}
+                                  type="button"
+                                  className={
+                                    "border-outline-muted text-ink-primary flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                                    (isActive
+                                      ? "bg-accent-muted"
+                                      : "hover:bg-surface-muted")
+                                  }
+                                  onMouseEnter={() =>
+                                    setLocationHighlight(index)
+                                  }
+                                  onClick={() => handleLocationSelect(match)}
+                                >
+                                  <span>
+                                    <span className="font-semibold">
+                                      {match.acronym}
+                                    </span>{" "}
+                                    {match.roomNumber}
+                                  </span>
+                                  <span className="text-ink-subtle text-xs">
+                                    {match.buildingName}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          <div className="text-ink-muted px-3 py-2 text-sm">
+                            <div>No rooms found</div>
+                            {!isVirtual &&
+                            selectedBuildingId &&
+                            roomNumber.trim() ? (
                               <button
-                                key={`${match.acronym}:${match.roomNumber}:${match.buildingId}:specific`}
                                 type="button"
-                                className={
-                                  "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                                  (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
-                                }
-                                onMouseEnter={() => setLocationHighlight(index)}
-                                onClick={() => handleLocationSelect(match)}
+                                className="text-accent-soft hover:text-accent-strong mt-2 text-xs font-semibold"
+                                onClick={handleAddRoom}
+                                disabled={createRoom.isPending}
                               >
-                                <span>
-                                  <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
-                                </span>
-                                <span className="text-xs text-ink-subtle">{match.buildingName}</span>
+                                {createRoom.isPending
+                                  ? "Adding room..."
+                                  : `Add room ${roomNumber.trim().toUpperCase()}`}
                               </button>
-                            );
-                          })}
-                        </>
-                      ) : (
-                        <div className="px-3 py-2 text-sm text-ink-muted">
-                          <div>No rooms found</div>
-                          {!isVirtual && selectedBuildingId && roomNumber.trim() ? (
-                            <button
-                              type="button"
-                              className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
-                              onClick={handleAddRoom}
-                              disabled={createRoom.isPending}
-                            >
-                              {createRoom.isPending ? "Adding room..." : `Add room ${roomNumber.trim().toUpperCase()}`}
-                            </button>
-                          ) : !isVirtual ? (
-                            <div className="mt-2 text-xs text-ink-subtle">Select a building and room to add it.</div>
-                          ) : null}
-                        </div>
-                      )}
+                            ) : !isVirtual ? (
+                              <div className="text-ink-subtle mt-2 text-xs">
+                                Select a building and room to add it.
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 <button
                   type="button"
                   onClick={() => void handleAddRoom()}
-                  className="mt-2 text-xs font-semibold text-accent-soft hover:text-accent-strong"
+                  className="text-accent-soft hover:text-accent-strong mt-2 text-xs font-semibold"
                 >
                   Add room to event
                 </button>
@@ -2926,14 +3600,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                 {selectedRooms.map((entry) => (
                   <span
                     key={`${entry.roomId}-${entry.buildingId}`}
-                    className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-muted px-3 py-1 text-xs text-ink-primary"
+                    className="border-outline-muted bg-surface-muted text-ink-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
                   >
                     <span className="font-semibold">{entry.acronym}</span>
                     <span>{entry.roomNumber}</span>
                     <button
                       type="button"
-                      className="text-ink-muted transition hover:text-ink-primary"
-                      onClick={() => setSelectedRooms((prev) => prev.filter((room) => room.roomId !== entry.roomId))}
+                      className="text-ink-muted hover:text-ink-primary transition"
+                      onClick={() =>
+                        setSelectedRooms((prev) =>
+                          prev.filter((room) => room.roomId !== entry.roomId),
+                        )
+                      }
                       aria-label={`Remove ${entry.acronym} ${entry.roomNumber}`}
                     >
                       <XIcon className="h-3 w-3" />
@@ -2943,9 +3621,12 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               </div>
             )}
             <div ref={generalLocationWrapRef}>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-ink-subtle">General building search</div>
-              <div className="mb-2 text-xs text-ink-muted">
-                Searches all buildings by acronym, room number, building name, or combinations of those terms.
+              <div className="text-ink-subtle mb-1 text-xs font-semibold tracking-[0.2em] uppercase">
+                General building search
+              </div>
+              <div className="text-ink-muted mb-2 text-xs">
+                Searches all buildings by acronym, room number, building name,
+                or combinations of those terms.
               </div>
               <input
                 placeholder="Search all buildings, e.g. BHG 210A, 210A, BHG, or Brown Hall"
@@ -2957,12 +3638,18 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                   setActiveLocationSearch("all");
                 }}
                 onFocus={() => {
-                  if (generalLocationSearch.trim().length > 0) setActiveLocationSearch("all");
+                  if (generalLocationSearch.trim().length > 0)
+                    setActiveLocationSearch("all");
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    setLocationHighlight((prev) => Math.min(prev + 1, Math.max(0, locationMatches.length - 1)));
+                    setLocationHighlight((prev) =>
+                      Math.min(
+                        prev + 1,
+                        Math.max(0, locationMatches.length - 1),
+                      ),
+                    );
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
                     setLocationHighlight((prev) => Math.max(prev - 1, 0));
@@ -2974,13 +3661,15 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                     }
                   }
                 }}
-                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none placeholder:text-ink-faint"
+                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
               />
               {activeLocationSearch === "all" && locationQuery.length > 0 && (
                 <div className="relative">
-                  <div className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-outline-muted bg-surface-overlay shadow-xl">
+                  <div className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl">
                     {locationResults.isFetching ? (
-                      <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
+                      <div className="text-ink-muted px-3 py-2 text-sm">
+                        Searching...
+                      </div>
                     ) : locationMatches.length > 0 ? (
                       <>
                         {locationMatches.map((match, index) => {
@@ -2990,22 +3679,29 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
                               key={`${match.acronym}:${match.roomNumber}:${match.buildingId}`}
                               type="button"
                               className={
-                                "flex w-full items-center justify-between gap-2 border-b border-outline-muted px-3 py-2 text-left text-sm text-ink-primary last:border-b-0 " +
-                                (isActive ? "bg-accent-muted" : "hover:bg-surface-muted")
+                                "border-outline-muted text-ink-primary flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                                (isActive
+                                  ? "bg-accent-muted"
+                                  : "hover:bg-surface-muted")
                               }
                               onMouseEnter={() => setLocationHighlight(index)}
                               onClick={() => handleLocationSelect(match)}
                             >
                               <span>
-                                <span className="font-semibold">{match.acronym}</span> {match.roomNumber}
+                                <span className="font-semibold">
+                                  {match.acronym}
+                                </span>{" "}
+                                {match.roomNumber}
                               </span>
-                              <span className="text-xs text-ink-subtle">{match.buildingName}</span>
+                              <span className="text-ink-subtle text-xs">
+                                {match.buildingName}
+                              </span>
                             </button>
                           );
                         })}
                       </>
                     ) : (
-                      <div className="px-3 py-2 text-sm text-ink-muted">
+                      <div className="text-ink-muted px-3 py-2 text-sm">
                         <div>No rooms found</div>
                       </div>
                     )}
@@ -3014,18 +3710,24 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               )}
             </div>
             {addRoomError && (
-              <div className="mt-2 text-xs text-status-danger">{addRoomError}</div>
+              <div className="text-status-danger mt-2 text-xs">
+                {addRoomError}
+              </div>
             )}
           </div>
 
-          {error && <div className="rounded-md border border-status-danger bg-status-danger-surface px-3 py-2 text-sm text-status-danger">{error}</div>}
+          {error && (
+            <div className="border-status-danger bg-status-danger-surface text-status-danger rounded-md border px-3 py-2 text-sm">
+              {error}
+            </div>
+          )}
 
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex gap-2">
               {isEditing && event && (
                 <button
                   type="button"
-                  className="rounded-md border border-status-danger px-3 py-1.5 text-sm font-medium text-status-danger transition hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60"
+                  className="border-status-danger text-status-danger hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60 rounded-md border px-3 py-1.5 text-sm font-medium transition"
                   onClick={handleDelete}
                   disabled={deleteMutation.isPending}
                 >
@@ -3035,7 +3737,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               {!isEditing && (
                 <button
                   type="button"
-                  className="rounded-md border border-outline-muted px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-muted hover:text-ink-primary"
+                  className="border-outline-muted text-ink-muted hover:bg-surface-muted hover:text-ink-primary rounded-md border px-3 py-1.5 text-sm font-medium transition"
                   onClick={handleClearForm}
                 >
                   Clear Form
@@ -3043,7 +3745,7 @@ export function NewEventDialog({ open, onClose, defaultDate, calendarId, visible
               )}
             </div>
             <button
-              className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted disabled:opacity-50"
+              className="bg-accent-strong text-ink-inverted rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
               disabled={!canSave}
               onClick={handleSave}
             >

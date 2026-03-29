@@ -1,7 +1,16 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
-import { indexProfile, searchProfiles } from "~/server/services/profile-search";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
+import {
+  findProfileContactConflicts,
+  indexProfile,
+  searchProfiles,
+} from "~/server/services/profile-search";
 import { profiles } from "~/server/db/schema";
 
 const DEFAULT_LIMIT = 8;
@@ -26,7 +35,9 @@ export const profileRouter = createTRPCRouter({
       email: profile.email,
       username: ctx.session.user.name ?? null,
       phoneNumber: profile.phoneNumber,
-      displayName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
+      displayName: [profile.firstName, profile.lastName]
+        .filter(Boolean)
+        .join(" "),
     };
   }),
   search: publicProcedure
@@ -37,7 +48,11 @@ export const profileRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const results = await searchProfiles(input.query, input.limit ?? DEFAULT_LIMIT, ctx.db);
+      const results = await searchProfiles(
+        input.query,
+        input.limit ?? DEFAULT_LIMIT,
+        ctx.db,
+      );
       return results.map((profile) => ({
         profileId: profile.id,
         firstName: profile.firstName,
@@ -45,7 +60,38 @@ export const profileRouter = createTRPCRouter({
         email: profile.email,
         username: profile.username,
         phoneNumber: profile.phoneNumber,
-        displayName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
+        displayName: [profile.firstName, profile.lastName]
+          .filter(Boolean)
+          .join(" "),
+      }));
+    }),
+  findContactConflicts: protectedProcedure
+    .input(
+      z.object({
+        email: z.string().trim().email().max(255).optional(),
+        phoneNumber: z.string().trim().max(32).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const conflicts = await findProfileContactConflicts(
+        {
+          email: input.email?.trim().toLowerCase() ?? "",
+          phoneNumber: input.phoneNumber?.trim() ?? "",
+        },
+        ctx.db,
+      );
+      return conflicts.map((profile) => ({
+        profileId: profile.id,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        username: profile.username,
+        phoneNumber: profile.phoneNumber,
+        matchesEmail: profile.matchesEmail,
+        matchesPhoneNumber: profile.matchesPhoneNumber,
+        displayName: [profile.firstName, profile.lastName]
+          .filter(Boolean)
+          .join(" "),
       }));
     }),
   create: protectedProcedure
@@ -56,6 +102,7 @@ export const profileRouter = createTRPCRouter({
           lastName: z.string().trim().min(1).max(100),
           email: z.string().trim().email().max(255),
           phoneNumber: z.string().trim().max(32).optional(),
+          ignoreDuplicateContactCheck: z.boolean().optional(),
         })
         .transform((value) => ({
           ...value,
@@ -66,20 +113,22 @@ export const profileRouter = createTRPCRouter({
         })),
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.query.profiles.findFirst({
-        where: (profile, { eq }) => eq(profile.email, input.email),
-      });
       const phoneDigits = input.phoneNumber.replace(/\D/g, "").slice(0, 32);
-      if (existing) {
-        return {
-          profileId: existing.id,
-          firstName: existing.firstName,
-          lastName: existing.lastName,
-          email: existing.email,
-          phoneNumber: existing.phoneNumber,
-          username: null,
-          displayName: [existing.firstName, existing.lastName].filter(Boolean).join(" "),
-        };
+      if (!input.ignoreDuplicateContactCheck) {
+        const conflicts = await findProfileContactConflicts(
+          {
+            email: input.email,
+            phoneNumber: phoneDigits,
+          },
+          ctx.db,
+        );
+        if (conflicts.length > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "A profile with the same email or phone number already exists.",
+          });
+        }
       }
 
       const [created] = await ctx.db
@@ -117,7 +166,9 @@ export const profileRouter = createTRPCRouter({
         email: created?.email ?? input.email,
         phoneNumber: created?.phoneNumber ?? phoneDigits,
         username: null,
-        displayName: [input.firstName, input.lastName].filter(Boolean).join(" "),
+        displayName: [input.firstName, input.lastName]
+          .filter(Boolean)
+          .join(" "),
       };
     }),
 });
