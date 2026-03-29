@@ -60,3 +60,4 @@ yarn-error.log*
 # idea files
 .idea
 exports/other_docs/userinfo.txt
+exports/other_docs/seed version*.json
