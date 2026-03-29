@@ -68,11 +68,13 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
   }, []);
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [hourLogError, setHourLogError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (!event) {
       setHourLogs([]);
       setHourLogError(null);
+      setShowDeleteConfirm(false);
       return;
     }
     const nextLogs =
@@ -159,6 +161,16 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
     }
   };
 
+  const handleDelete = () => {
+    if (deleteMutation.isPending) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!event || deleteMutation.isPending) return;
+    await deleteMutation.mutateAsync({ id: event.id });
+  };
+
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -197,6 +209,32 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-16 z-50 flex flex-col bg-surface-raised text-ink-primary md:bottom-0 md:left-16 md:z-[10010]">
+      {showDeleteConfirm ? (
+        <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-status-danger bg-surface-raised p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+            <div className="text-xs font-semibold uppercase tracking-wide text-status-danger">Confirm delete</div>
+            <div className="mt-2 text-ink-primary">Delete this event? This cannot be undone.</div>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-outline-muted px-3 py-1.5 text-sm text-ink-primary hover:bg-surface-muted"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-status-danger px-3 py-1.5 text-sm font-semibold text-ink-inverted transition hover:bg-status-danger-strong disabled:opacity-60"
+                onClick={() => void confirmDelete()}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <header className="flex items-center gap-3 border-b border-outline-muted bg-surface-overlay px-4 py-3">
         <button
           type="button"
@@ -414,7 +452,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
               </button>
               <button
                 className="rounded-md border border-status-danger px-3 py-1.5 text-sm text-status-danger transition hover:bg-status-danger-surface disabled:border-status-danger/60 disabled:text-status-danger/60"
-                onClick={() => deleteMutation.mutate({ id: event.id })}
+                onClick={handleDelete}
                 disabled={deleteMutation.isPending}
               >
                 {deleteMutation.isPending ? "Deleting..." : "Delete"}
