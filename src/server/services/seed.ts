@@ -6,6 +6,13 @@ import type { db } from "~/server/db";
 import type { appRouter } from "~/server/api/root";
 import { calendars } from "~/server/db/schema";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import {
+  EQUIPMENT_NEEDED_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  formatLegacyEquipmentNeededText,
+  type EquipmentNeededOption,
+  type EventRequestDetailsV2,
+} from "~/types/event-request";
 
 type DbClient = typeof db;
 type Caller = ReturnType<typeof appRouter.createCaller>;
@@ -66,6 +73,32 @@ const ROLE_PRIORITY: Record<SeedRoleSummary["roleType"], number> = {
   manager: 2,
   employee: 1,
 };
+
+function buildSeedRequestDetails(): EventRequestDetailsV2 | undefined {
+  if (faker.number.int({ min: 0, max: 99 }) >= 60) return undefined;
+
+  const equipmentPool = EQUIPMENT_NEEDED_OPTIONS.filter(
+    (option) => option !== "Other",
+  );
+  const selectedEquipment: EquipmentNeededOption[] = faker.helpers.arrayElements(
+    equipmentPool,
+    faker.number.int({ min: 1, max: Math.min(3, equipmentPool.length) }),
+  );
+  const includeOther = faker.number.int({ min: 0, max: 99 }) < 20;
+  if (includeOther) selectedEquipment.push("Other");
+
+  const selectedEventTypes = faker.helpers.arrayElements(
+    EVENT_TYPE_OPTIONS,
+    faker.number.int({ min: 0, max: Math.min(2, EVENT_TYPE_OPTIONS.length) }),
+  );
+
+  return {
+    version: 2,
+    equipmentNeeded: Array.from(new Set(selectedEquipment)),
+    additionalInformation: includeOther ? faker.company.buzzPhrase() : "",
+    eventTypes: Array.from(new Set(selectedEventTypes)),
+  };
+}
 
 export function getDefaultEventCount(mode: SeedMode) {
   if (mode === "full") return DEFAULT_FULL_EVENT_COUNT;
@@ -344,6 +377,7 @@ export async function seedEvents({
         faker.number.int({ min: 0, max: 99 }) < 40 ? faker.string.numeric(6) : undefined;
       const description = faker.lorem.paragraph();
       const confirmZendesk = Boolean(hourLogs) && faker.number.int({ min: 0, max: 99 }) < 50;
+      const requestDetails = buildSeedRequestDetails();
 
       const eventInputBase: Omit<EventCreateInput, "calendarId"> = {
         title: `${faker.company.buzzAdjective()} ${faker.word.words({ count: { min: 1, max: 3 } })}`.replace(
@@ -361,7 +395,8 @@ export async function seedEvents({
         participantCount: faker.number.int({ min: 10, max: 250 }),
         technicianNeeded: faker.number.int({ min: 0, max: 99 }) < 50,
         requestCategory: faker.helpers.arrayElement(requestCategoryValues),
-        equipmentNeeded: faker.number.int({ min: 0, max: 99 }) < 60 ? faker.commerce.productDescription() : undefined,
+        equipmentNeeded: formatLegacyEquipmentNeededText(requestDetails) ?? undefined,
+        requestDetails,
         eventStartTime: new Date(start.getTime() - 30 * 60 * 1000),
         eventEndTime: new Date(end.getTime() + 30 * 60 * 1000),
         setupTime: new Date(start.getTime() - 60 * 60 * 1000),
