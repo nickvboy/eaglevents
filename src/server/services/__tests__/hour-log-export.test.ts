@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { __hourLogExportTestUtils } from "~/server/services/hour-log-export";
 
-test("hour log export creates distinct sheets for different profiles with the same display label", () => {
+void test("hour log export creates distinct sheets for different profiles with the same display label", () => {
   const baseDate = new Date("2026-03-28T12:00:00.000Z");
   const data = {
     logs: [
@@ -48,6 +48,7 @@ test("hour log export creates distinct sheets for different profiles with the sa
         technicianNeeded: false,
         requestCategory: null,
         equipmentNeeded: null,
+        requestDetails: null,
         eventStartTime: null,
         eventEndTime: null,
         setupTime: null,
@@ -77,6 +78,7 @@ test("hour log export creates distinct sheets for different profiles with the sa
         technicianNeeded: false,
         requestCategory: null,
         equipmentNeeded: null,
+        requestDetails: null,
         eventStartTime: null,
         eventEndTime: null,
         setupTime: null,
@@ -93,6 +95,7 @@ test("hour log export creates distinct sheets for different profiles with the sa
         name: "Main",
         color: "#000000",
         isPrimary: true,
+        isPersonal: false,
         isArchived: false,
         scopeType: "business" as const,
         scopeId: 1,

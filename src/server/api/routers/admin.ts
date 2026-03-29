@@ -53,6 +53,7 @@ import {
   getVisibleScopes,
   requireAdminCapability,
 } from "~/server/services/permissions";
+import { eventRequestDetailsSchema } from "~/server/event-request-schema";
 import bcrypt from "bcryptjs";
 import type { db as dbClient } from "~/server/db";
 
@@ -60,7 +61,8 @@ type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
 type DbExecutor = Pick<DbClient, "execute">;
 
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
 const organizationScopeTypeValues = ["business", "department", "division"] as const;
@@ -78,7 +80,12 @@ const nullableTimestampSchema = timestampSchema.nullable();
 const nullableDateOnlySchema = dateOnlySchema.nullable();
 
 const snapshotSchema = z.object({
-  version: z.literal(SNAPSHOT_VERSION),
+  version: z.union(
+    SUPPORTED_SNAPSHOT_VERSIONS.map((value) => z.literal(value)) as [
+      z.ZodLiteral<2>,
+      z.ZodLiteral<3>,
+    ],
+  ),
   exportedAt: timestampSchema,
   metadata: z
     .object({
@@ -242,6 +249,7 @@ const snapshotSchema = z.object({
         technicianNeeded: z.boolean(),
         requestCategory: z.enum(eventRequestCategoryValues).nullable(),
         equipmentNeeded: z.string().nullable(),
+        requestDetails: eventRequestDetailsSchema.nullable().optional(),
         eventStartTime: nullableTimestampSchema,
         eventEndTime: nullableTimestampSchema,
         setupTime: nullableTimestampSchema,
@@ -996,6 +1004,7 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
       technicianNeeded: row.technicianNeeded,
       requestCategory: row.requestCategory ?? null,
       equipmentNeeded: row.equipmentNeeded ?? null,
+      requestDetails: row.requestDetails ?? null,
       eventStartTime: serializeTimestamp(row.eventStartTime),
       eventEndTime: serializeTimestamp(row.eventEndTime),
       setupTime: serializeTimestamp(row.setupTime),
@@ -2013,7 +2022,7 @@ export const adminRouter = createTRPCRouter({
     .input(snapshotSchema)
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
-      if (input.version !== SNAPSHOT_VERSION) {
+      if (!SUPPORTED_SNAPSHOT_VERSIONS.includes(input.version)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported snapshot version." });
       }
 
@@ -2219,6 +2228,7 @@ export const adminRouter = createTRPCRouter({
               technicianNeeded: row.technicianNeeded,
               requestCategory: row.requestCategory ?? null,
               equipmentNeeded: row.equipmentNeeded ?? null,
+              requestDetails: row.requestDetails ?? null,
               eventStartTime: parseTimestamp(row.eventStartTime),
               eventEndTime: parseTimestamp(row.eventEndTime),
               setupTime: parseTimestamp(row.setupTime),

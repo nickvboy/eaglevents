@@ -148,6 +148,7 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
         technicianNeeded: event.technicianNeeded ?? false,
         requestCategory: event.requestCategory ?? null,
         equipmentNeeded: event.equipmentNeeded ?? null,
+        requestDetails: event.requestDetails ?? null,
         eventStartTime: event.eventStartTime ? new Date(event.eventStartTime) : null,
         eventEndTime: event.eventEndTime ? new Date(event.eventEndTime) : null,
         setupTime: event.setupTime ? new Date(event.setupTime) : null,

@@ -19,6 +19,17 @@ type CalendarScopeOption = RouterOutputs["calendar"]["scopeOptions"][number];
 
 const MOBILE_QUERY = "(max-width: 768px)";
 const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
+const VIEW_PREFERENCE_KEY = "calendar.view.preference";
+const VIEW_PREFERENCE_TTL_MS = 1000 * 60 * 60 * 4;
+
+type StoredViewPreference = {
+  view: View;
+  expiresAt: number;
+};
+
+function isView(value: string): value is View {
+  return VALID_VIEWS.includes(value as View);
+}
 
 function getStoredDate(key: string, fallback: Date) {
   if (typeof window === "undefined") return fallback;
@@ -35,8 +46,51 @@ function getStoredDate(key: string, fallback: Date) {
 }
 
 function getStoredView(value: string | null, fallback: View) {
-  if (value && VALID_VIEWS.includes(value as View)) return value as View;
+  if (value && isView(value)) return value;
   return fallback;
+}
+
+function getStoredViewPreference(fallback: View) {
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(VIEW_PREFERENCE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<StoredViewPreference>;
+      if (
+        typeof parsed.view === "string" &&
+        isView(parsed.view) &&
+        typeof parsed.expiresAt === "number"
+      ) {
+        if (parsed.expiresAt > Date.now()) return parsed.view;
+        window.localStorage.removeItem(VIEW_PREFERENCE_KEY);
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  return getStoredView(
+    window.localStorage.getItem("calendar.view.desktop") ?? window.localStorage.getItem("calendar.view.mobile"),
+    fallback,
+  );
+}
+
+function persistViewPreference(view: View) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const payload: StoredViewPreference = {
+      view,
+      expiresAt: Date.now() + VIEW_PREFERENCE_TTL_MS,
+    };
+    const serialized = JSON.stringify(payload);
+    window.localStorage.setItem(VIEW_PREFERENCE_KEY, serialized);
+    window.localStorage.setItem("calendar.view.desktop", view);
+    window.localStorage.setItem("calendar.view.mobile", view);
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function CalendarShell() {
@@ -67,6 +121,7 @@ export function CalendarShell() {
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMonthDate, setMobileMonthDate] = useState(() => selectedDate);
+  const [viewsHydrated, setViewsHydrated] = useState(false);
   const activeView = isMobile ? mobileView : desktopView;
   const setActiveView = (next: View) => {
     setDesktopView(next);
@@ -77,12 +132,13 @@ export function CalendarShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const saved = getStoredView(window.localStorage.getItem("calendar.view.desktop"), "workweek");
+      const saved = getStoredViewPreference("workweek");
       setDesktopView(saved);
     } catch {
       // ignore storage errors
     } finally {
       desktopViewHydrated.current = true;
+      if (mobileViewHydrated.current) setViewsHydrated(true);
     }
   }, []);
 
@@ -90,22 +146,19 @@ export function CalendarShell() {
     if (typeof window === "undefined") return;
     if (!desktopViewHydrated.current) return;
     if (isMobile) return;
-    try {
-      window.localStorage.setItem("calendar.view.desktop", desktopView);
-    } catch {
-      // ignore storage errors
-    }
+    persistViewPreference(desktopView);
   }, [desktopView, isMobile]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const saved = getStoredView(window.localStorage.getItem("calendar.view.mobile"), "day");
+      const saved = getStoredViewPreference("day");
       setMobileView(saved);
     } catch {
       // ignore storage errors
     } finally {
       mobileViewHydrated.current = true;
+      if (desktopViewHydrated.current) setViewsHydrated(true);
     }
   }, []);
 
@@ -113,20 +166,17 @@ export function CalendarShell() {
     if (typeof window === "undefined") return;
     if (!mobileViewHydrated.current) return;
     if (!isMobile) return;
-    try {
-      window.localStorage.setItem("calendar.view.mobile", mobileView);
-    } catch {
-      // ignore storage errors
-    }
+    persistViewPreference(mobileView);
   }, [mobileView, isMobile]);
 
   useEffect(() => {
+    if (!viewsHydrated) return;
     if (isMobile) {
       if (mobileView !== desktopView) setMobileView(desktopView);
     } else {
       if (desktopView !== mobileView) setDesktopView(mobileView);
     }
-  }, [desktopView, isMobile, mobileView]);
+  }, [desktopView, isMobile, mobileView, viewsHydrated]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -13,6 +13,7 @@ import {
   profiles,
   users,
 } from "~/server/db/schema";
+import { summarizeEventRequestDetails } from "~/types/event-request";
 
 type DbClient = typeof db;
 
@@ -194,6 +195,9 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
     "Calendar",
     "Location",
     "Building",
+    "Equipment Needed",
+    "Equipment Additional Info",
+    "Event Types",
     "Logged Start",
     "Logged Start (Local)",
     "Logged End",
@@ -207,6 +211,9 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
     const building = event?.buildingId ? buildingMap.get(event.buildingId) ?? null : null;
     const profile = log.loggedByProfileId ? profileMap.get(log.loggedByProfileId) ?? null : null;
     const user = profile?.userId ? userMap.get(profile.userId) ?? null : null;
+    const requestSummary = summarizeEventRequestDetails(
+      event?.requestDetails ?? event?.equipmentNeeded ?? null,
+    );
 
     const userDisplayName = user?.displayName?.trim();
     const profileName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
@@ -248,6 +255,9 @@ function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
       calendar?.name ?? "",
       event?.location ?? "",
       building?.name ?? "",
+      requestSummary.equipmentNeeded,
+      requestSummary.additionalInformation,
+      requestSummary.eventTypes,
       formatTimestamp(log.startTime),
       formatReadableTimestamp(log.startTime),
       formatTimestamp(log.endTime),

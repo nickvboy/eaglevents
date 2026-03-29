@@ -18,6 +18,10 @@ import { ensurePrimaryCalendars, getAccessibleCalendarIds, getCalendarAccess } f
 import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { refreshHourLogExport } from "~/server/services/hour-log-export";
 import {
+  eventRequestDetailsSchema,
+  normalizeEventRequestDetails,
+} from "~/server/event-request-schema";
+import {
   getOptionalPermissionContext,
   requireSessionUserId,
   getSessionProfileId,
@@ -25,6 +29,11 @@ import {
 } from "~/server/services/permissions";
 import type { Session } from "next-auth";
 import type { db as dbClient } from "~/server/db";
+import {
+  formatLegacyEquipmentNeededText,
+  toEventRequestFormState,
+  type EventRequestDetails,
+} from "~/types/event-request";
 
 type DbClient = typeof dbClient;
 type EventRow = typeof events.$inferSelect;
@@ -115,6 +124,37 @@ function cleanZendeskTicketNumber(value: string | null | undefined) {
   if (!value) return null;
   const cleaned = value.replace(/[^a-zA-Z0-9]/g, "");
   return cleaned.length > 0 ? cleaned : null;
+}
+
+function resolveEventRequestDetails(input: {
+  requestDetails?: EventRequestDetails | null;
+  equipmentNeeded?: string | null;
+}) {
+  const normalizedRequestDetails = normalizeEventRequestDetails(
+    input.requestDetails,
+  );
+  if (normalizedRequestDetails) {
+    return {
+      requestDetails: normalizedRequestDetails,
+      equipmentNeeded: formatLegacyEquipmentNeededText(normalizedRequestDetails),
+    };
+  }
+
+  const legacyText = input.equipmentNeeded?.trim();
+  if (!legacyText) {
+    return {
+      requestDetails: null,
+      equipmentNeeded: null,
+    };
+  }
+
+  return {
+    requestDetails: {
+      version: 1,
+      equipmentNeededText: legacyText,
+    } satisfies EventRequestDetails,
+    equipmentNeeded: formatLegacyEquipmentNeededText(legacyText),
+  };
 }
 
 async function requireSessionProfileId(ctx: { session: Session | null; db: DbClient }) {
@@ -857,6 +897,7 @@ export const eventRouter = createTRPCRouter({
         technicianNeeded: z.boolean().optional(),
         requestCategory: requestCategorySchema.optional(),
         equipmentNeeded: z.string().trim().max(2000).optional(),
+        requestDetails: eventRequestDetailsSchema.nullable().optional(),
         eventStartTime: z.coerce.date().optional(),
         eventEndTime: z.coerce.date().optional(),
         setupTime: z.coerce.date().optional(),
@@ -902,6 +943,10 @@ export const eventRouter = createTRPCRouter({
       }
       const ownerProfileId = await getSessionProfileId(ctx.db, ctx.session);
       const zendeskTicketNumber = cleanZendeskTicketNumber(input.zendeskTicketNumber);
+      const eventRequest = resolveEventRequestDetails({
+        requestDetails: input.requestDetails,
+        equipmentNeeded: input.equipmentNeeded,
+      });
       const coOwnerIds = Array.from(new Set(input.coOwnerProfileIds ?? []))
         .filter((id) => Number.isFinite(id))
         .filter((id) => (ownerProfileId ? id !== ownerProfileId : true));
@@ -944,7 +989,8 @@ export const eventRouter = createTRPCRouter({
             participantCount: input.participantCount ?? null,
             technicianNeeded: input.technicianNeeded ?? false,
             requestCategory: input.requestCategory ?? null,
-            equipmentNeeded: input.equipmentNeeded ?? null,
+            equipmentNeeded: eventRequest.equipmentNeeded,
+            requestDetails: eventRequest.requestDetails,
             eventStartTime: input.eventStartTime ?? null,
             eventEndTime: input.eventEndTime ?? null,
             setupTime: input.setupTime ?? null,
@@ -1062,6 +1108,7 @@ export const eventRouter = createTRPCRouter({
         technicianNeeded: z.boolean().optional(),
         requestCategory: requestCategorySchema.nullable().optional(),
         equipmentNeeded: z.string().trim().max(2000).nullable().optional(),
+        requestDetails: eventRequestDetailsSchema.nullable().optional(),
         eventStartTime: z.coerce.date().nullable().optional(),
         eventEndTime: z.coerce.date().nullable().optional(),
         setupTime: z.coerce.date().nullable().optional(),
@@ -1094,6 +1141,22 @@ export const eventRouter = createTRPCRouter({
       const zendeskTicketNumber = cleanZendeskTicketNumber(
         input.zendeskTicketNumber === undefined ? current.zendeskTicketNumber : input.zendeskTicketNumber,
       );
+      const eventRequest =
+        input.requestDetails === undefined && input.equipmentNeeded === undefined
+          ? {
+              requestDetails: current.requestDetails ?? null,
+              equipmentNeeded: current.equipmentNeeded ?? null,
+            }
+          : resolveEventRequestDetails({
+              requestDetails:
+                input.requestDetails === undefined
+                  ? (current.requestDetails ?? null)
+                  : input.requestDetails,
+              equipmentNeeded:
+                input.equipmentNeeded === undefined
+                  ? (current.equipmentNeeded ?? null)
+                  : input.equipmentNeeded,
+            });
       const targetCalendarId = input.calendarId ?? current.calendarId;
       const calendarAccess = await getCalendarAccess(ctx.db, userId, targetCalendarId);
       if (!calendarAccess?.canWrite) {
@@ -1178,7 +1241,8 @@ export const eventRouter = createTRPCRouter({
             participantCount: input.participantCount === undefined ? current.participantCount : input.participantCount,
             technicianNeeded: input.technicianNeeded ?? current.technicianNeeded,
             requestCategory: input.requestCategory === undefined ? current.requestCategory : input.requestCategory,
-            equipmentNeeded: input.equipmentNeeded === undefined ? current.equipmentNeeded : input.equipmentNeeded,
+            equipmentNeeded: eventRequest.equipmentNeeded,
+            requestDetails: eventRequest.requestDetails,
             eventStartTime: nextEventStartTime,
             eventEndTime: nextEventEndTime,
             setupTime: nextSetupTime,

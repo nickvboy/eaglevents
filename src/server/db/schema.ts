@@ -20,6 +20,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { withDbTablePrefix } from "~/config/app";
+import type { EventRequestDetails } from "~/types/event-request";
 import type { ThemePaletteTokens } from "~/types/theme";
 
 /**
@@ -386,6 +387,7 @@ export const events = createTable(
     technicianNeeded: d.boolean().default(false).notNull(),
     requestCategory: eventRequestCategoryEnum(),
     equipmentNeeded: text(),
+    requestDetails: jsonb().$type<EventRequestDetails | null>(),
     eventStartTime: d.timestamp({ withTimezone: true }),
     eventEndTime: d.timestamp({ withTimezone: true }),
     setupTime: d.timestamp({ withTimezone: true }),

@@ -9,6 +9,16 @@ import {
 } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { addDays, startOfDay } from "../utils/date";
+import {
+  EQUIPMENT_NEEDED_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  buildEventRequestDetailsV2,
+  formatLegacyEquipmentNeededText,
+  toEventRequestFormState,
+  type EquipmentNeededOption,
+  type EventRequestDetails,
+  type EventTypeOption,
+} from "~/types/event-request";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
@@ -18,8 +28,10 @@ const MIN_DURATION_MS = 30 * 60 * 1000;
 const DEFAULT_TIME_VALUE = "06:30";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZENDESK_TICKET_REGEX = /^\d{6}$/;
-const DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v1";
-const EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v1";
+const DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v2";
+const LEGACY_DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v1";
+const EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v2";
+const LEGACY_EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v1";
 
 type Segment = {
   id: string;
@@ -591,7 +603,7 @@ type ProfileDraft = {
 };
 
 type NewEventDraft = {
-  version: 1;
+  version: 2;
   title: string;
   selectedCalendarId: number | null;
   selectedCalendarIds: number[];
@@ -614,7 +626,7 @@ type NewEventDraft = {
   participantCount: string;
   technicianNeeded: boolean;
   requestCategory: RequestCategoryValue | "";
-  equipmentNeeded: string;
+  requestDetails: EventRequestDetails | null;
   zendeskTicket: string;
   eventInfoStart: string | null;
   eventInfoEnd: string | null;
@@ -623,6 +635,11 @@ type NewEventDraft = {
   selectedAttendees: AssigneeSelection[];
   selectedCoOwners: AssigneeSelection[];
   hourLogs: Array<{ start: string | null; end: string | null }>;
+};
+
+type LegacyNewEventDraft = Omit<NewEventDraft, "version" | "requestDetails"> & {
+  version: 1;
+  equipmentNeeded: string;
 };
 
 const emptyProfileDraft: ProfileDraft = {
@@ -736,11 +753,26 @@ function getVisibleWritableCalendarIds(
 function readNewEventDraft(): NewEventDraft | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<NewEventDraft>;
+    const currentRaw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (currentRaw) {
+      const parsed = JSON.parse(currentRaw) as Partial<NewEventDraft>;
+      if (parsed.version === 2) return parsed as NewEventDraft;
+    }
+    const legacyRaw = window.sessionStorage.getItem(LEGACY_DRAFT_STORAGE_KEY);
+    if (!legacyRaw) return null;
+    const parsed = JSON.parse(legacyRaw) as Partial<LegacyNewEventDraft>;
     if (parsed.version !== 1) return null;
-    return parsed as NewEventDraft;
+    const legacyDraft = parsed as LegacyNewEventDraft;
+    return {
+      ...legacyDraft,
+      version: 2,
+      requestDetails: legacyDraft.equipmentNeeded
+        ? {
+            version: 1,
+            equipmentNeededText: legacyDraft.equipmentNeeded,
+          }
+        : null,
+    };
   } catch {
     return null;
   }
@@ -754,11 +786,28 @@ function readEditEventDraft(eventId: number): NewEventDraft | null {
   if (typeof window === "undefined") return null;
   if (!Number.isFinite(eventId)) return null;
   try {
-    const raw = window.sessionStorage.getItem(getEditEventDraftKey(eventId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<NewEventDraft>;
+    const currentRaw = window.sessionStorage.getItem(getEditEventDraftKey(eventId));
+    if (currentRaw) {
+      const parsed = JSON.parse(currentRaw) as Partial<NewEventDraft>;
+      if (parsed.version === 2) return parsed as NewEventDraft;
+    }
+    const legacyRaw = window.sessionStorage.getItem(
+      `${LEGACY_EDIT_DRAFT_STORAGE_PREFIX}:${eventId}`,
+    );
+    if (!legacyRaw) return null;
+    const parsed = JSON.parse(legacyRaw) as Partial<LegacyNewEventDraft>;
     if (parsed.version !== 1) return null;
-    return parsed as NewEventDraft;
+    const legacyDraft = parsed as LegacyNewEventDraft;
+    return {
+      ...legacyDraft,
+      version: 2,
+      requestDetails: legacyDraft.equipmentNeeded
+        ? {
+            version: 1,
+            equipmentNeededText: legacyDraft.equipmentNeeded,
+          }
+        : null,
+    };
   } catch {
     return null;
   }
@@ -768,6 +817,7 @@ function writeNewEventDraft(draft: NewEventDraft) {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    window.sessionStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
   } catch {
     // Ignore storage failures (private mode, quota, etc.).
   }
@@ -781,6 +831,9 @@ function writeEditEventDraft(eventId: number, draft: NewEventDraft) {
       getEditEventDraftKey(eventId),
       JSON.stringify(draft),
     );
+    window.sessionStorage.removeItem(
+      `${LEGACY_EDIT_DRAFT_STORAGE_PREFIX}:${eventId}`,
+    );
   } catch {
     // Ignore storage failures (private mode, quota, etc.).
   }
@@ -790,6 +843,7 @@ function clearNewEventDraft() {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
   } catch {
     // Ignore storage failures.
   }
@@ -800,6 +854,9 @@ function clearEditEventDraft(eventId: number) {
   if (!Number.isFinite(eventId)) return;
   try {
     window.sessionStorage.removeItem(getEditEventDraftKey(eventId));
+    window.sessionStorage.removeItem(
+      `${LEGACY_EDIT_DRAFT_STORAGE_PREFIX}:${eventId}`,
+    );
   } catch {
     // Ignore storage failures.
   }
@@ -868,7 +925,14 @@ export function NewEventDialog({
   const [requestCategory, setRequestCategory] = useState<
     RequestCategoryValue | ""
   >("");
-  const [equipmentNeeded, setEquipmentNeeded] = useState("");
+  const [selectedEquipmentNeeded, setSelectedEquipmentNeeded] = useState<
+    EquipmentNeededOption[]
+  >([]);
+  const [equipmentAdditionalInformation, setEquipmentAdditionalInformation] =
+    useState("");
+  const [selectedEventTypes, setSelectedEventTypes] = useState<
+    EventTypeOption[]
+  >([]);
   const [zendeskTicket, setZendeskTicket] = useState("");
   const [eventInfoStart, setEventInfoStart] = useState<Date | null>(null);
   const [eventInfoEnd, setEventInfoEnd] = useState<Date | null>(null);
@@ -922,6 +986,23 @@ export function NewEventDialog({
       ? "Zendesk ticket must be exactly 6 digits."
       : null;
   const currentProfile = api.profile.me.useQuery(undefined, { enabled: open });
+  const requestDetails = useMemo(
+    () =>
+      buildEventRequestDetailsV2({
+        selectedEquipment: selectedEquipmentNeeded,
+        additionalInformation: equipmentAdditionalInformation,
+        selectedEventTypes,
+      }),
+    [
+      equipmentAdditionalInformation,
+      selectedEquipmentNeeded,
+      selectedEventTypes,
+    ],
+  );
+  const equipmentNeeded = useMemo(
+    () => formatLegacyEquipmentNeededText(requestDetails) ?? "",
+    [requestDetails],
+  );
   const calendarOptions = useMemo(() => {
     return (calendars ?? [])
       .filter((c) => c.canWrite)
@@ -954,6 +1035,29 @@ export function NewEventDialog({
     }
     return opts;
   }, []);
+  const showEquipmentAdditionalInformation =
+    selectedEquipmentNeeded.includes("Other");
+
+  function toggleEquipmentNeeded(option: EquipmentNeededOption) {
+    setSelectedEquipmentNeeded((current) => {
+      if (current.includes(option)) {
+        return current.filter((value) => value !== option);
+      }
+      return [...current, option];
+    });
+    if (option === "Other" && showEquipmentAdditionalInformation) {
+      setEquipmentAdditionalInformation("");
+    }
+  }
+
+  function toggleEventType(option: EventTypeOption) {
+    setSelectedEventTypes((current) => {
+      if (current.includes(option)) {
+        return current.filter((value) => value !== option);
+      }
+      return [...current, option];
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -1039,7 +1143,14 @@ export function NewEventDialog({
         setParticipantCount(editDraft.participantCount ?? "");
         setTechnicianNeeded(Boolean(editDraft.technicianNeeded));
         setRequestCategory(nextRequestCategory);
-        setEquipmentNeeded(editDraft.equipmentNeeded ?? "");
+        const parsedEquipmentDetails = toEventRequestFormState(
+          editDraft.requestDetails,
+        );
+        setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
+        setEquipmentAdditionalInformation(
+          parsedEquipmentDetails.additionalInformation,
+        );
+        setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
         setZendeskTicket(editDraft.zendeskTicket ?? "");
         setEventInfoStart(parseDraftDate(editDraft.eventInfoStart));
         setEventInfoEnd(parseDraftDate(editDraft.eventInfoEnd));
@@ -1115,7 +1226,14 @@ export function NewEventDialog({
       );
       setTechnicianNeeded(Boolean(event.technicianNeeded));
       setRequestCategory(event.requestCategory ?? "");
-      setEquipmentNeeded(event.equipmentNeeded ?? "");
+      const parsedEquipmentDetails = toEventRequestFormState(
+        event.requestDetails ?? event.equipmentNeeded,
+      );
+      setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
+      setEquipmentAdditionalInformation(
+        parsedEquipmentDetails.additionalInformation,
+      );
+      setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
       setZendeskTicket(event.zendeskTicketNumber ?? "");
       setEventInfoStart(
         event.eventStartTime ? new Date(event.eventStartTime) : null,
@@ -1245,7 +1363,14 @@ export function NewEventDialog({
       setParticipantCount(draft.participantCount ?? "");
       setTechnicianNeeded(Boolean(draft.technicianNeeded));
       setRequestCategory(nextRequestCategory);
-      setEquipmentNeeded(draft.equipmentNeeded ?? "");
+      const parsedEquipmentDetails = toEventRequestFormState(
+        draft.requestDetails,
+      );
+      setSelectedEquipmentNeeded(parsedEquipmentDetails.selectedEquipment);
+      setEquipmentAdditionalInformation(
+        parsedEquipmentDetails.additionalInformation,
+      );
+      setSelectedEventTypes(parsedEquipmentDetails.selectedEventTypes);
       setZendeskTicket(draft.zendeskTicket ?? "");
       setEventInfoStart(parseDraftDate(draft.eventInfoStart));
       setEventInfoEnd(parseDraftDate(draft.eventInfoEnd));
@@ -1303,7 +1428,9 @@ export function NewEventDialog({
     setParticipantCount("");
     setTechnicianNeeded(false);
     setRequestCategory("");
-    setEquipmentNeeded("");
+    setSelectedEquipmentNeeded([]);
+    setEquipmentAdditionalInformation("");
+    setSelectedEventTypes([]);
     setZendeskTicket("");
     setEventInfoStart(null);
     setEventInfoEnd(null);
@@ -1353,7 +1480,7 @@ export function NewEventDialog({
       return;
     }
     const draft: NewEventDraft = {
-      version: 1,
+      version: 2,
       title,
       selectedCalendarId,
       selectedCalendarIds,
@@ -1379,7 +1506,7 @@ export function NewEventDialog({
       participantCount,
       technicianNeeded,
       requestCategory,
-      equipmentNeeded,
+      requestDetails,
       zendeskTicket,
       eventInfoStart: eventInfoStart ? eventInfoStart.toISOString() : null,
       eventInfoEnd: eventInfoEnd ? eventInfoEnd.toISOString() : null,
@@ -1416,7 +1543,7 @@ export function NewEventDialog({
     participantCount,
     technicianNeeded,
     requestCategory,
-    equipmentNeeded,
+    requestDetails,
     zendeskTicket,
     eventInfoStart,
     eventInfoEnd,
@@ -1811,7 +1938,9 @@ export function NewEventDialog({
     setParticipantCount("");
     setTechnicianNeeded(false);
     setRequestCategory("");
-    setEquipmentNeeded("");
+    setSelectedEquipmentNeeded([]);
+    setEquipmentAdditionalInformation("");
+    setSelectedEventTypes([]);
     setZendeskTicket("");
     setEventInfoStart(null);
     setEventInfoEnd(null);
@@ -2263,6 +2392,8 @@ export function NewEventDialog({
           : isEditing
             ? null
             : undefined;
+      const requestDetailsPayload =
+        requestDetails ?? (isEditing ? null : undefined);
       const requestCategoryValue = requestCategory
         ? requestCategory
         : isEditing
@@ -2343,6 +2474,7 @@ export function NewEventDialog({
           technicianNeeded,
           requestCategory: requestCategoryValue,
           equipmentNeeded: equipmentPayload,
+          requestDetails: requestDetailsPayload,
           eventStartTime: eventInfoStartValue,
           eventEndTime: eventInfoEndValue,
           setupTime: setupInfoValue,
@@ -2354,6 +2486,7 @@ export function NewEventDialog({
           const participantCountPayload = participantCountValue ?? undefined;
           const requestCategoryPayload = requestCategoryValue ?? undefined;
           const equipmentPayloadCreate = equipmentPayload ?? undefined;
+          const requestDetailsPayloadCreate = requestDetailsPayload ?? undefined;
           const eventInfoStartPayload = eventInfoStartValue ?? undefined;
           const eventInfoEndPayload = eventInfoEndValue ?? undefined;
           const setupInfoPayload = setupInfoValue ?? undefined;
@@ -2381,6 +2514,7 @@ export function NewEventDialog({
               technicianNeeded,
               requestCategory: requestCategoryPayload,
               equipmentNeeded: equipmentPayloadCreate,
+              requestDetails: requestDetailsPayloadCreate,
               eventStartTime: eventInfoStartPayload,
               eventEndTime: eventInfoEndPayload,
               setupTime: setupInfoPayload,
@@ -2392,6 +2526,7 @@ export function NewEventDialog({
         const participantCountPayload = participantCountValue ?? undefined;
         const requestCategoryPayload = requestCategoryValue ?? undefined;
         const equipmentPayloadCreate = equipmentPayload ?? undefined;
+        const requestDetailsPayloadCreate = requestDetailsPayload ?? undefined;
         const eventInfoStartPayload = eventInfoStartValue ?? undefined;
         const eventInfoEndPayload = eventInfoEndValue ?? undefined;
         const setupInfoPayload = setupInfoValue ?? undefined;
@@ -2422,6 +2557,7 @@ export function NewEventDialog({
               technicianNeeded,
               requestCategory: requestCategoryPayload,
               equipmentNeeded: equipmentPayloadCreate,
+              requestDetails: requestDetailsPayloadCreate,
               eventStartTime: eventInfoStartPayload,
               eventEndTime: eventInfoEndPayload,
               setupTime: setupInfoPayload,
@@ -3195,13 +3331,61 @@ export function NewEventDialog({
               <label className="text-ink-muted mb-1 block text-xs">
                 Equipment needed
               </label>
-              <textarea
-                rows={3}
-                value={equipmentNeeded}
-                onChange={(e) => setEquipmentNeeded(e.target.value)}
-                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border p-3 outline-none"
-                placeholder="List staging, audio, lighting, or other needs"
-              />
+              <div className="border-outline-muted bg-surface-muted space-y-3 rounded-md border p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {EQUIPMENT_NEEDED_OPTIONS.map((option) => (
+                    <label
+                      key={option}
+                      className="text-ink-primary flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedEquipmentNeeded.includes(option)}
+                        onChange={() => toggleEquipmentNeeded(option)}
+                        className="accent-accent-strong h-4 w-4"
+                      />
+                      {option}
+                    </label>
+                  ))}
+                </div>
+                {showEquipmentAdditionalInformation ? (
+                  <div>
+                    <label className="text-ink-muted mb-1 block text-xs">
+                      Additional information
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={equipmentAdditionalInformation}
+                      onChange={(e) =>
+                        setEquipmentAdditionalInformation(e.target.value)
+                      }
+                      className="border-outline-muted bg-surface-raised text-ink-primary placeholder:text-ink-faint w-full rounded-md border p-3 outline-none"
+                      placeholder="Provide any other equipment details"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div>
+              <label className="text-ink-muted mb-1 block text-xs">
+                Event type
+              </label>
+              <div className="border-outline-muted bg-surface-muted grid gap-2 rounded-md border p-3 sm:grid-cols-2">
+                {EVENT_TYPE_OPTIONS.map((option) => (
+                  <label
+                    key={option}
+                    className="text-ink-primary flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedEventTypes.includes(option)}
+                      onChange={() => toggleEventType(option)}
+                      className="accent-accent-strong h-4 w-4"
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
             </div>
             <div>
               <label className="text-ink-muted mb-1 block text-xs">
