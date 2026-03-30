@@ -7,11 +7,12 @@ const authCallbacks = {
 };
 
 function resolveBaseUrl(baseUrl: string) {
-  const explicit =
-    process.env.NODE_ENV === "production"
-      ? process.env.DEV_SERVER_PROD ?? process.env.NEXTAUTH_URL ?? process.env.DEV_SERVER
-      : process.env.DEV_SERVER ?? process.env.NEXTAUTH_URL;
-  return explicit ?? baseUrl;
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (baseUrl) return baseUrl;
+  if (process.env.NODE_ENV === "production") {
+    return process.env.DEV_SERVER_PROD ?? process.env.DEV_SERVER ?? "http://localhost:3000";
+  }
+  return process.env.DEV_SERVER ?? "http://localhost:3000";
 }
 
 async function fetchSetupStatus(url: URL) {

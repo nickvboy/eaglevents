@@ -58,8 +58,13 @@ const staleSessionLink: TRPCLink<AppRouter> = () => {
             err.message?.includes("Account not found")
           ) {
             console.warn("Stale session detected, forcing sign out...");
-            // Sign out and redirect to login
-            void signOut({ callbackUrl: "/login" });
+            // Avoid relying on NextAuth's callback host resolution here.
+            void (async () => {
+              await signOut({ redirect: false });
+              if (typeof window !== "undefined") {
+                window.location.assign("/login");
+              }
+            })();
           }
           observer.error(err);
         },

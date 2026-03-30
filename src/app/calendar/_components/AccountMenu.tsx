@@ -52,6 +52,10 @@ export function AccountMenu({
   const menuPositionClass =
     menuPlacement === "up" ? "bottom-full mb-2" : "mt-1";
   const menuAlignClass = menuAlign === "left" ? "left-0" : "right-0";
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    window.location.assign("/login");
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -88,7 +92,7 @@ export function AccountMenu({
         >
           <button
             className="block w-full rounded-md px-2 py-1 text-left hover:bg-surface-muted"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => void handleSignOut()}
           >
             Sign out
           </button>

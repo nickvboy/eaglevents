@@ -26,8 +26,7 @@ if (process.env.DEV_SERVER_PROD) {
 
 let args = process.argv.slice(2);
 if (args.length === 0) {
-  // Always build before starting so prod does not serve stale or mixed chunk assets.
-  args = ["build"];
+  args = ["start"];
 }
 
 // Delegate to pnpm run <script> [args...]
@@ -38,17 +37,4 @@ const child = spawn(
   { stdio: "inherit", shell: true, env: process.env }
 );
 
-child.on("exit", (code) => {
-  if ((code ?? 0) !== 0 || process.argv.slice(2).length > 0) {
-    process.exit(code ?? 0);
-    return;
-  }
-
-  const startChild = spawn(
-    "pnpm",
-    ["run", "start"],
-    { stdio: "inherit", shell: true, env: process.env }
-  );
-
-  startChild.on("exit", (startCode) => process.exit(startCode ?? 0));
-});
+child.on("exit", (code) => process.exit(code ?? 0));

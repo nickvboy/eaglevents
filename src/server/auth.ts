@@ -15,11 +15,12 @@ const credentialsSchema = z.object({
 });
 
 function resolveBaseUrl(baseUrl: string) {
-  const explicit =
-    env.NODE_ENV === "production"
-      ? env.DEV_SERVER_PROD ?? process.env.NEXTAUTH_URL ?? env.DEV_SERVER
-      : env.DEV_SERVER ?? process.env.NEXTAUTH_URL;
-  return explicit ?? baseUrl;
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (baseUrl) return baseUrl;
+  if (env.NODE_ENV === "production") {
+    return env.DEV_SERVER_PROD ?? env.DEV_SERVER ?? "http://localhost:3000";
+  }
+  return env.DEV_SERVER ?? "http://localhost:3000";
 }
 
 const resolvedBaseUrl = resolveBaseUrl("http://localhost:3000");
