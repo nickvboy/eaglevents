@@ -281,15 +281,20 @@ export function CalendarShell() {
     if (!calendars) return;
     try {
       const raw = window.localStorage.getItem("calendar.visibleCalendars");
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const valid = parsed.filter((id: unknown) => typeof id === "number" && calendars.some((c) => c.id === id));
-          setVisibleCalendarIds(valid as number[]);
-        }
+      if (!raw) {
+        setVisibleCalendarIds(calendars.map((calendar) => calendar.id));
+        return;
+      }
+
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter((id: unknown) => typeof id === "number" && calendars.some((c) => c.id === id));
+        setVisibleCalendarIds(valid.length > 0 || parsed.length === 0 ? (valid as number[]) : calendars.map((calendar) => calendar.id));
+      } else {
+        setVisibleCalendarIds(calendars.map((calendar) => calendar.id));
       }
     } catch {
-      // ignore storage errors
+      setVisibleCalendarIds(calendars.map((calendar) => calendar.id));
     } finally {
       setVisibleCalendarsLoaded(true);
     }

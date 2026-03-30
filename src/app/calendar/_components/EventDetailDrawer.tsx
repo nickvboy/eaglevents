@@ -145,6 +145,9 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
         endDatetime: new Date(event.endDatetime),
         recurrenceRule: event.recurrenceRule ?? undefined,
         assigneeProfileId: event.assigneeProfileId ?? null,
+        attendeeProfileIds: event.attendees
+          .map((attendee) => attendee.profileId)
+          .filter((profileId): profileId is number => profileId !== null),
         hourLogs: payloadHourLogs,
         participantCount: event.participantCount ?? null,
         technicianNeeded: event.technicianNeeded ?? false,

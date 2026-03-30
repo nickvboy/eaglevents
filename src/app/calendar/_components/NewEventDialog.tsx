@@ -978,6 +978,7 @@ export function NewEventDialog({
   const [hourLogs, setHourLogs] = useState<HourLogDraft[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addRoomError, setAddRoomError] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const specificLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const generalLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
@@ -1085,6 +1086,7 @@ export function NewEventDialog({
   useEffect(() => {
     if (!open) return;
     skipNextDraftPersistRef.current = true;
+    setSubmitAttempted(false);
     setShowDeleteConfirm(false);
     setShowDuplicateContactConfirm(false);
     setDuplicateContactMatches([]);
@@ -1738,12 +1740,18 @@ export function NewEventDialog({
     (Number.isNaN(parsedParticipantCount) ||
       parsedParticipantCount < 0 ||
       parsedParticipantCount > 100000);
+  const titleMissing = title.trim().length === 0;
+  const attendeeSelectionInvalid = selectedAttendees.length === 0;
+  const buildingSelectionInvalid = !isVirtual && !selectedBuildingId;
+  const showAttendeeSelectionError =
+    submitAttempted && attendeeSelectionInvalid;
+  const showTitleError = submitAttempted && titleMissing;
   const hasCalendar = Boolean(
     selectedCalendarId ?? calendarId ?? event?.calendarId,
   );
+  const showCalendarError = submitAttempted && !hasCalendar;
+  const showBuildingError = submitAttempted && buildingSelectionInvalid;
   const canSave =
-    Boolean(title.trim()) &&
-    hasCalendar &&
     !segmentsInvalid &&
     !hourLogsInvalid &&
     !hourLogsIncomplete &&
@@ -2378,14 +2386,15 @@ export function NewEventDialog({
   }
 
   const handleSave = async () => {
+    setSubmitAttempted(true);
     setError(null);
     try {
-      if (hourLogsInvalid || hourLogsIncomplete) {
-        setError("Please complete or remove invalid hour log entries.");
+      if (titleMissing || !hasCalendar || attendeeSelectionInvalid || buildingSelectionInvalid) {
+        setError("Complete the required fields before saving.");
         return;
       }
-      if (!isVirtual && !selectedBuildingId) {
-        setError("Select a building or mark the event as virtual.");
+      if (hourLogsInvalid || hourLogsIncomplete) {
+        setError("Please complete or remove invalid hour log entries.");
         return;
       }
       if (zendeskTicketError) {
@@ -2446,6 +2455,10 @@ export function NewEventDialog({
       const attendeeProfileIds = selectedAttendees
         .map((entry) => entry.profileId)
         .filter((id) => id > 0);
+      if (attendeeProfileIds.length === 0) {
+        setError("Select at least one attendee before saving.");
+        return;
+      }
       const coOwnerProfileIds = selectedCoOwners
         .map((entry) => entry.profileId)
         .filter((id) => id > 0);
@@ -2743,15 +2756,30 @@ export function NewEventDialog({
         </div>
 
         <div className="flex flex-col gap-4">
-          <input
-            placeholder="Add a title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
-          />
+          <div>
+            <div className="text-ink-muted mb-1 text-xs">
+              Title <span className="text-status-danger">*</span>
+            </div>
+            <input
+              placeholder="Add a title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={
+                "bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none " +
+                (showTitleError ? "border-status-danger" : "border-outline-muted")
+              }
+            />
+            {showTitleError ? (
+              <div className="mt-2 text-xs text-status-danger">
+                Title is required.
+              </div>
+            ) : null}
+          </div>
 
           <div>
-            <div className="text-ink-muted mb-1 text-xs">Calendars</div>
+            <div className="text-ink-muted mb-1 text-xs">
+              Calendars <span className="text-status-danger">*</span>
+            </div>
             {calendarOptions.length === 0 ? (
               <div className="border-outline-muted bg-surface-muted text-ink-muted rounded-md border p-3 text-xs">
                 No writable calendars available.
@@ -2760,7 +2788,13 @@ export function NewEventDialog({
               <>
                 <div className="border-outline-muted bg-surface-muted rounded-md border p-2">
                   {selectedCalendarIds.length === 0 ? (
-                    <div className="text-ink-muted text-xs">
+                    <div
+                      className={
+                        showCalendarError
+                          ? "text-status-danger text-xs"
+                          : "text-ink-muted text-xs"
+                      }
+                    >
                       Select at least one calendar.
                     </div>
                   ) : (
@@ -2819,6 +2853,11 @@ export function NewEventDialog({
                 <p className="text-ink-subtle mt-1 text-xs">
                   {selectedCalendarIds.length} selected
                 </p>
+                {showCalendarError ? (
+                  <div className="mt-2 text-xs text-status-danger">
+                    At least one calendar is required.
+                  </div>
+                ) : null}
               </>
             )}
           </div>
@@ -2920,10 +2959,18 @@ export function NewEventDialog({
           </div>
 
           <div>
-            <div className="text-ink-muted mb-1 text-xs">Invite attendees</div>
+            <div className="text-ink-muted mb-1 text-xs">
+              Invite attendees <span className="text-status-danger">*</span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {selectedAttendees.length === 0 ? (
-                <span className="text-ink-muted text-xs">
+                <span
+                  className={
+                    showAttendeeSelectionError
+                      ? "text-status-danger text-xs"
+                      : "text-ink-muted text-xs"
+                  }
+                >
                   No attendees selected.
                 </span>
               ) : (
@@ -3036,6 +3083,11 @@ export function NewEventDialog({
                 </div>
               )}
             </div>
+            {showAttendeeSelectionError ? (
+              <div className="mt-2 text-xs text-status-danger">
+                At least one attendee is required.
+              </div>
+            ) : null}
             {quickCreateTarget === "attendee" ? renderQuickCreateForm() : null}
           </div>
 
@@ -3684,7 +3736,9 @@ export function NewEventDialog({
             </div>
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
               <div>
-                <div className="text-ink-muted mb-1 text-xs">Building</div>
+                <div className="text-ink-muted mb-1 text-xs">
+                  Building {!isVirtual ? <span className="text-status-danger">*</span> : null}
+                </div>
                 <div className="relative">
                   <select
                     value={selectedBuildingAcronym}
@@ -3697,7 +3751,10 @@ export function NewEventDialog({
                         ) ?? null;
                       setSelectedBuildingId(b ? b.id : null);
                     }}
-                    className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
+                    className={
+                      "bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none " +
+                      (showBuildingError ? "border-status-danger" : "border-outline-muted")
+                    }
                   >
                     <option value="">Select building</option>
                     {(buildingList.data ?? []).map((b) => (
@@ -3707,6 +3764,11 @@ export function NewEventDialog({
                     ))}
                   </select>
                 </div>
+                {showBuildingError ? (
+                  <div className="mt-2 text-xs text-status-danger">
+                    Select a building or mark the event as virtual.
+                  </div>
+                ) : null}
               </div>
               <div ref={specificLocationWrapRef}>
                 <div className="text-ink-muted mb-1 text-xs">Room</div>
