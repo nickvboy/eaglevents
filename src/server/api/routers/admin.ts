@@ -1,5 +1,17 @@
 import { z } from "zod";
-import { and, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
@@ -33,6 +45,10 @@ import {
   startOfMonth,
   sumSeries,
 } from "~/server/services/admin";
+import {
+  assertBusinessAdminCoverage,
+  validateRequestedRoleAssignments,
+} from "~/server/services/admin-role-assignments";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import {
   ensureJoinTableExportScheduler,
@@ -47,7 +63,6 @@ import {
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 import { getSetupStatus } from "~/server/services/setup";
 import {
-  canAssignRole,
   getPermissionContext,
   getUsersInScopes,
   getVisibleScopes,
@@ -63,9 +78,25 @@ type DbExecutor = Pick<DbClient, "execute">;
 
 const SNAPSHOT_VERSION = 3;
 const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
-const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
-const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
-const organizationScopeTypeValues = ["business", "department", "division"] as const;
+const businessTypeValues = [
+  "university",
+  "nonprofit",
+  "corporation",
+  "government",
+  "venue",
+  "other",
+] as const;
+const organizationRoleValues = [
+  "admin",
+  "co_admin",
+  "manager",
+  "employee",
+] as const;
+const organizationScopeTypeValues = [
+  "business",
+  "department",
+  "division",
+] as const;
 const themeProfileScopeValues = ["business", "department"] as const;
 const eventRequestCategoryValues = [
   "university_affiliated_request_to_university_business",
@@ -78,6 +109,11 @@ const timestampSchema = z.string().datetime();
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableTimestampSchema = timestampSchema.nullable();
 const nullableDateOnlySchema = dateOnlySchema.nullable();
+const roleAssignmentInputSchema = z.object({
+  roleType: z.enum(organizationRoleValues),
+  scopeType: z.enum(organizationScopeTypeValues),
+  scopeId: z.number().int().positive(),
+});
 
 const snapshotSchema = z.object({
   version: z.union(
@@ -347,11 +383,26 @@ const MONTHS_IN_TREND = 6;
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 const REPORT_WINDOW_DAYS = 60;
 const UPCOMING_ZENDESK_DAYS = 14;
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 const REQUEST_CATEGORY_LABELS = {
-  university_affiliated_request_to_university_business: "University business requests",
-  university_affiliated_nonrequest_to_university_business: "Affiliated events without request",
+  university_affiliated_request_to_university_business:
+    "University business requests",
+  university_affiliated_nonrequest_to_university_business:
+    "Affiliated events without request",
   fgcu_student_affiliated_event: "FGCU student affiliated",
   non_affiliated_or_revenue_generating_event: "External or revenue events",
 } as const;
@@ -376,7 +427,10 @@ async function generateUniqueEventCodes(db: DbClient, count: number) {
     const existingRows =
       candidates.length === 0
         ? []
-        : await db.select({ code: events.eventCode }).from(events).where(inArray(events.eventCode, candidates));
+        : await db
+            .select({ code: events.eventCode })
+            .from(events)
+            .where(inArray(events.eventCode, candidates));
     if (existingRows.length === 0) return candidates;
 
     for (const row of existingRows) {
@@ -385,7 +439,10 @@ async function generateUniqueEventCodes(db: DbClient, count: number) {
     while (codes.size < count) codes.add(generateEventCode());
   }
 
-  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to reserve unique event codes." });
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Failed to reserve unique event codes.",
+  });
 }
 
 type UserSummary = {
@@ -461,7 +518,11 @@ type ExportReport =
       format: "multiYearMonth";
       years: Array<{
         year: number;
-        months: Array<{ label: string; eventCount: number; staffedHours: number }>;
+        months: Array<{
+          label: string;
+          eventCount: number;
+          staffedHours: number;
+        }>;
         totals: { events: number; hours: number };
       }>;
       parameters?: ReportParameter[];
@@ -483,11 +544,14 @@ function minutesToHours(minutes: number) {
 
 function formatRequestCategory(code: string | null) {
   if (!code) return "Uncategorized";
-  const label = REQUEST_CATEGORY_LABELS[code as keyof typeof REQUEST_CATEGORY_LABELS];
+  const label =
+    REQUEST_CATEGORY_LABELS[code as keyof typeof REQUEST_CATEGORY_LABELS];
   if (label) return label;
   return code
     .split("_")
-    .map((segment) => (segment ? segment[0]!.toUpperCase() + segment.slice(1) : segment))
+    .map((segment) =>
+      segment ? segment[0]!.toUpperCase() + segment.slice(1) : segment,
+    )
     .join(" ");
 }
 
@@ -497,7 +561,10 @@ function coerceTimestampValue(value: Date | string) {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot timestamp is invalid." });
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Snapshot timestamp is invalid.",
+  });
 }
 
 function sanitizePhone(raw: string) {
@@ -511,7 +578,10 @@ function serializeTimestamp(value: Date | string | null | undefined) {
 
 function serializeRequiredTimestamp(value: Date | string | null | undefined) {
   if (!value) {
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot timestamp is missing." });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Snapshot timestamp is missing.",
+    });
   }
   return coerceTimestampValue(value).toISOString();
 }
@@ -520,7 +590,10 @@ function serializeDateOnly(value: Date | string | null | undefined) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Snapshot date is invalid." });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Snapshot date is invalid.",
+    });
   }
   return date.toISOString().slice(0, 10);
 }
@@ -529,7 +602,10 @@ function parseTimestamp(value: string | null) {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot timestamp is invalid." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Snapshot timestamp is invalid.",
+    });
   }
   return parsed;
 }
@@ -537,7 +613,10 @@ function parseTimestamp(value: string | null) {
 function parseRequiredTimestamp(value: string) {
   const parsed = parseTimestamp(value);
   if (!parsed) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot timestamp is missing." });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Snapshot timestamp is missing.",
+    });
   }
   return parsed;
 }
@@ -546,17 +625,27 @@ function parseDateOnly(value: string | Date | null) {
   if (!value) return null;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Snapshot date is invalid." });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Snapshot date is invalid.",
+      });
     }
     return value.toISOString().slice(0, 10);
   }
   return value;
 }
 
-function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?: Date }) {
+function buildDatabaseEventFilters(input?: {
+  search?: string;
+  start?: Date;
+  end?: Date;
+}) {
   const conditions: SQL<unknown>[] = [];
   if (input?.start && input?.end) {
-    const overlapCondition = and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start));
+    const overlapCondition = and(
+      lt(events.startDatetime, input.end),
+      gt(events.endDatetime, input.start),
+    );
     if (overlapCondition) {
       conditions.push(overlapCondition);
     }
@@ -573,7 +662,10 @@ function buildDatabaseEventFilters(input?: { search?: string; start?: Date; end?
     if (trimmed.length > 0) {
       const like = `%${trimmed.replace(/[%_]/g, (match) => `\\${match}`)}%`;
       const numericId = Number(trimmed);
-      const idCondition = Number.isInteger(numericId) && numericId > 0 ? eq(events.id, numericId) : null;
+      const idCondition =
+        Number.isInteger(numericId) && numericId > 0
+          ? eq(events.id, numericId)
+          : null;
       const searchCondition = or(
         ilike(events.title, like),
         ilike(events.location, like),
@@ -619,7 +711,11 @@ function deriveUpdatedEventLocation(options: {
 
   const oldLabel = oldName.trim();
   const newLabel = nextName.trim();
-  if (oldLabel && newLabel && oldLabel.toUpperCase() !== newLabel.toUpperCase()) {
+  if (
+    oldLabel &&
+    newLabel &&
+    oldLabel.toUpperCase() !== newLabel.toUpperCase()
+  ) {
     if (trimmed.toUpperCase() === oldLabel.toUpperCase()) {
       return newLabel;
     }
@@ -628,21 +724,71 @@ function deriveUpdatedEventLocation(options: {
   return null;
 }
 
-
 async function findBusinessId(db: DbReader): Promise<number | null> {
-  const [business] = await db.select({ id: businesses.id }).from(businesses).orderBy(businesses.id).limit(1);
+  const [business] = await db
+    .select({ id: businesses.id })
+    .from(businesses)
+    .orderBy(businesses.id)
+    .limit(1);
   return business?.id ?? null;
 }
 
-async function findDefaultDepartmentScope(db: DbReader, businessId: number) {
-  const [department] = await db
-    .select({ id: departments.id })
-    .from(departments)
-    .where(eq(departments.businessId, businessId))
-    .orderBy(departments.id)
-    .limit(1);
-  if (!department) return null;
-  return { scopeType: "department" as const, scopeId: department.id };
+async function findBusinessAdminUserIds(db: DbReader) {
+  const rows = await db
+    .select({ userId: organizationRoles.userId })
+    .from(organizationRoles)
+    .where(
+      and(
+        eq(organizationRoles.scopeType, "business"),
+        eq(organizationRoles.roleType, "admin"),
+      ),
+    );
+  return Array.from(new Set(rows.map((row) => row.userId)));
+}
+
+type RequestedRoleAssignment = z.infer<typeof roleAssignmentInputSchema>;
+
+async function normalizeRequestedRoleAssignments(
+  db: DbReader,
+  assignments: RequestedRoleAssignment[],
+  options: {
+    businessId: number;
+    isManagerOnly: boolean;
+    visibleScopes: Awaited<ReturnType<typeof getVisibleScopes>> | null;
+  },
+) {
+  if (assignments.length === 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "At least one role assignment is required.",
+    });
+  }
+
+  const scopedDepartmentIds = Array.from(
+    new Set(
+      assignments
+        .filter((assignment) => assignment.scopeType !== "business")
+        .map((assignment) => assignment.scopeId),
+    ),
+  );
+
+  const departmentRows =
+    scopedDepartmentIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: departments.id,
+            parentDepartmentId: departments.parentDepartmentId,
+            businessId: departments.businessId,
+          })
+          .from(departments)
+          .where(inArray(departments.id, scopedDepartmentIds));
+  return validateRequestedRoleAssignments(assignments, {
+    businessId: options.businessId,
+    isManagerOnly: options.isManagerOnly,
+    visibleScopes: options.visibleScopes,
+    departmentRows,
+  });
 }
 
 function wouldCreateDepartmentCycle(
@@ -658,7 +804,10 @@ function wouldCreateDepartmentCycle(
   return false;
 }
 
-async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> {
+async function fetchUsers(
+  db: DbReader,
+  ids?: number[],
+): Promise<UserSummary[]> {
   const baseQuery = db
     .select({
       id: users.id,
@@ -671,7 +820,8 @@ async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> 
     })
     .from(users);
 
-  const filteredQuery = ids && ids.length > 0 ? baseQuery.where(inArray(users.id, ids)) : baseQuery;
+  const filteredQuery =
+    ids && ids.length > 0 ? baseQuery.where(inArray(users.id, ids)) : baseQuery;
   const userRows = await filteredQuery.orderBy(desc(users.createdAt), users.id);
   if (userRows.length === 0) return [];
 
@@ -726,7 +876,10 @@ async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> 
     if (profile.userId !== null) profileMap.set(profile.userId, profile);
   }
 
-  const activityMap = new Map<number, { lastActivity: Date | null; totalEvents: number }>();
+  const activityMap = new Map<
+    number,
+    { lastActivity: Date | null; totalEvents: number }
+  >();
   for (const activity of activityRows) {
     activityMap.set(activity.userId, {
       lastActivity: activity.lastActivity,
@@ -748,17 +901,30 @@ async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> 
   const departmentRows =
     businessId !== null
       ? await db
-          .select({ id: departments.id, name: departments.name, parentDepartmentId: departments.parentDepartmentId })
+          .select({
+            id: departments.id,
+            name: departments.name,
+            parentDepartmentId: departments.parentDepartmentId,
+          })
           .from(departments)
           .where(eq(departments.businessId, businessId))
       : [];
 
-  const departmentMap = new Map<number, { name: string; parentDepartmentId: number | null }>();
+  const departmentMap = new Map<
+    number,
+    { name: string; parentDepartmentId: number | null }
+  >();
   for (const dept of departmentRows) {
-    departmentMap.set(dept.id, { name: dept.name, parentDepartmentId: dept.parentDepartmentId ?? null });
+    departmentMap.set(dept.id, {
+      name: dept.name,
+      parentDepartmentId: dept.parentDepartmentId ?? null,
+    });
   }
 
-  const scopeLabel = (scopeType: "business" | "department" | "division", scopeId: number) => {
+  const scopeLabel = (
+    scopeType: "business" | "department" | "division",
+    scopeId: number,
+  ) => {
     if (scopeType === "business") {
       return `${businessRow?.name ?? "Business"} (Business)`;
     }
@@ -767,17 +933,26 @@ async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> 
     return `${dept?.name ?? "Unknown"} (${suffix})`;
   };
 
-  const priority = new Map<"admin" | "co_admin" | "manager" | "employee", number>([
+  const priority = new Map<
+    "admin" | "co_admin" | "manager" | "employee",
+    number
+  >([
     ["admin", 4],
     ["co_admin", 3],
     ["manager", 2],
     ["employee", 1],
   ]);
-  const roleMap = new Map<number, "admin" | "co_admin" | "manager" | "employee">();
+  const roleMap = new Map<
+    number,
+    "admin" | "co_admin" | "manager" | "employee"
+  >();
   const rolesByUser = new Map<number, UserSummary["roles"]>();
   for (const role of roleRows) {
     const existing = roleMap.get(role.userId);
-    if (!existing || (priority.get(role.roleType) ?? 0) > (priority.get(existing) ?? 0)) {
+    if (
+      !existing ||
+      (priority.get(role.roleType) ?? 0) > (priority.get(existing) ?? 0)
+    ) {
       roleMap.set(role.userId, role.roleType);
     }
     const list = rolesByUser.get(role.userId) ?? [];
@@ -833,7 +1008,9 @@ async function fetchUsers(db: DbReader, ids?: number[]): Promise<UserSummary[]> 
   });
 }
 
-async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> {
+async function loadSnapshotData(
+  db: DbClient,
+): Promise<SnapshotPayload["data"]> {
   const [
     userRows,
     postRows,
@@ -873,7 +1050,10 @@ async function loadSnapshotData(db: DbClient): Promise<SnapshotPayload["data"]> 
     db.select().from(eventAttendees).orderBy(eventAttendees.id),
     db.select().from(eventReminders).orderBy(eventReminders.id),
     db.select().from(eventHourLogs).orderBy(eventHourLogs.id),
-    db.select().from(eventZendeskConfirmations).orderBy(eventZendeskConfirmations.id),
+    db
+      .select()
+      .from(eventZendeskConfirmations)
+      .orderBy(eventZendeskConfirmations.id),
     db.select().from(visibilityGrants).orderBy(visibilityGrants.id),
     db.select().from(auditLogs).orderBy(auditLogs.id),
   ]);
@@ -1115,12 +1295,22 @@ export const adminRouter = createTRPCRouter({
   dashboard: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "dashboard:view");
     const now = new Date();
-    const trendRangeStart = startOfMonth(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (MONTHS_IN_TREND - 1), 1)));
+    const trendRangeStart = startOfMonth(
+      new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() - (MONTHS_IN_TREND - 1),
+          1,
+        ),
+      ),
+    );
     const thirtyDaysAgo = new Date(now.getTime() - 30 * MS_IN_DAY);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * MS_IN_DAY);
     const fourteenDaysAhead = new Date(now.getTime() + 14 * MS_IN_DAY);
 
-    const userCountRows = await ctx.db.select({ totalUsers: sql<number>`count(${users.id})::int` }).from(users);
+    const userCountRows = await ctx.db
+      .select({ totalUsers: sql<number>`count(${users.id})::int` })
+      .from(users);
     const totalUsers = userCountRows[0]?.totalUsers ?? 0;
 
     const userCreatedRows = await ctx.db
@@ -1144,11 +1334,15 @@ export const adminRouter = createTRPCRouter({
       now,
     );
 
-    const newUsersCurrent = userCreatedRows.filter((row) => row.createdAt >= thirtyDaysAgo).length;
+    const newUsersCurrent = userCreatedRows.filter(
+      (row) => row.createdAt >= thirtyDaysAgo,
+    ).length;
     const newUsersPrevious = userCreatedRows.filter(
       (row) => row.createdAt < thirtyDaysAgo && row.createdAt >= sixtyDaysAgo,
     ).length;
-    const eventsCurrent = eventRows.filter((row) => row.startAt >= thirtyDaysAgo).length;
+    const eventsCurrent = eventRows.filter(
+      (row) => row.startAt >= thirtyDaysAgo,
+    ).length;
     const eventsPrevious = eventRows.filter(
       (row) => row.startAt < thirtyDaysAgo && row.startAt >= sixtyDaysAgo,
     ).length;
@@ -1169,20 +1363,35 @@ export const adminRouter = createTRPCRouter({
       })
       .from(events)
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(and(gte(events.startDatetime, sixtyDaysAgo), lt(events.startDatetime, thirtyDaysAgo)));
+      .where(
+        and(
+          gte(events.startDatetime, sixtyDaysAgo),
+          lt(events.startDatetime, thirtyDaysAgo),
+        ),
+      );
 
-    const activeUserIds = new Set(recentEvents.map((row) => row.userId).filter((id): id is number => typeof id === "number"));
+    const activeUserIds = new Set(
+      recentEvents
+        .map((row) => row.userId)
+        .filter((id): id is number => typeof id === "number"),
+    );
     const previousActiveUserIds = new Set(
-      previousEvents.map((row) => row.userId).filter((id): id is number => typeof id === "number"),
+      previousEvents
+        .map((row) => row.userId)
+        .filter((id): id is number => typeof id === "number"),
     );
 
     const activeUserCount = activeUserIds.size;
     const previousActiveUserCount = previousActiveUserIds.size;
 
     const utilizationCurrent =
-      activeUserCount > 0 ? Math.round((eventsCurrent / activeUserCount) * 10) / 10 : 0;
+      activeUserCount > 0
+        ? Math.round((eventsCurrent / activeUserCount) * 10) / 10
+        : 0;
     const utilizationPrevious =
-      previousActiveUserCount > 0 ? Math.round((eventsPrevious / previousActiveUserCount) * 10) / 10 : 0;
+      previousActiveUserCount > 0
+        ? Math.round((eventsPrevious / previousActiveUserCount) * 10) / 10
+        : 0;
 
     const upcomingRows = await ctx.db
       .select({
@@ -1192,7 +1401,12 @@ export const adminRouter = createTRPCRouter({
         assigneeProfileId: events.assigneeProfileId,
       })
       .from(events)
-      .where(and(gte(events.startDatetime, now), lt(events.startDatetime, fourteenDaysAhead)))
+      .where(
+        and(
+          gte(events.startDatetime, now),
+          lt(events.startDatetime, fourteenDaysAhead),
+        ),
+      )
       .orderBy(events.startDatetime)
       .limit(6);
 
@@ -1200,7 +1414,9 @@ export const adminRouter = createTRPCRouter({
       new Set(
         upcomingRows
           .map((row) => row.assigneeProfileId)
-          .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
+          .filter(
+            (id): id is number => typeof id === "number" && Number.isFinite(id),
+          ),
       ),
     );
 
@@ -1216,7 +1432,10 @@ export const adminRouter = createTRPCRouter({
             .where(inArray(profiles.id, assigneeIds))
         : [];
 
-    const assigneeMap = new Map<number, { firstName: string; lastName: string }>();
+    const assigneeMap = new Map<
+      number,
+      { firstName: string; lastName: string }
+    >();
     for (const profile of assignees) {
       assigneeMap.set(profile.id, {
         firstName: profile.firstName,
@@ -1225,12 +1444,16 @@ export const adminRouter = createTRPCRouter({
     }
 
     const upcomingEvents = upcomingRows.map((row) => {
-      const assignee = row.assigneeProfileId ? assigneeMap.get(row.assigneeProfileId) : null;
+      const assignee = row.assigneeProfileId
+        ? assigneeMap.get(row.assigneeProfileId)
+        : null;
       return {
         id: row.id,
         title: row.title,
         start: row.start,
-        assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : null,
+        assigneeName: assignee
+          ? `${assignee.firstName} ${assignee.lastName}`
+          : null,
       };
     });
 
@@ -1278,8 +1501,12 @@ export const adminRouter = createTRPCRouter({
     const userTrendTotal = sumSeries(userTrend);
     const eventTrendTotal = sumSeries(eventTrend);
 
-    const alerts: Array<{ id: string; message: string; severity: "critical" | "warning" | "info"; occurredAt: Date }> =
-      [];
+    const alerts: Array<{
+      id: string;
+      message: string;
+      severity: "critical" | "warning" | "info";
+      occurredAt: Date;
+    }> = [];
 
     if (newUsersCurrent < newUsersPrevious) {
       alerts.push({
@@ -1363,11 +1590,20 @@ export const adminRouter = createTRPCRouter({
   }),
 
   reports: protectedProcedure.query(async ({ ctx }) => {
-    const context = await requireAdminCapability(ctx.db, ctx.session, "reports:view");
+    const context = await requireAdminCapability(
+      ctx.db,
+      ctx.session,
+      "reports:view",
+    );
     const now = new Date();
-    const windowStart = new Date(now.getTime() - REPORT_WINDOW_DAYS * MS_IN_DAY);
+    const windowStart = new Date(
+      now.getTime() - REPORT_WINDOW_DAYS * MS_IN_DAY,
+    );
 
-    let scopeCondition = and(gte(events.startDatetime, windowStart), lt(events.startDatetime, now));
+    let scopeCondition = and(
+      gte(events.startDatetime, windowStart),
+      lt(events.startDatetime, now),
+    );
     const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
     if (!visibleScopes.business) {
       const scopeFilters: SQL<unknown>[] = [];
@@ -1376,14 +1612,16 @@ export const adminRouter = createTRPCRouter({
           eq(events.scopeType, "department"),
           inArray(events.scopeId, visibleScopes.departmentIds),
         );
-        if (departmentCondition !== undefined) scopeFilters.push(departmentCondition);
+        if (departmentCondition !== undefined)
+          scopeFilters.push(departmentCondition);
       }
       if (visibleScopes.divisionIds.length > 0) {
         const divisionCondition = and(
           eq(events.scopeType, "division"),
           inArray(events.scopeId, visibleScopes.divisionIds),
         );
-        if (divisionCondition !== undefined) scopeFilters.push(divisionCondition);
+        if (divisionCondition !== undefined)
+          scopeFilters.push(divisionCondition);
       }
       if (scopeFilters.length === 0) {
         scopeCondition = and(scopeCondition, sql`false`);
@@ -1440,21 +1678,44 @@ export const adminRouter = createTRPCRouter({
             .where(inArray(eventZendeskConfirmations.eventId, eventIds));
 
     const confirmedEvents = new Set(confirmationRows.map((row) => row.eventId));
-    const ticketedEventIds = eventRows.filter((event) => event.zendeskTicketNumber).map((event) => event.id);
-    const confirmedTicketCount = ticketedEventIds.filter((id) => confirmedEvents.has(id)).length;
+    const ticketedEventIds = eventRows
+      .filter((event) => event.zendeskTicketNumber)
+      .map((event) => event.id);
+    const confirmedTicketCount = ticketedEventIds.filter((id) =>
+      confirmedEvents.has(id),
+    ).length;
     const awaitingTicketCount = ticketedEventIds.length - confirmedTicketCount;
 
-    const totalMinutes = hourRows.reduce((acc, row) => acc + (row.durationMinutes ?? 0), 0);
+    const totalMinutes = hourRows.reduce(
+      (acc, row) => acc + (row.durationMinutes ?? 0),
+      0,
+    );
     const totalEvents = eventRows.length;
-    const technicianEvents = eventRows.filter((event) => event.technicianNeeded);
-    const technicianTicketed = technicianEvents.filter((event) => event.zendeskTicketNumber).length;
-    const technicianConfirmed = technicianEvents.filter((event) => confirmedEvents.has(event.id)).length;
-    const technicianWithoutTicket = technicianEvents.length - technicianTicketed;
-    const technicianAwaitingConfirmation = technicianTicketed - technicianConfirmed;
+    const technicianEvents = eventRows.filter(
+      (event) => event.technicianNeeded,
+    );
+    const technicianTicketed = technicianEvents.filter(
+      (event) => event.zendeskTicketNumber,
+    ).length;
+    const technicianConfirmed = technicianEvents.filter((event) =>
+      confirmedEvents.has(event.id),
+    ).length;
+    const technicianWithoutTicket =
+      technicianEvents.length - technicianTicketed;
+    const technicianAwaitingConfirmation =
+      technicianTicketed - technicianConfirmed;
 
-    const participantSamples = eventRows.filter((event) => typeof event.participantCount === "number").length;
-    const totalParticipants = eventRows.reduce((acc, event) => acc + (event.participantCount ?? 0), 0);
-    const avgParticipants = participantSamples === 0 ? null : Math.round(totalParticipants / participantSamples);
+    const participantSamples = eventRows.filter(
+      (event) => typeof event.participantCount === "number",
+    ).length;
+    const totalParticipants = eventRows.reduce(
+      (acc, event) => acc + (event.participantCount ?? 0),
+      0,
+    );
+    const avgParticipants =
+      participantSamples === 0
+        ? null
+        : Math.round(totalParticipants / participantSamples);
 
     type BuildingKey = number | "unassigned";
     const buildingStats = new Map<
@@ -1498,7 +1759,9 @@ export const adminRouter = createTRPCRouter({
       .sort((a, b) => b.eventCount - a.eventCount)
       .map((entry) => ({
         buildingId: entry.buildingId,
-        buildingName: entry.buildingName ?? (entry.buildingId ? "Unnamed building" : "Unassigned location"),
+        buildingName:
+          entry.buildingName ??
+          (entry.buildingId ? "Unnamed building" : "Unassigned location"),
         buildingAcronym: entry.buildingAcronym ?? null,
         eventCount: entry.eventCount,
         technicianEvents: entry.technicianEvents,
@@ -1514,15 +1777,24 @@ export const adminRouter = createTRPCRouter({
     const requestCategories = Array.from(requestCategoryCounts.entries())
       .map(([category, value]) => ({
         category,
-        label: formatRequestCategory(category === "uncategorized" ? null : category),
+        label: formatRequestCategory(
+          category === "uncategorized" ? null : category,
+        ),
         value,
-        percent: totalEvents === 0 ? 0 : Math.round((value / totalEvents) * 1000) / 10,
+        percent:
+          totalEvents === 0 ? 0 : Math.round((value / totalEvents) * 1000) / 10,
       }))
       .sort((a, b) => b.value - a.value);
 
     type DepartmentKey = number | "unassigned";
     const profileIds = Array.from(
-      new Set(hourRows.map((row) => row.loggedByProfileId).filter((profileId): profileId is number => typeof profileId === "number")),
+      new Set(
+        hourRows
+          .map((row) => row.loggedByProfileId)
+          .filter(
+            (profileId): profileId is number => typeof profileId === "number",
+          ),
+      ),
     );
     const roleRows =
       profileIds.length === 0
@@ -1533,8 +1805,15 @@ export const adminRouter = createTRPCRouter({
               scopeId: organizationRoles.scopeId,
             })
             .from(organizationRoles)
-            .where(and(inArray(organizationRoles.profileId, profileIds), eq(organizationRoles.scopeType, "department")));
-    const departmentIds = Array.from(new Set(roleRows.map((role) => role.scopeId)));
+            .where(
+              and(
+                inArray(organizationRoles.profileId, profileIds),
+                eq(organizationRoles.scopeType, "department"),
+              ),
+            );
+    const departmentIds = Array.from(
+      new Set(roleRows.map((role) => role.scopeId)),
+    );
     const departmentRows =
       departmentIds.length === 0
         ? []
@@ -1545,18 +1824,30 @@ export const adminRouter = createTRPCRouter({
             })
             .from(departments)
             .where(inArray(departments.id, departmentIds));
-    const departmentNameMap = new Map(departmentRows.map((dept) => [dept.id, dept.name]));
-    const profileDepartmentMap = new Map(roleRows.map((role) => [role.profileId, role.scopeId]));
+    const departmentNameMap = new Map(
+      departmentRows.map((dept) => [dept.id, dept.name]),
+    );
+    const profileDepartmentMap = new Map(
+      roleRows.map((role) => [role.profileId, role.scopeId]),
+    );
     const departmentMinutes = new Map<DepartmentKey, number>();
     for (const log of hourRows) {
-      const departmentId = log.loggedByProfileId ? profileDepartmentMap.get(log.loggedByProfileId) ?? null : null;
+      const departmentId = log.loggedByProfileId
+        ? (profileDepartmentMap.get(log.loggedByProfileId) ?? null)
+        : null;
       const key: DepartmentKey = departmentId ?? "unassigned";
-      departmentMinutes.set(key, (departmentMinutes.get(key) ?? 0) + (log.durationMinutes ?? 0));
+      departmentMinutes.set(
+        key,
+        (departmentMinutes.get(key) ?? 0) + (log.durationMinutes ?? 0),
+      );
     }
     const departmentHoursList = Array.from(departmentMinutes.entries())
       .map(([key, minutes]) => ({
         departmentId: key === "unassigned" ? null : key,
-        departmentName: key === "unassigned" ? "Unassigned" : departmentNameMap.get(key) ?? "Unassigned",
+        departmentName:
+          key === "unassigned"
+            ? "Unassigned"
+            : (departmentNameMap.get(key) ?? "Unassigned"),
         hours: minutesToHours(minutes),
       }))
       .filter((entry) => entry.hours > 0)
@@ -1587,7 +1878,10 @@ export const adminRouter = createTRPCRouter({
       .groupBy(eventYearExpr, eventMonthExpr)
       .orderBy(eventYearExpr, eventMonthExpr);
 
-    const monthlyRowMap = new Map<string, { eventCount: number; staffedMinutes: number }>();
+    const monthlyRowMap = new Map<
+      string,
+      { eventCount: number; staffedMinutes: number }
+    >();
     let maxYearWithData = lookbackStartYear;
     for (const row of monthlyRows) {
       const year = Number(row.year ?? lookbackStartYear);
@@ -1603,7 +1897,11 @@ export const adminRouter = createTRPCRouter({
     const targetEndYear = Math.max(maxYearWithData, lookbackStartYear);
     const monthlyReportYears: Array<{
       year: number;
-      months: Array<{ label: string; eventCount: number; staffedHours: number }>;
+      months: Array<{
+        label: string;
+        eventCount: number;
+        staffedHours: number;
+      }>;
       totals: { events: number; hours: number };
     }> = [];
     for (let year = lookbackStartYear; year <= targetEndYear; year++) {
@@ -1624,11 +1922,16 @@ export const adminRouter = createTRPCRouter({
       monthlyReportYears.push({
         year,
         months,
-        totals: { events: yearlyEvents, hours: Math.round(yearlyHours * 10) / 10 },
+        totals: {
+          events: yearlyEvents,
+          hours: Math.round(yearlyHours * 10) / 10,
+        },
       });
     }
 
-    const futureCutoff = new Date(now.getTime() + UPCOMING_ZENDESK_DAYS * MS_IN_DAY);
+    const futureCutoff = new Date(
+      now.getTime() + UPCOMING_ZENDESK_DAYS * MS_IN_DAY,
+    );
     const upcomingZendeskRows = await ctx.db
       .select({
         id: events.id,
@@ -1642,8 +1945,17 @@ export const adminRouter = createTRPCRouter({
       })
       .from(events)
       .leftJoin(buildings, eq(events.buildingId, buildings.id))
-      .leftJoin(eventZendeskConfirmations, eq(events.id, eventZendeskConfirmations.eventId))
-      .where(and(gte(events.startDatetime, now), lt(events.startDatetime, futureCutoff), sql`${events.zendeskTicketNumber} IS NOT NULL`))
+      .leftJoin(
+        eventZendeskConfirmations,
+        eq(events.id, eventZendeskConfirmations.eventId),
+      )
+      .where(
+        and(
+          gte(events.startDatetime, now),
+          lt(events.startDatetime, futureCutoff),
+          sql`${events.zendeskTicketNumber} IS NOT NULL`,
+        ),
+      )
       .orderBy(events.startDatetime)
       .limit(32);
 
@@ -1689,13 +2001,15 @@ export const adminRouter = createTRPCRouter({
       value: String(year.year),
     }));
     const firstYear = monthlyReportYears[0]?.year ?? now.getUTCFullYear();
-    const lastYear = monthlyReportYears[monthlyReportYears.length - 1]?.year ?? firstYear;
+    const lastYear =
+      monthlyReportYears[monthlyReportYears.length - 1]?.year ?? firstYear;
 
     const exportReports: ExportReport[] = [
       {
         id: "events-hours-month",
         label: "Events & hours by month",
-        description: "Monthly event counts and logged technician hours across your available historical data.",
+        description:
+          "Monthly event counts and logged technician hours across your available historical data.",
         format: "multiYearMonth",
         years: monthlyReportYears,
         parameters:
@@ -1723,13 +2037,14 @@ export const adminRouter = createTRPCRouter({
       {
         id: "building-utilization",
         label: "Building utilization (last 60 days)",
-        description: "Events, technician coverage, and staffed hours per building within the reporting window.",
+        description:
+          "Events, technician coverage, and staffed hours per building within the reporting window.",
         format: "simpleTable",
         columns: ["Building", "Events", "Technician Events", "Staffed Hours"],
         rows: buildingStatsList.map((entry) => [
           entry.buildingName && entry.buildingAcronym
             ? `${entry.buildingAcronym} - ${entry.buildingName}`
-            : entry.buildingName ?? entry.buildingAcronym ?? "Unassigned",
+            : (entry.buildingName ?? entry.buildingAcronym ?? "Unassigned"),
           entry.eventCount,
           entry.technicianEvents,
           entry.staffedHours,
@@ -1755,10 +2070,14 @@ export const adminRouter = createTRPCRouter({
       {
         id: "department-hours",
         label: "Department hours (last 60 days)",
-        description: "Total staffed hours by department for the current reporting window.",
+        description:
+          "Total staffed hours by department for the current reporting window.",
         format: "simpleTable",
         columns: ["Department", "Hours Logged"],
-        rows: departmentHoursList.map((dept) => [dept.departmentName, dept.hours]),
+        rows: departmentHoursList.map((dept) => [
+          dept.departmentName,
+          dept.hours,
+        ]),
         parameters: [
           {
             id: "minHours",
@@ -1774,10 +2093,15 @@ export const adminRouter = createTRPCRouter({
       {
         id: "request-mix",
         label: "Request mix (last 60 days)",
-        description: "Distribution of event request categories for the reporting period.",
+        description:
+          "Distribution of event request categories for the reporting period.",
         format: "simpleTable",
         columns: ["Category", "Events", "Percent"],
-        rows: requestCategories.map((category) => [category.label, category.value, `${category.percent}%`]),
+        rows: requestCategories.map((category) => [
+          category.label,
+          category.value,
+          `${category.percent}%`,
+        ]),
         parameters: [
           {
             id: "minPercent",
@@ -1818,7 +2142,12 @@ export const adminRouter = createTRPCRouter({
           ticketed: ticketedEventIds.length,
           confirmed: confirmedTicketCount,
           awaiting: awaitingTicketCount,
-          coveragePercent: ticketedEventIds.length === 0 ? 0 : Math.round((confirmedTicketCount / ticketedEventIds.length) * 100),
+          coveragePercent:
+            ticketedEventIds.length === 0
+              ? 0
+              : Math.round(
+                  (confirmedTicketCount / ticketedEventIds.length) * 100,
+                ),
         },
         technician: {
           needed: technicianEvents.length,
@@ -1826,7 +2155,12 @@ export const adminRouter = createTRPCRouter({
           confirmed: technicianConfirmed,
           withoutTicket: technicianWithoutTicket,
           awaitingConfirmation: Math.max(technicianAwaitingConfirmation, 0),
-          readyPercent: technicianEvents.length === 0 ? 100 : Math.round((technicianConfirmed / technicianEvents.length) * 100),
+          readyPercent:
+            technicianEvents.length === 0
+              ? 100
+              : Math.round(
+                  (technicianConfirmed / technicianEvents.length) * 100,
+                ),
         },
       },
       breakdowns: {
@@ -1860,7 +2194,7 @@ export const adminRouter = createTRPCRouter({
         result,
         status: await getJoinTableExportStatus(),
       };
-  }),
+    }),
 
   hourLogExportStatus: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
@@ -1890,52 +2224,52 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       const userIdRaw = ctx.session?.user?.id ?? null;
-    const userId = userIdRaw ? Number(userIdRaw) : null;
-    const user =
-      userId && Number.isFinite(userId)
-        ? (
-            await ctx.db
-              .select({
-                id: users.id,
-                email: users.email,
-                displayName: users.displayName,
-              })
-              .from(users)
-              .where(eq(users.id, userId))
-              .limit(1)
-          )[0]
-        : null;
+      const userId = userIdRaw ? Number(userIdRaw) : null;
+      const user =
+        userId && Number.isFinite(userId)
+          ? (
+              await ctx.db
+                .select({
+                  id: users.id,
+                  email: users.email,
+                  displayName: users.displayName,
+                })
+                .from(users)
+                .where(eq(users.id, userId))
+                .limit(1)
+            )[0]
+          : null;
 
-    const data = await loadSnapshotData(ctx.db);
-    const note = input?.note?.trim() ? input.note.trim() : undefined;
-    const businessId = await findBusinessId(ctx.db);
-    if (businessId) {
-      await ctx.db.insert(auditLogs).values({
-        businessId,
-        actorUserId: user?.id ?? null,
-        action: "snapshot.export",
-        targetType: "snapshot",
-        targetId: null,
-        scopeType: "business",
-        scopeId: businessId,
-        metadata: { note },
-      });
-    }
-    return {
-      version: SNAPSHOT_VERSION,
-      exportedAt: new Date().toISOString(),
-      metadata: {
-        app: "eaglevents",
-        note,
-      },
-      exportedBy: {
-        userId: user?.id ?? (Number.isFinite(userId) ? userId : null),
-        email: user?.email ?? null,
-        displayName: user?.displayName ?? null,
-      },
-      data,
-    };
-  }),
+      const data = await loadSnapshotData(ctx.db);
+      const note = input?.note?.trim() ? input.note.trim() : undefined;
+      const businessId = await findBusinessId(ctx.db);
+      if (businessId) {
+        await ctx.db.insert(auditLogs).values({
+          businessId,
+          actorUserId: user?.id ?? null,
+          action: "snapshot.export",
+          targetType: "snapshot",
+          targetId: null,
+          scopeType: "business",
+          scopeId: businessId,
+          metadata: { note },
+        });
+      }
+      return {
+        version: SNAPSHOT_VERSION,
+        exportedAt: new Date().toISOString(),
+        metadata: {
+          app: "eaglevents",
+          note,
+        },
+        exportedBy: {
+          userId: user?.id ?? (Number.isFinite(userId) ? userId : null),
+          email: user?.email ?? null,
+          displayName: user?.displayName ?? null,
+        },
+        data,
+      };
+    }),
 
   importIcsEvents: protectedProcedure
     .input(
@@ -1948,7 +2282,12 @@ export const adminRouter = createTRPCRouter({
               start: z.coerce.date(),
               end: z.coerce.date(),
               isAllDay: z.boolean(),
-              zendeskTicketNumber: z.string().trim().max(64).nullable().optional(),
+              zendeskTicketNumber: z
+                .string()
+                .trim()
+                .max(64)
+                .nullable()
+                .optional(),
             }),
           )
           .min(1)
@@ -1968,12 +2307,18 @@ export const adminRouter = createTRPCRouter({
         .where(eq(calendars.id, input.calendarId))
         .limit(1);
       if (!calendar) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Calendar not found." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Calendar not found.",
+        });
       }
 
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
 
       const [ownerProfile] = await ctx.db
@@ -1987,7 +2332,11 @@ export const adminRouter = createTRPCRouter({
       const values = input.events.map((event, index) => {
         const start = event.start;
         let end = event.end;
-        if (!(end instanceof Date) || Number.isNaN(end.getTime()) || end <= start) {
+        if (
+          !(end instanceof Date) ||
+          Number.isNaN(end.getTime()) ||
+          end <= start
+        ) {
           end = event.isAllDay
             ? new Date(start.getTime() + MS_IN_DAY)
             : new Date(start.getTime() + 60 * 60 * 1000);
@@ -2010,10 +2359,16 @@ export const adminRouter = createTRPCRouter({
 
       await ctx.db.insert(events).values(values);
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
-        console.error("[join-table-export] importIcsEvents refresh failed", error);
+        console.error(
+          "[join-table-export] importIcsEvents refresh failed",
+          error,
+        );
       });
       void refreshHourLogExport(ctx.db, true).catch((error) => {
-        console.error("[hour-log-export] importIcsEvents refresh failed", error);
+        console.error(
+          "[hour-log-export] importIcsEvents refresh failed",
+          error,
+        );
       });
       return { inserted: values.length };
     }),
@@ -2023,7 +2378,10 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       if (!SUPPORTED_SNAPSHOT_VERSIONS.includes(input.version)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported snapshot version." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Unsupported snapshot version.",
+        });
       }
 
       const data = input.data;
@@ -2054,14 +2412,14 @@ export const adminRouter = createTRPCRouter({
           await tx.insert(users).values(
             data.users.map((row) => ({
               id: row.id,
-                username: row.username,
-                email: row.email,
-                displayName: row.displayName,
-                passwordHash: row.passwordHash,
-                isActive: row.isActive ?? true,
-                deactivatedAt: parseTimestamp(row.deactivatedAt ?? null),
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              username: row.username,
+              email: row.email,
+              displayName: row.displayName,
+              passwordHash: row.passwordHash,
+              isActive: row.isActive ?? true,
+              deactivatedAt: parseTimestamp(row.deactivatedAt ?? null),
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2069,10 +2427,10 @@ export const adminRouter = createTRPCRouter({
         if (data.posts.length > 0) {
           await tx.insert(posts).values(
             data.posts.map((row) => ({
-                id: row.id,
-                name: row.name ?? null,
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              id: row.id,
+              name: row.name ?? null,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2084,11 +2442,11 @@ export const adminRouter = createTRPCRouter({
               userId: row.userId ?? null,
               firstName: row.firstName,
               lastName: row.lastName,
-                email: row.email,
-                phoneNumber: row.phoneNumber,
-                dateOfBirth: parseDateOnly(row.dateOfBirth),
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              email: row.email,
+              phoneNumber: row.phoneNumber,
+              dateOfBirth: parseDateOnly(row.dateOfBirth),
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2097,11 +2455,11 @@ export const adminRouter = createTRPCRouter({
           await tx.insert(businesses).values(
             data.businesses.map((row) => ({
               id: row.id,
-                name: row.name,
-                type: row.type,
-                setupCompletedAt: parseTimestamp(row.setupCompletedAt),
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              name: row.name,
+              type: row.type,
+              setupCompletedAt: parseTimestamp(row.setupCompletedAt),
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2110,11 +2468,11 @@ export const adminRouter = createTRPCRouter({
           await tx.insert(buildings).values(
             data.buildings.map((row) => ({
               id: row.id,
-                businessId: row.businessId,
-                name: row.name,
-                acronym: row.acronym,
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              businessId: row.businessId,
+              name: row.name,
+              acronym: row.acronym,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2123,10 +2481,10 @@ export const adminRouter = createTRPCRouter({
           await tx.insert(rooms).values(
             data.rooms.map((row) => ({
               id: row.id,
-                buildingId: row.buildingId,
-                roomNumber: row.roomNumber,
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              buildingId: row.buildingId,
+              roomNumber: row.roomNumber,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             })),
           );
         }
@@ -2138,10 +2496,10 @@ export const adminRouter = createTRPCRouter({
             return {
               id: row.id,
               businessId: row.businessId,
-                parentDepartmentId: null,
-                name: row.name,
-                createdAt: parseRequiredTimestamp(row.createdAt),
-                updatedAt: parseTimestamp(row.updatedAt),
+              parentDepartmentId: null,
+              name: row.name,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
             };
           });
 
@@ -2149,7 +2507,10 @@ export const adminRouter = createTRPCRouter({
 
           for (const [id, parentId] of departmentParents.entries()) {
             if (parentId === null) continue;
-            await tx.update(departments).set({ parentDepartmentId: parentId }).where(eq(departments.id, id));
+            await tx
+              .update(departments)
+              .set({ parentDepartmentId: parentId })
+              .where(eq(departments.id, id));
           }
         }
 
@@ -2160,7 +2521,8 @@ export const adminRouter = createTRPCRouter({
               businessId: row.businessId,
               name: row.name,
               description: row.description,
-              tokens: row.tokens as typeof themePalettes.$inferInsert["tokens"],
+              tokens:
+                row.tokens as (typeof themePalettes.$inferInsert)["tokens"],
               isDefault: row.isDefault,
               createdByUserId: row.createdByUserId ?? null,
               createdAt: parseRequiredTimestamp(row.createdAt),
@@ -2360,7 +2722,10 @@ export const adminRouter = createTRPCRouter({
       });
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
-        console.error("[join-table-export] importSnapshot refresh failed", error);
+        console.error(
+          "[join-table-export] importSnapshot refresh failed",
+          error,
+        );
       });
       void refreshHourLogExport(ctx.db, true).catch((error) => {
         console.error("[hour-log-export] importSnapshot refresh failed", error);
@@ -2406,7 +2771,7 @@ export const adminRouter = createTRPCRouter({
           auditLogs: data.auditLogs.length,
         },
       };
-  }),
+    }),
 
   databaseSummary: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "database:manage");
@@ -2433,7 +2798,9 @@ export const adminRouter = createTRPCRouter({
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventAttendees),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventReminders),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventHourLogs),
-      ctx.db.select({ count: sql<number>`count(*)::int` }).from(eventZendeskConfirmations),
+      ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(eventZendeskConfirmations),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(calendars),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(businesses),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(buildings),
@@ -2442,7 +2809,9 @@ export const adminRouter = createTRPCRouter({
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(themePalettes),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(themeProfiles),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(posts),
-      ctx.db.select({ count: sql<number>`count(*)::int` }).from(visibilityGrants),
+      ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(visibilityGrants),
       ctx.db.select({ count: sql<number>`count(*)::int` }).from(auditLogs),
     ]);
 
@@ -2495,11 +2864,12 @@ export const adminRouter = createTRPCRouter({
         logs.push(message);
       };
 
-      const [{ appRouter }, { createTRPCContext }, { ensurePrimaryCalendars }] = await Promise.all([
-        import("~/server/api/root"),
-        import("~/server/api/trpc"),
-        import("~/server/services/calendar"),
-      ]);
+      const [{ appRouter }, { createTRPCContext }, { ensurePrimaryCalendars }] =
+        await Promise.all([
+          import("~/server/api/root"),
+          import("~/server/api/trpc"),
+          import("~/server/services/calendar"),
+        ]);
 
       const buildHeaders = () => {
         const headers = new Headers();
@@ -2579,12 +2949,18 @@ export const adminRouter = createTRPCRouter({
           updatedAt: events.updatedAt,
         })
         .from(events);
-      const eventRows = await (whereClause ? baseQuery.where(whereClause) : baseQuery)
+      const eventRows = await (
+        whereClause ? baseQuery.where(whereClause) : baseQuery
+      )
         .orderBy(desc(events.startDatetime), desc(events.id))
         .limit(limit);
 
-      const totalRowsQuery = ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
-      const totalRows = whereClause ? await totalRowsQuery.where(whereClause) : await totalRowsQuery;
+      const totalRowsQuery = ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(events);
+      const totalRows = whereClause
+        ? await totalRowsQuery.where(whereClause)
+        : await totalRowsQuery;
       const total = totalRows[0]?.count ?? 0;
 
       const eventIds = eventRows.map((row) => row.id);
@@ -2592,33 +2968,54 @@ export const adminRouter = createTRPCRouter({
         return { events: [], total };
       }
 
-      const [attendeeRows, reminderRows, hourLogRows, confirmationRows] = await Promise.all([
-        ctx.db
-          .select({ eventId: eventAttendees.eventId, count: sql<number>`count(*)::int` })
-          .from(eventAttendees)
-          .where(inArray(eventAttendees.eventId, eventIds))
-          .groupBy(eventAttendees.eventId),
-        ctx.db
-          .select({ eventId: eventReminders.eventId, count: sql<number>`count(*)::int` })
-          .from(eventReminders)
-          .where(inArray(eventReminders.eventId, eventIds))
-          .groupBy(eventReminders.eventId),
-        ctx.db
-          .select({ eventId: eventHourLogs.eventId, count: sql<number>`count(*)::int` })
-          .from(eventHourLogs)
-          .where(inArray(eventHourLogs.eventId, eventIds))
-          .groupBy(eventHourLogs.eventId),
-        ctx.db
-          .select({ eventId: eventZendeskConfirmations.eventId, count: sql<number>`count(*)::int` })
-          .from(eventZendeskConfirmations)
-          .where(inArray(eventZendeskConfirmations.eventId, eventIds))
-          .groupBy(eventZendeskConfirmations.eventId),
-      ]);
+      const [attendeeRows, reminderRows, hourLogRows, confirmationRows] =
+        await Promise.all([
+          ctx.db
+            .select({
+              eventId: eventAttendees.eventId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(eventAttendees)
+            .where(inArray(eventAttendees.eventId, eventIds))
+            .groupBy(eventAttendees.eventId),
+          ctx.db
+            .select({
+              eventId: eventReminders.eventId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(eventReminders)
+            .where(inArray(eventReminders.eventId, eventIds))
+            .groupBy(eventReminders.eventId),
+          ctx.db
+            .select({
+              eventId: eventHourLogs.eventId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(eventHourLogs)
+            .where(inArray(eventHourLogs.eventId, eventIds))
+            .groupBy(eventHourLogs.eventId),
+          ctx.db
+            .select({
+              eventId: eventZendeskConfirmations.eventId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(eventZendeskConfirmations)
+            .where(inArray(eventZendeskConfirmations.eventId, eventIds))
+            .groupBy(eventZendeskConfirmations.eventId),
+        ]);
 
-      const attendeeMap = new Map(attendeeRows.map((row) => [row.eventId, row.count]));
-      const reminderMap = new Map(reminderRows.map((row) => [row.eventId, row.count]));
-      const hourLogMap = new Map(hourLogRows.map((row) => [row.eventId, row.count]));
-      const confirmationMap = new Map(confirmationRows.map((row) => [row.eventId, row.count]));
+      const attendeeMap = new Map(
+        attendeeRows.map((row) => [row.eventId, row.count]),
+      );
+      const reminderMap = new Map(
+        reminderRows.map((row) => [row.eventId, row.count]),
+      );
+      const hourLogMap = new Map(
+        hourLogRows.map((row) => [row.eventId, row.count]),
+      );
+      const confirmationMap = new Map(
+        confirmationRows.map((row) => [row.eventId, row.count]),
+      );
 
       return {
         total,
@@ -2646,7 +3043,12 @@ export const adminRouter = createTRPCRouter({
       const [row] = await ctx.db
         .select({ count: sql<number>`count(*)::int` })
         .from(events)
-        .where(and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start)));
+        .where(
+          and(
+            lt(events.startDatetime, input.end),
+            gt(events.endDatetime, input.start),
+          ),
+        );
       return { count: row?.count ?? 0 };
     }),
 
@@ -2654,7 +3056,11 @@ export const adminRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "database:manage");
-      const [existing] = await ctx.db.select({ id: events.id }).from(events).where(eq(events.id, input.id)).limit(1);
+      const [existing] = await ctx.db
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, input.id))
+        .limit(1);
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
@@ -2662,10 +3068,16 @@ export const adminRouter = createTRPCRouter({
       await ctx.db.delete(events).where(eq(events.id, input.id));
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
-        console.error("[join-table-export] admin deleteEvent refresh failed", error);
+        console.error(
+          "[join-table-export] admin deleteEvent refresh failed",
+          error,
+        );
       });
       void refreshHourLogExport(ctx.db, true).catch((error) => {
-        console.error("[hour-log-export] admin deleteEvent refresh failed", error);
+        console.error(
+          "[hour-log-export] admin deleteEvent refresh failed",
+          error,
+        );
       });
 
       return { deleted: input.id };
@@ -2678,24 +3090,37 @@ export const adminRouter = createTRPCRouter({
           start: z.coerce.date(),
           end: z.coerce.date(),
         })
-        .refine((value) => value.end > value.start, { message: "End date must be after the start date." }),
+        .refine((value) => value.end > value.start, {
+          message: "End date must be after the start date.",
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "database:manage");
       const eventRows = await ctx.db
         .select({ id: events.id })
         .from(events)
-        .where(and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start)));
+        .where(
+          and(
+            lt(events.startDatetime, input.end),
+            gt(events.endDatetime, input.start),
+          ),
+        );
       const eventIds = eventRows.map((row) => row.id);
       if (eventIds.length === 0) return { deleted: 0 };
 
       await ctx.db.delete(events).where(inArray(events.id, eventIds));
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
-        console.error("[join-table-export] admin deleteEventsByRange refresh failed", error);
+        console.error(
+          "[join-table-export] admin deleteEventsByRange refresh failed",
+          error,
+        );
       });
       void refreshHourLogExport(ctx.db, true).catch((error) => {
-        console.error("[hour-log-export] admin deleteEventsByRange refresh failed", error);
+        console.error(
+          "[hour-log-export] admin deleteEventsByRange refresh failed",
+          error,
+        );
       });
 
       return { deleted: eventIds.length };
@@ -2703,17 +3128,25 @@ export const adminRouter = createTRPCRouter({
 
   deleteAllEvents: protectedProcedure.mutation(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "database:manage");
-    const [countRow] = await ctx.db.select({ count: sql<number>`count(*)::int` }).from(events);
+    const [countRow] = await ctx.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(events);
     const total = countRow?.count ?? 0;
     if (total === 0) return { deleted: 0 };
 
     await ctx.db.delete(events).where(sql`true`);
 
     void refreshJoinTableExport(ctx.db, true).catch((error) => {
-      console.error("[join-table-export] admin deleteAllEvents refresh failed", error);
+      console.error(
+        "[join-table-export] admin deleteAllEvents refresh failed",
+        error,
+      );
     });
     void refreshHourLogExport(ctx.db, true).catch((error) => {
-      console.error("[hour-log-export] admin deleteAllEvents refresh failed", error);
+      console.error(
+        "[hour-log-export] admin deleteAllEvents refresh failed",
+        error,
+      );
     });
 
     return { deleted: total };
@@ -2730,12 +3163,20 @@ export const adminRouter = createTRPCRouter({
   }),
 
   updateBusiness: protectedProcedure
-    .input(z.object({ name: z.string().min(2).max(255), type: z.enum(businessTypeValues) }))
+    .input(
+      z.object({
+        name: z.string().min(2).max(255),
+        type: z.enum(businessTypeValues),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const status = await getSetupStatus(ctx.db);
       if (!status.business) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
       const name = input.name.trim();
       await ctx.db
@@ -2757,11 +3198,19 @@ export const adminRouter = createTRPCRouter({
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
-      const dedupedRooms = Array.from(new Set(input.rooms.map((room) => room.trim()).filter(Boolean)));
+      const dedupedRooms = Array.from(
+        new Set(input.rooms.map((room) => room.trim()).filter(Boolean)),
+      );
       if (dedupedRooms.length === 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Add at least one valid room number." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Add at least one valid room number.",
+        });
       }
       const [buildingRow] = await ctx.db
         .insert(buildings)
@@ -2772,7 +3221,10 @@ export const adminRouter = createTRPCRouter({
         })
         .returning({ id: buildings.id });
       if (!buildingRow) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create building." });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create building.",
+        });
       }
       if (dedupedRooms.length > 0) {
         await ctx.db.insert(rooms).values(
@@ -2793,7 +3245,10 @@ export const adminRouter = createTRPCRouter({
           name: z.string().min(2).max(255).optional(),
           acronym: z.string().min(2).max(16).optional(),
         })
-        .refine((value) => value.name !== undefined || value.acronym !== undefined, { message: "No updates provided" }),
+        .refine(
+          (value) => value.name !== undefined || value.acronym !== undefined,
+          { message: "No updates provided" },
+        ),
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
@@ -2808,11 +3263,17 @@ export const adminRouter = createTRPCRouter({
         .where(eq(buildings.id, input.buildingId))
         .limit(1);
       if (!buildingRow) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Building not found.",
+        });
       }
       const businessId = await findBusinessId(ctx.db);
       if (businessId && buildingRow.businessId !== businessId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Building does not belong to this business.",
+        });
       }
       const nextName = input.name?.trim() ?? buildingRow.name;
       const nextAcronym = input.acronym?.trim() ?? buildingRow.acronym;
@@ -2864,23 +3325,37 @@ export const adminRouter = createTRPCRouter({
         .where(eq(buildings.id, input.buildingId))
         .limit(1);
       if (!buildingRow) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Building not found.",
+        });
       }
       const businessId = await findBusinessId(ctx.db);
       if (businessId && buildingRow.businessId !== businessId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Building does not belong to this business.",
+        });
       }
       await ctx.db.delete(buildings).where(eq(buildings.id, input.buildingId));
       return { deleted: input.buildingId };
     }),
 
   createRoom: protectedProcedure
-    .input(z.object({ buildingId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
+    .input(
+      z.object({
+        buildingId: z.number().int().positive(),
+        roomNumber: z.string().min(1).max(64),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const roomNumber = input.roomNumber.trim();
       if (!roomNumber) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Room number is required.",
+        });
       }
       const [buildingRow] = await ctx.db
         .select({ id: buildings.id, businessId: buildings.businessId })
@@ -2888,29 +3363,46 @@ export const adminRouter = createTRPCRouter({
         .where(eq(buildings.id, input.buildingId))
         .limit(1);
       if (!buildingRow) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Building not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Building not found.",
+        });
       }
       const businessId = await findBusinessId(ctx.db);
       if (businessId && buildingRow.businessId !== businessId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Building does not belong to this business.",
+        });
       }
       const [roomRow] = await ctx.db
         .insert(rooms)
         .values({ buildingId: input.buildingId, roomNumber })
         .returning({ id: rooms.id });
       if (!roomRow) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create room." });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create room.",
+        });
       }
       return { id: roomRow.id };
     }),
 
   updateRoom: protectedProcedure
-    .input(z.object({ roomId: z.number().int().positive(), roomNumber: z.string().min(1).max(64) }))
+    .input(
+      z.object({
+        roomId: z.number().int().positive(),
+        roomNumber: z.string().min(1).max(64),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const roomNumber = input.roomNumber.trim();
       if (!roomNumber) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Room number is required." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Room number is required.",
+        });
       }
       const [roomRow] = await ctx.db
         .select({
@@ -2927,7 +3419,10 @@ export const adminRouter = createTRPCRouter({
       }
       const businessId = await findBusinessId(ctx.db);
       if (businessId && roomRow.businessId !== businessId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Room does not belong to this business." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Room does not belong to this business.",
+        });
       }
       await ctx.db
         .update(rooms)
@@ -2955,19 +3450,30 @@ export const adminRouter = createTRPCRouter({
       }
       const businessId = await findBusinessId(ctx.db);
       if (businessId && roomRow.businessId !== businessId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Room does not belong to this business." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Room does not belong to this business.",
+        });
       }
       await ctx.db.delete(rooms).where(eq(rooms.id, input.roomId));
       return { deleted: input.roomId };
     }),
 
   createDepartment: protectedProcedure
-    .input(z.object({ name: z.string().min(2).max(255), parentDepartmentId: z.number().int().positive().nullable().optional() }))
+    .input(
+      z.object({
+        name: z.string().min(2).max(255),
+        parentDepartmentId: z.number().int().positive().nullable().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
       const parentId = input.parentDepartmentId ?? null;
       if (parentId !== null) {
@@ -2977,15 +3483,25 @@ export const adminRouter = createTRPCRouter({
           .where(eq(departments.id, parentId))
           .limit(1);
         if (parentRow?.businessId !== businessId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Parent department not found.",
+          });
         }
       }
       const [departmentRow] = await ctx.db
         .insert(departments)
-        .values({ businessId, name: input.name.trim(), parentDepartmentId: parentId })
+        .values({
+          businessId,
+          name: input.name.trim(),
+          parentDepartmentId: parentId,
+        })
         .returning({ id: departments.id });
       if (!departmentRow) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create department." });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create department.",
+        });
       }
       return { id: departmentRow.id };
     }),
@@ -2998,13 +3514,20 @@ export const adminRouter = createTRPCRouter({
           name: z.string().min(2).max(255).optional(),
           parentDepartmentId: z.number().int().positive().nullable().optional(),
         })
-        .refine((value) => value.name !== undefined || value.parentDepartmentId !== undefined, { message: "No updates provided" }),
+        .refine(
+          (value) =>
+            value.name !== undefined || value.parentDepartmentId !== undefined,
+          { message: "No updates provided" },
+        ),
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
       const [departmentRow] = await ctx.db
         .select({ id: departments.id, businessId: departments.businessId })
@@ -3012,7 +3535,10 @@ export const adminRouter = createTRPCRouter({
         .where(eq(departments.id, input.departmentId))
         .limit(1);
       if (departmentRow?.businessId !== businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Department not found.",
+        });
       }
 
       const updates: Partial<typeof departments.$inferInsert> = {};
@@ -3022,7 +3548,10 @@ export const adminRouter = createTRPCRouter({
 
       if (input.parentDepartmentId !== undefined) {
         if (input.parentDepartmentId === input.departmentId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Department cannot be its own parent." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Department cannot be its own parent.",
+          });
         }
         const parentId = input.parentDepartmentId;
         if (parentId !== null) {
@@ -3032,22 +3561,38 @@ export const adminRouter = createTRPCRouter({
             .where(eq(departments.id, parentId))
             .limit(1);
           if (parentRow?.businessId !== businessId) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Parent department not found." });
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Parent department not found.",
+            });
           }
         }
 
         const departmentRows = await ctx.db
-          .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId })
+          .select({
+            id: departments.id,
+            parentDepartmentId: departments.parentDepartmentId,
+          })
           .from(departments)
           .where(eq(departments.businessId, businessId));
-        const parentMap = new Map(departmentRows.map((row) => [row.id, row.parentDepartmentId ?? null]));
-        if (wouldCreateDepartmentCycle(input.departmentId, parentId, parentMap)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Department hierarchy cannot contain cycles." });
+        const parentMap = new Map(
+          departmentRows.map((row) => [row.id, row.parentDepartmentId ?? null]),
+        );
+        if (
+          wouldCreateDepartmentCycle(input.departmentId, parentId, parentMap)
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Department hierarchy cannot contain cycles.",
+          });
         }
         updates.parentDepartmentId = parentId;
       }
 
-      await ctx.db.update(departments).set({ ...updates, updatedAt: new Date() }).where(eq(departments.id, input.departmentId));
+      await ctx.db
+        .update(departments)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(departments.id, input.departmentId));
       return { id: input.departmentId };
     }),
 
@@ -3057,7 +3602,10 @@ export const adminRouter = createTRPCRouter({
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
       const [departmentRow] = await ctx.db
         .select({ id: departments.id, businessId: departments.businessId })
@@ -3065,9 +3613,14 @@ export const adminRouter = createTRPCRouter({
         .where(eq(departments.id, input.departmentId))
         .limit(1);
       if (departmentRow?.businessId !== businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Department not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Department not found.",
+        });
       }
-      await ctx.db.delete(departments).where(eq(departments.id, input.departmentId));
+      await ctx.db
+        .delete(departments)
+        .where(eq(departments.id, input.departmentId));
       return { deleted: input.departmentId };
     }),
 
@@ -3081,8 +3634,14 @@ export const adminRouter = createTRPCRouter({
   }),
 
   users: protectedProcedure.query(async ({ ctx }) => {
-    const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
-    const hasBusinessAdmin = context.roles.some((role) => role.scopeType === "business");
+    const context = await requireAdminCapability(
+      ctx.db,
+      ctx.session,
+      "users:manage",
+    );
+    const hasBusinessAdmin = context.roles.some(
+      (role) => role.scopeType === "business",
+    );
     if (hasBusinessAdmin) {
       return { users: await fetchUsers(ctx.db) };
     }
@@ -3112,36 +3671,63 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const context = await requireAdminCapability(ctx.db, ctx.session, "visibility_grants:manage");
+      const context = await requireAdminCapability(
+        ctx.db,
+        ctx.session,
+        "visibility_grants:manage",
+      );
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
 
-      const [userRow] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);
+      const [userRow] = await ctx.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
       if (!userRow) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 
       if (input.scopeType === "business") {
         if (input.scopeId !== businessId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Business grant must target the current business." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Business grant must target the current business.",
+          });
         }
       } else {
         const [departmentRow] = await ctx.db
-          .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId, businessId: departments.businessId })
+          .select({
+            id: departments.id,
+            parentDepartmentId: departments.parentDepartmentId,
+            businessId: departments.businessId,
+          })
           .from(departments)
           .where(eq(departments.id, input.scopeId))
           .limit(1);
         if (departmentRow?.businessId !== businessId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Department scope not found." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Department scope not found.",
+          });
         }
         const isDivision = departmentRow.parentDepartmentId !== null;
         if (input.scopeType === "department" && isDivision) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a division, not a department." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Scope is a division, not a department.",
+          });
         }
         if (input.scopeType === "division" && !isDivision) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a department, not a division." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Scope is a department, not a division.",
+          });
         }
       }
 
@@ -3188,7 +3774,11 @@ export const adminRouter = createTRPCRouter({
   removeVisibilityGrant: protectedProcedure
     .input(z.object({ grantId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const context = await requireAdminCapability(ctx.db, ctx.session, "visibility_grants:manage");
+      const context = await requireAdminCapability(
+        ctx.db,
+        ctx.session,
+        "visibility_grants:manage",
+      );
       const [grantRow] = await ctx.db
         .select({
           id: visibilityGrants.id,
@@ -3200,10 +3790,15 @@ export const adminRouter = createTRPCRouter({
         .where(eq(visibilityGrants.id, input.grantId))
         .limit(1);
       if (!grantRow) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Visibility grant not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Visibility grant not found.",
+        });
       }
 
-      await ctx.db.delete(visibilityGrants).where(eq(visibilityGrants.id, input.grantId));
+      await ctx.db
+        .delete(visibilityGrants)
+        .where(eq(visibilityGrants.id, input.grantId));
 
       const businessId = await findBusinessId(ctx.db);
       if (businessId) {
@@ -3236,21 +3831,45 @@ export const adminRouter = createTRPCRouter({
               dateOfBirth: z.string().optional().nullable(),
             })
             .optional(),
-          primaryRole: z.enum(["admin", "co_admin", "manager", "employee"]).optional(),
+          roleAssignments: z.array(roleAssignmentInputSchema).min(1).optional(),
         })
-        .refine((value) => value.displayName !== undefined || value.profile !== undefined || value.primaryRole !== undefined, {
-          message: "No updates provided",
-        }),
+        .refine(
+          (value) =>
+            value.displayName !== undefined ||
+            value.profile !== undefined ||
+            value.roleAssignments !== undefined,
+          {
+            message: "No updates provided",
+          },
+        ),
     )
     .mutation(async ({ ctx, input }) => {
-      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
-      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
-      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
+      const context = await requireAdminCapability(
+        ctx.db,
+        ctx.session,
+        "users:manage",
+      );
+      const isBusinessAdmin = context.roles.some(
+        (role) => role.roleType === "admin" && role.scopeType === "business",
+      );
+      const isBusinessCoAdmin = context.roles.some(
+        (role) => role.roleType === "co_admin" && role.scopeType === "business",
+      );
       const isManagerOnly = !isBusinessAdmin && !isBusinessCoAdmin;
 
+      if (input.roleAssignments && !isBusinessAdmin) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only business admins can change user role assignments.",
+        });
+      }
+
       if (isManagerOnly) {
-        if (input.primaryRole) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Managers cannot change user roles." });
+        if (input.roleAssignments) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Managers cannot change user roles.",
+          });
         }
         const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
         if (!visibleScopes.business) {
@@ -3259,21 +3878,27 @@ export const adminRouter = createTRPCRouter({
             divisionIds: visibleScopes.divisionIds,
           });
           if (!scopedUserIds.includes(input.userId)) {
-            throw new TRPCError({ code: "FORBIDDEN", message: "You can only manage users in your scope." });
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "You can only manage users in your scope.",
+            });
           }
         }
       }
 
-      if (input.primaryRole) {
-        const allowed = await canAssignRole(ctx.db, ctx.session, input.primaryRole);
-        if (!allowed) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to assign that role." });
-        }
-      }
-
       return ctx.db.transaction(async (tx) => {
+        if (input.roleAssignments && input.userId === context.userId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "You cannot change your own role assignments.",
+          });
+        }
+
         if (input.displayName !== undefined) {
-          await tx.update(users).set({ displayName: input.displayName }).where(eq(users.id, input.userId));
+          await tx
+            .update(users)
+            .set({ displayName: input.displayName })
+            .where(eq(users.id, input.userId));
         }
 
         let profileId: number | null = null;
@@ -3284,12 +3909,18 @@ export const adminRouter = createTRPCRouter({
           if (input.profile.dateOfBirth) {
             const parsed = new Date(input.profile.dateOfBirth);
             if (Number.isNaN(parsed.getTime())) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date of birth." });
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Invalid date of birth.",
+              });
             }
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             if (parsed > today) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "Date of birth cannot be in the future." });
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Date of birth cannot be in the future.",
+              });
             }
             dateOfBirth = input.profile.dateOfBirth;
           }
@@ -3330,7 +3961,7 @@ export const adminRouter = createTRPCRouter({
           }
         }
 
-        if (profileId === null && input.primaryRole) {
+        if (profileId === null && input.roleAssignments) {
           const [existingProfile] = await tx
             .select({ id: profiles.id })
             .from(profiles)
@@ -3339,81 +3970,63 @@ export const adminRouter = createTRPCRouter({
           profileId = existingProfile?.id ?? null;
         }
 
-        if (input.primaryRole) {
+        if (input.roleAssignments) {
           if (profileId === null) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Profile is required to assign roles." });
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Profile is required to assign roles.",
+            });
           }
-
-          const existingScopes = await tx
-            .select({
-              scopeType: organizationRoles.scopeType,
-              scopeId: organizationRoles.scopeId,
-            })
-            .from(organizationRoles)
-            .where(eq(organizationRoles.userId, input.userId));
-
-          const scopesByKey = new Map<string, { scopeType: "business" | "department" | "division"; scopeId: number }>();
-          for (const scope of existingScopes) {
-            const key = `${scope.scopeType}:${scope.scopeId}`;
-            if (!scopesByKey.has(key)) {
-              scopesByKey.set(key, { scopeType: scope.scopeType, scopeId: scope.scopeId });
-            }
-          }
-
-          await tx.delete(organizationRoles).where(eq(organizationRoles.userId, input.userId));
 
           const businessId = await findBusinessId(tx);
-          const roleType = input.primaryRole;
-          const scopesToAssign: Array<{ scopeType: "business" | "department" | "division"; scopeId: number }> = [];
-
-          if (roleType === "admin" || roleType === "co_admin") {
-            if (businessId === null) {
-              throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
-            }
-            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
-          } else {
-            for (const scope of scopesByKey.values()) {
-              if (scope.scopeType === "department" || scope.scopeType === "division") {
-                scopesToAssign.push(scope);
-              }
-            }
-            if (scopesToAssign.length === 0 && businessId !== null) {
-              const fallback = await findDefaultDepartmentScope(tx, businessId);
-              if (fallback) {
-                scopesToAssign.push(fallback);
-              } else {
-                scopesToAssign.push({ scopeType: "business", scopeId: businessId });
-              }
-            }
+          if (businessId === null) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Business not found.",
+            });
           }
+          const normalizedAssignments = await normalizeRequestedRoleAssignments(
+            tx,
+            input.roleAssignments,
+            {
+              businessId,
+              isManagerOnly,
+              visibleScopes: null,
+            },
+          );
+          const existingBusinessAdminUserIds =
+            await findBusinessAdminUserIds(tx);
+          assertBusinessAdminCoverage({
+            targetUserId: input.userId,
+            nextAssignments: normalizedAssignments,
+            existingBusinessAdminUserIds,
+          });
 
-          if (scopesToAssign.length === 0) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "No valid scope available for role assignment." });
-          }
+          await tx
+            .delete(organizationRoles)
+            .where(eq(organizationRoles.userId, input.userId));
 
           await tx.insert(organizationRoles).values(
-            scopesToAssign.map((scope) => ({
+            normalizedAssignments.map((assignment) => ({
               userId: input.userId,
               profileId,
-              roleType,
-              scopeType: scope.scopeType,
-              scopeId: scope.scopeId,
+              roleType: assignment.roleType,
+              scopeType: assignment.scopeType,
+              scopeId: assignment.scopeId,
             })),
           );
 
-          if (businessId) {
-            const auditScope = scopesToAssign[0];
-            await tx.insert(auditLogs).values({
-              businessId,
-              actorUserId: context.userId,
-              action: "user.role.update",
-              targetType: "user",
-              targetId: input.userId,
-              scopeType: auditScope?.scopeType ?? "business",
-              scopeId: auditScope?.scopeId ?? businessId,
-              metadata: { role: input.primaryRole },
-            });
-          }
+          const auditScope = normalizedAssignments[0];
+          await tx.insert(auditLogs).values({
+            businessId,
+            actorUserId: context.userId,
+            action: "user.role.update",
+            targetType: "user",
+            targetId: input.userId,
+            scopeType: auditScope?.scopeType ?? "business",
+            scopeId: auditScope?.scopeId ?? businessId,
+            metadata: { roleAssignments: normalizedAssignments },
+          });
         }
 
         const [updatedUser] = await fetchUsers(tx, [input.userId]);
@@ -3435,114 +4048,83 @@ export const adminRouter = createTRPCRouter({
         lastName: z.string().min(1).max(100),
         phoneNumber: z.string().min(10).max(32),
         dateOfBirth: z.string().optional(),
-        primaryRole: z.enum(["admin", "co_admin", "manager", "employee"]),
-        scopes: z
-          .array(
-            z.object({
-              scopeType: z.enum(["business", "department", "division"]),
-              scopeId: z.number().int().positive(),
-            }),
-          )
-          .optional(),
+        roleAssignments: z.array(roleAssignmentInputSchema).min(1),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
-      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
-      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
-      const isManager = context.roles.some((role) => role.roleType === "manager");
+      const context = await requireAdminCapability(
+        ctx.db,
+        ctx.session,
+        "users:manage",
+      );
+      const isBusinessAdmin = context.roles.some(
+        (role) => role.roleType === "admin" && role.scopeType === "business",
+      );
+      const isBusinessCoAdmin = context.roles.some(
+        (role) => role.roleType === "co_admin" && role.scopeType === "business",
+      );
+      const isManager = context.roles.some(
+        (role) => role.roleType === "manager",
+      );
+      const isManagerOnly = isManager && !isBusinessAdmin && !isBusinessCoAdmin;
       const isAdminOrCoAdmin = isBusinessAdmin || isBusinessCoAdmin;
       if (!isAdminOrCoAdmin && !isManager) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to create accounts." });
-      }
-
-      if (isManager && input.primaryRole !== "employee") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Managers can only create employee accounts." });
-      }
-
-      if (isAdminOrCoAdmin) {
-        const allowed = await canAssignRole(ctx.db, ctx.session, input.primaryRole);
-        if (!allowed) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to assign that role." });
-        }
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have permission to create accounts.",
+        });
       }
 
       const businessId = await findBusinessId(ctx.db);
       if (!businessId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Business not found." });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Business not found.",
+        });
       }
 
       const username = input.username.trim();
       const emailLower = input.email.trim().toLowerCase();
       const phoneDigits = sanitizePhone(input.phoneNumber);
       if (phoneDigits.length < 10) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Phone number must contain at least 10 digits." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Phone number must contain at least 10 digits.",
+        });
       }
 
       let dateOfBirth: string | null = null;
       if (input.dateOfBirth) {
         const parsed = new Date(input.dateOfBirth);
         if (Number.isNaN(parsed.getTime())) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date of birth." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid date of birth.",
+          });
         }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (parsed > today) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Date of birth cannot be in the future." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Date of birth cannot be in the future.",
+          });
         }
         dateOfBirth = input.dateOfBirth;
       }
 
-      const managerVisibleScopes = isManager ? await getVisibleScopes(ctx.db, context.userId) : null;
-
-      if (input.scopes && input.scopes.length > 0) {
-        const allowedDepartments = new Set(managerVisibleScopes?.departmentIds ?? []);
-        const allowedDivisions = new Set(managerVisibleScopes?.divisionIds ?? []);
-        const seen = new Set<string>();
-
-        for (const scope of input.scopes) {
-          const scopeKey = `${scope.scopeType}:${scope.scopeId}`;
-          if (seen.has(scopeKey)) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Duplicate scopes are not allowed." });
-          }
-          seen.add(scopeKey);
-
-          if (scope.scopeType === "business") {
-            if (scope.scopeId !== businessId) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "Business scope must match the current business." });
-            }
-            if (isManager) {
-              throw new TRPCError({ code: "FORBIDDEN", message: "Managers cannot assign business-wide scope." });
-            }
-            continue;
-          }
-
-          const [departmentRow] = await ctx.db
-            .select({ id: departments.id, parentDepartmentId: departments.parentDepartmentId, businessId: departments.businessId })
-            .from(departments)
-            .where(eq(departments.id, scope.scopeId))
-            .limit(1);
-          if (departmentRow?.businessId !== businessId) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Department scope not found." });
-          }
-          const isDivision = departmentRow.parentDepartmentId !== null;
-          if (scope.scopeType === "department" && isDivision) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a division, not a department." });
-          }
-          if (scope.scopeType === "division" && !isDivision) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Scope is a department, not a division." });
-          }
-
-          if (isManager) {
-            if (scope.scopeType === "department" && !allowedDepartments.has(scope.scopeId)) {
-              throw new TRPCError({ code: "FORBIDDEN", message: "You cannot assign users outside your departments." });
-            }
-            if (scope.scopeType === "division" && !allowedDivisions.has(scope.scopeId)) {
-              throw new TRPCError({ code: "FORBIDDEN", message: "You cannot assign users outside your divisions." });
-            }
-          }
-        }
-      }
+      const managerVisibleScopes = isManagerOnly
+        ? await getVisibleScopes(ctx.db, context.userId)
+        : null;
+      const normalizedAssignments = await normalizeRequestedRoleAssignments(
+        ctx.db,
+        input.roleAssignments,
+        {
+          businessId,
+          isManagerOnly,
+          visibleScopes: managerVisibleScopes,
+        },
+      );
 
       return ctx.db.transaction(async (tx) => {
         const [existingUser] = await tx
@@ -3551,11 +4133,15 @@ export const adminRouter = createTRPCRouter({
           .where(or(eq(users.username, username), eq(users.email, emailLower)))
           .limit(1);
         if (existingUser) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Username or email already exists." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Username or email already exists.",
+          });
         }
 
         const passwordHash = await bcrypt.hash(input.password, 10);
-        const displayName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+        const displayName =
+          `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
 
         const [insertedUser] = await tx
           .insert(users)
@@ -3567,7 +4153,10 @@ export const adminRouter = createTRPCRouter({
           })
           .returning({ id: users.id });
         if (!insertedUser) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create user.",
+          });
         }
 
         const [profileRow] = await tx
@@ -3582,53 +4171,23 @@ export const adminRouter = createTRPCRouter({
           })
           .returning({ id: profiles.id });
         if (!profileRow) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create profile." });
-        }
-
-        const scopesToAssign: Array<{ scopeType: "business" | "department" | "division"; scopeId: number }> = [];
-        if (input.scopes && input.scopes.length > 0) {
-          if (input.primaryRole === "admin" || input.primaryRole === "co_admin") {
-            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
-          } else {
-            scopesToAssign.push(...input.scopes);
-          }
-        } else if (isManager) {
-          const departmentIds = Array.from(new Set(managerVisibleScopes?.departmentIds ?? [])).sort((a, b) => a - b);
-          const divisionIds = Array.from(new Set(managerVisibleScopes?.divisionIds ?? [])).sort((a, b) => a - b);
-          for (const id of departmentIds) {
-            scopesToAssign.push({ scopeType: "department", scopeId: id });
-          }
-          for (const id of divisionIds) {
-            scopesToAssign.push({ scopeType: "division", scopeId: id });
-          }
-          if (scopesToAssign.length === 0) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "Managers must be assigned to at least one department or division before creating users.",
-            });
-          }
-        } else if (input.primaryRole === "admin" || input.primaryRole === "co_admin") {
-          scopesToAssign.push({ scopeType: "business", scopeId: businessId });
-        } else {
-          const fallback = await findDefaultDepartmentScope(tx, businessId);
-          if (fallback) {
-            scopesToAssign.push(fallback);
-          } else {
-            scopesToAssign.push({ scopeType: "business", scopeId: businessId });
-          }
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create profile.",
+          });
         }
 
         await tx.insert(organizationRoles).values(
-          scopesToAssign.map((scope) => ({
+          normalizedAssignments.map((assignment) => ({
             userId: insertedUser.id,
             profileId: profileRow.id,
-            roleType: input.primaryRole,
-            scopeType: scope.scopeType,
-            scopeId: scope.scopeId,
+            roleType: assignment.roleType,
+            scopeType: assignment.scopeType,
+            scopeId: assignment.scopeId,
           })),
         );
 
-        const auditScope = scopesToAssign[0];
+        const auditScope = normalizedAssignments[0];
         await tx.insert(auditLogs).values({
           businessId,
           actorUserId: context.userId,
@@ -3637,14 +4196,17 @@ export const adminRouter = createTRPCRouter({
           targetId: insertedUser.id,
           scopeType: auditScope?.scopeType ?? "business",
           scopeId: auditScope?.scopeId ?? businessId,
-          metadata: { role: input.primaryRole },
+          metadata: { roleAssignments: normalizedAssignments },
         });
 
         await ensurePrimaryCalendars(tx, insertedUser.id);
 
         const [createdUser] = await fetchUsers(tx, [insertedUser.id]);
         if (!createdUser) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to load created user." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to load created user.",
+          });
         }
         return createdUser;
       });
@@ -3653,10 +4215,20 @@ export const adminRouter = createTRPCRouter({
   deleteUser: protectedProcedure
     .input(z.object({ userId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const context = await requireAdminCapability(ctx.db, ctx.session, "users:manage");
-      const isBusinessAdmin = context.roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
-      const isBusinessCoAdmin = context.roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
-      const isManager = context.roles.some((role) => role.roleType === "manager");
+      const context = await requireAdminCapability(
+        ctx.db,
+        ctx.session,
+        "users:manage",
+      );
+      const isBusinessAdmin = context.roles.some(
+        (role) => role.roleType === "admin" && role.scopeType === "business",
+      );
+      const isBusinessCoAdmin = context.roles.some(
+        (role) => role.roleType === "co_admin" && role.scopeType === "business",
+      );
+      const isManager = context.roles.some(
+        (role) => role.roleType === "manager",
+      );
       const isManagerOnly = !isBusinessAdmin && !isBusinessCoAdmin && isManager;
       const sessionUserId = context.userId;
 
@@ -3667,11 +4239,17 @@ export const adminRouter = createTRPCRouter({
           divisionIds: visibleScopes.divisionIds,
         });
         if (!scopedUserIds.includes(input.userId)) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You can only manage users in your scope." });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You can only manage users in your scope.",
+          });
         }
       }
       if (sessionUserId === input.userId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot delete your own account." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You cannot delete your own account.",
+        });
       }
 
       const [existingUser] = await ctx.db
@@ -3683,7 +4261,10 @@ export const adminRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
       if (!existingUser.isActive) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "User is already deactivated." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User is already deactivated.",
+        });
       }
 
       await ctx.db
@@ -3705,10 +4286,16 @@ export const adminRouter = createTRPCRouter({
       }
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
-        console.error("[join-table-export] admin deactivateUser refresh failed", error);
+        console.error(
+          "[join-table-export] admin deactivateUser refresh failed",
+          error,
+        );
       });
       void refreshHourLogExport(ctx.db, true).catch((error) => {
-        console.error("[hour-log-export] admin deactivateUser refresh failed", error);
+        console.error(
+          "[hour-log-export] admin deactivateUser refresh failed",
+          error,
+        );
       });
 
       return { deactivated: input.userId };
