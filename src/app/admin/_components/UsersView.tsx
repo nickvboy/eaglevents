@@ -19,6 +19,7 @@ type FormState = {
   lastName: string;
   profileEmail: string;
   phoneNumber: string;
+  affiliation: "staff" | "faculty" | "student";
   dateOfBirth: string;
 };
 
@@ -29,10 +30,16 @@ type CreateFormState = {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  affiliation: "staff" | "faculty" | "student";
   dateOfBirth: string;
 };
 
 type AdminUser = RouterOutputs["admin"]["users"]["users"][number];
+const profileAffiliationOptions = [
+  { value: "staff", label: "Staff" },
+  { value: "faculty", label: "Faculty" },
+  { value: "student", label: "Student" },
+] as const;
 
 function createDefaultForm(): FormState {
   return {
@@ -41,6 +48,7 @@ function createDefaultForm(): FormState {
     lastName: "",
     profileEmail: "",
     phoneNumber: "",
+    affiliation: "staff",
     dateOfBirth: "",
   };
 }
@@ -53,6 +61,7 @@ function createDefaultCreateForm(): CreateFormState {
     firstName: "",
     lastName: "",
     phoneNumber: "",
+    affiliation: "staff",
     dateOfBirth: "",
   };
 }
@@ -68,6 +77,7 @@ function buildFormStateFromUser(user: AdminUser | null | undefined): FormState {
     lastName: user.profile?.lastName ?? "",
     profileEmail: user.profile?.email ?? user.email ?? "",
     phoneNumber: user.profile?.phoneNumber ?? "",
+    affiliation: user.profile?.affiliation ?? "staff",
     dateOfBirth: formatDateForInput(user.profile?.dateOfBirth),
   };
 }
@@ -427,6 +437,7 @@ export function UsersView() {
               lastName: formState.lastName.trim(),
               email: formState.profileEmail.trim(),
               phoneNumber: formState.phoneNumber.trim(),
+              affiliation: formState.affiliation,
               dateOfBirth:
                 trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : null,
             }
@@ -469,6 +480,7 @@ export function UsersView() {
         firstName: createFormState.firstName.trim(),
         lastName: createFormState.lastName.trim(),
         phoneNumber: createFormState.phoneNumber.trim(),
+        affiliation: createFormState.affiliation,
         dateOfBirth:
           trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : undefined,
         roleAssignments: serializeRoleAssignments(createRoleAssignmentsDraft),
@@ -787,6 +799,25 @@ export function UsersView() {
                   />
                 </label>
               </div>
+              <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[200px]">
+                <span>Affiliation</span>
+                <select
+                  value={formState.affiliation}
+                  onChange={(event) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      affiliation: event.target.value as "staff" | "faculty" | "student",
+                    }))
+                  }
+                  className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
+                >
+                  {profileAffiliationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[200px]">
                 <span>Date of birth</span>
                 <input
@@ -1118,6 +1149,25 @@ export function UsersView() {
                   />
                 </label>
               </div>
+              <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
+                <span>Affiliation</span>
+                <select
+                  value={createFormState.affiliation}
+                  onChange={(event) =>
+                    setCreateFormState((prev) => ({
+                      ...prev,
+                      affiliation: event.target.value as "staff" | "faculty" | "student",
+                    }))
+                  }
+                  className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
+                >
+                  {profileAffiliationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
                 <span>Date of birth</span>
                 <input

@@ -20,6 +20,7 @@ import { getSetupStatus } from "~/server/services/setup";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
+const profileAffiliationValues = ["staff", "faculty", "student"] as const;
 const roleTypeValues = ["admin", "co_admin", "manager", "employee"] as const;
 const scopeTypeValues = ["business", "department", "division"] as const;
 
@@ -47,6 +48,7 @@ const userAccountSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   phoneNumber: z.string().min(10).max(32),
+  affiliation: z.enum(profileAffiliationValues).optional(),
   dateOfBirth: z.string().optional(),
   roleAssignments: z.array(roleAssignmentSchema).min(1),
 });
@@ -59,6 +61,7 @@ const updateUserAccountSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   phoneNumber: z.string().min(10).max(32),
+  affiliation: z.enum(profileAffiliationValues).optional(),
   dateOfBirth: z.string().optional().nullable(),
   roleAssignments: z.array(roleAssignmentSchema).min(1),
 });
@@ -394,6 +397,7 @@ export const setupRouter = createTRPCRouter({
               lastName: user.lastName.trim(),
               email: emailLower,
               phoneNumber: phoneDigits,
+              affiliation: user.affiliation ?? null,
               dateOfBirth,
             })
             .returning();
@@ -504,7 +508,11 @@ export const setupRouter = createTRPCRouter({
         await tx.update(users).set(userUpdates).where(eq(users.id, input.userId));
 
         const [existingProfile] = await tx
-          .select({ id: profiles.id, dateOfBirth: profiles.dateOfBirth })
+          .select({
+            id: profiles.id,
+            affiliation: profiles.affiliation,
+            dateOfBirth: profiles.dateOfBirth,
+          })
           .from(profiles)
           .where(eq(profiles.userId, input.userId))
           .limit(1);
@@ -536,6 +544,7 @@ export const setupRouter = createTRPCRouter({
               lastName: input.lastName.trim(),
               email: emailLower,
               phoneNumber: phoneDigits,
+              affiliation: input.affiliation ?? existingProfile?.affiliation ?? null,
               dateOfBirth,
             })
             .where(eq(profiles.id, profileId));
@@ -548,6 +557,7 @@ export const setupRouter = createTRPCRouter({
               lastName: input.lastName.trim(),
               email: emailLower,
               phoneNumber: phoneDigits,
+              affiliation: input.affiliation ?? null,
               dateOfBirth: dateOfBirth ?? null,
             })
             .returning({ id: profiles.id });
@@ -670,6 +680,7 @@ export const setupRouter = createTRPCRouter({
           lastName,
           email,
           phoneNumber,
+          affiliation: "staff" as const,
           username,
           password,
           dateOfBirth,
@@ -789,6 +800,7 @@ export const setupRouter = createTRPCRouter({
             lastName: user.lastName.trim(),
             email: emailLower,
             phoneNumber: phoneDigits,
+            affiliation: user.affiliation ?? null,
             dateOfBirth: user.dateOfBirth ?? null,
           })
           .returning();

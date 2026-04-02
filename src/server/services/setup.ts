@@ -48,6 +48,7 @@ export type RoleSummary = {
     lastName: string;
     email: string;
     phoneNumber: string;
+    affiliation: "staff" | "faculty" | "student" | null;
     dateOfBirth: string | null;
   } | null;
   scopeLabel: string;
@@ -180,6 +181,7 @@ export async function getSetupStatus(dbClient: DbClient): Promise<SetupStatus> {
       lastName: profiles.lastName,
       profileEmail: profiles.email,
       phoneNumber: profiles.phoneNumber,
+      affiliation: profiles.affiliation,
       dateOfBirth: profiles.dateOfBirth,
     })
     .from(organizationRoles)
@@ -216,6 +218,7 @@ export async function getSetupStatus(dbClient: DbClient): Promise<SetupStatus> {
             lastName: row.lastName ?? "",
             email: row.profileEmail ?? "",
             phoneNumber: row.phoneNumber ?? "",
+            affiliation: row.affiliation ?? null,
             dateOfBirth: row.dateOfBirth ?? null,
           }
         : null,

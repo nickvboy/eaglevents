@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+const profileAffiliationOptions = [
+  { value: "staff", label: "Staff" },
+  { value: "faculty", label: "Faculty" },
+  { value: "student", label: "Student" },
+] as const;
+
 function formatPhone(digits: string) {
   const cleaned = digits.replace(/\D/g, "").slice(0, 10);
   const len = cleaned.length;
@@ -49,6 +55,7 @@ export default function CreateProfilePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneDigits, setPhoneDigits] = useState("");
+  const [affiliation, setAffiliation] = useState<(typeof profileAffiliationOptions)[number]["value"]>("student");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +87,7 @@ export default function CreateProfilePage() {
             lastName: string;
             email: string;
             phoneNumber: string;
+            affiliation: (typeof profileAffiliationOptions)[number]["value"] | null;
             dateOfBirth: string | null;
           } | null;
         };
@@ -91,6 +99,7 @@ export default function CreateProfilePage() {
           setEmailTouched(true);
           const digits = (data.profile.phoneNumber ?? "").replace(/\D/g, "").slice(0, 10);
           setPhoneDigits(digits);
+          setAffiliation(data.profile.affiliation ?? "student");
           setDateOfBirth(data.profile.dateOfBirth ?? "");
         }
       } catch {
@@ -132,6 +141,7 @@ export default function CreateProfilePage() {
           firstName,
           lastName,
           phoneNumber: digits,
+          affiliation,
           dateOfBirth: dateOfBirth.trim() ? dateOfBirth : undefined,
         }),
       });
@@ -233,6 +243,23 @@ export default function CreateProfilePage() {
               <p className="mt-1 text-xs text-ink-faint">
                 Format updates automatically as you type.
               </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase text-ink-faint">Affiliation</label>
+              <select
+                value={affiliation}
+                onChange={(e) =>
+                  setAffiliation(e.target.value as (typeof profileAffiliationOptions)[number]["value"])
+                }
+                className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 focus:ring"
+                disabled={loadingProfile || submitting}
+              >
+                {profileAffiliationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-ink-faint">

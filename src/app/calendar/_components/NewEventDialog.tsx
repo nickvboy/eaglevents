@@ -603,11 +603,17 @@ type AssigneeSelection = {
   username?: string | null;
 };
 type ContactConflict = RouterOutputs["profile"]["findContactConflicts"][number];
+const profileAffiliationOptions = [
+  { value: "staff", label: "Staff" },
+  { value: "faculty", label: "Faculty" },
+  { value: "student", label: "Student" },
+] as const;
 type ProfileDraft = {
   firstName: string;
   lastName: string;
   email: string;
   phoneNumber: string;
+  affiliation: (typeof profileAffiliationOptions)[number]["value"];
 };
 
 type NewEventDraft = {
@@ -655,6 +661,7 @@ const emptyProfileDraft: ProfileDraft = {
   lastName: "",
   email: "",
   phoneNumber: "",
+  affiliation: "staff",
 };
 
 function deriveProfileDraft(raw: string): ProfileDraft {
@@ -672,6 +679,7 @@ function deriveProfileDraft(raw: string): ProfileDraft {
     lastName,
     email,
     phoneNumber,
+    affiliation: "staff",
   };
 }
 
@@ -2258,6 +2266,7 @@ export function NewEventDialog({
         lastName,
         email,
         phoneNumber,
+        affiliation: quickCreateDraft.affiliation,
         ignoreDuplicateContactCheck,
       });
       if (!created.profileId) {
@@ -2342,6 +2351,22 @@ export function NewEventDialog({
               }
               className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
+            <select
+              value={quickCreateDraft.affiliation}
+              onChange={(e) =>
+                setQuickCreateDraft((prev) => ({
+                  ...prev,
+                  affiliation: e.target.value as (typeof profileAffiliationOptions)[number]["value"],
+                }))
+              }
+              className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
+            >
+              {profileAffiliationOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <input
               placeholder="Phone (optional)"
               value={quickCreateDraft.phoneNumber}

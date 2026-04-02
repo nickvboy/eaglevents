@@ -6,6 +6,8 @@ import { db } from "~/server/db";
 import { profiles } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 
+const profileAffiliationValues = ["staff", "faculty", "student"] as const;
+
 const bodySchema = z.object({
   firstName: z
     .string()
@@ -19,6 +21,7 @@ const bodySchema = z.object({
     .transform((value) => value.trim()),
   email: z.string().email().max(255),
   phoneNumber: z.string().min(1),
+  affiliation: z.enum(profileAffiliationValues).optional(),
   dateOfBirth: z
     .string()
     .optional()
@@ -32,6 +35,7 @@ function formatResponse(profile: {
   lastName: string;
   email: string;
   phoneNumber: string;
+  affiliation: (typeof profileAffiliationValues)[number] | null;
   dateOfBirth: string | null;
 }) {
   return {
@@ -41,6 +45,7 @@ function formatResponse(profile: {
     lastName: profile.lastName,
     email: profile.email,
     phoneNumber: profile.phoneNumber,
+    affiliation: profile.affiliation,
     dateOfBirth: profile.dateOfBirth,
   };
 }
@@ -89,6 +94,7 @@ export async function POST(req: Request) {
   const digits = parsed.data.phoneNumber.replace(/\D/g, "").slice(0, 10);
   const firstName = parsed.data.firstName;
   const lastName = parsed.data.lastName;
+  const affiliation = parsed.data.affiliation ?? null;
 
   if (digits.length < 10) {
     return NextResponse.json(
@@ -146,6 +152,7 @@ export async function POST(req: Request) {
         lastName,
         email: emailLower,
         phoneNumber: digits,
+        affiliation: affiliation ?? existingForUser.affiliation,
         dateOfBirth,
         updatedAt: now,
       })
@@ -159,6 +166,7 @@ export async function POST(req: Request) {
         lastName,
         email: emailLower,
         phoneNumber: digits,
+        affiliation: affiliation ?? existingForUser.affiliation,
         dateOfBirth,
       }),
     });
@@ -172,6 +180,7 @@ export async function POST(req: Request) {
         lastName,
         email: emailLower,
         phoneNumber: digits,
+        affiliation,
         dateOfBirth,
         createdAt: now,
         updatedAt: now,

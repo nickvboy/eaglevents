@@ -53,6 +53,11 @@ export const organizationScopeTypeEnum = pgEnum("organization_scope_type", [
   "department",
   "division",
 ]);
+export const profileAffiliationEnum = pgEnum("profile_affiliation", [
+  "staff",
+  "faculty",
+  "student",
+]);
 export const themeProfileScopeEnum = pgEnum("theme_profile_scope", [
   "business",
   "department",
@@ -110,6 +115,7 @@ export const profiles = createTable(
     lastName: d.varchar({ length: 100 }).notNull(),
     email: d.varchar({ length: 255 }).notNull(),
     phoneNumber: d.varchar({ length: 32 }).notNull(),
+    affiliation: profileAffiliationEnum(),
     dateOfBirth: d.date(),
     createdAt: d
       .timestamp({ withTimezone: true })

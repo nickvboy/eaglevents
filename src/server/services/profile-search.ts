@@ -23,6 +23,7 @@ export type ProfileSearchResult = {
   email: string;
   username: string | null;
   phoneNumber: string | null;
+  affiliation: "staff" | "faculty" | "student" | null;
 };
 
 export type ProfileContactConflict = ProfileSearchResult & {
@@ -37,6 +38,7 @@ type ProfileDocument = {
   email: string;
   username?: string;
   phoneNumber?: string | null;
+  affiliation?: "staff" | "faculty" | "student" | null;
 };
 
 // Opt-in flag so local environments default to DB-backed search without ES timeouts.
@@ -112,6 +114,7 @@ export async function searchProfiles(
               email: source.email,
               username: source.username ?? null,
               phoneNumber: source.phoneNumber ?? null,
+              affiliation: source.affiliation ?? null,
             } satisfies ProfileSearchResult;
           })
           .filter((entry): entry is ProfileSearchResult => Boolean(entry))
@@ -183,6 +186,7 @@ async function fallbackDbSearch(
       email: profiles.email,
       username: users.username,
       phoneNumber: profiles.phoneNumber,
+      affiliation: profiles.affiliation,
     })
     .from(profiles)
     .leftJoin(users, eq(users.id, profiles.userId))
@@ -202,6 +206,7 @@ async function fallbackDbSearch(
     email: row.email,
     username: row.username ?? null,
     phoneNumber: row.phoneNumber ?? null,
+    affiliation: row.affiliation ?? null,
   }));
 }
 
@@ -278,6 +283,7 @@ export async function findProfileContactConflicts(
       email: profiles.email,
       username: users.username,
       phoneNumber: profiles.phoneNumber,
+      affiliation: profiles.affiliation,
     })
     .from(profiles)
     .leftJoin(users, eq(users.id, profiles.userId))
@@ -297,6 +303,7 @@ export async function findProfileContactConflicts(
     email: row.email,
     username: row.username ?? null,
     phoneNumber: row.phoneNumber ?? null,
+    affiliation: row.affiliation ?? null,
     matchesEmail: email.length > 0 && row.email.toLowerCase() === email,
     matchesPhoneNumber:
       phoneNumber.length > 0 && (row.phoneNumber ?? "") === phoneNumber,
@@ -310,6 +317,7 @@ type IndexableProfile = {
   email: string;
   username: string | null;
   phoneNumber: string | null;
+  affiliation: "staff" | "faculty" | "student" | null;
 };
 
 export async function indexProfile(profile: IndexableProfile) {
@@ -326,6 +334,7 @@ export async function indexProfile(profile: IndexableProfile) {
         email: profile.email,
         username: profile.username ?? undefined,
         phoneNumber: profile.phoneNumber ?? undefined,
+        affiliation: profile.affiliation ?? undefined,
       },
     });
   } catch (error) {

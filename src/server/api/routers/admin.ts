@@ -106,6 +106,7 @@ const organizationScopeTypeValues = [
   "department",
   "division",
 ] as const;
+const profileAffiliationValues = ["staff", "faculty", "student"] as const;
 const themeProfileScopeValues = ["business", "department"] as const;
 const eventRequestCategoryValues = [
   "university_affiliated_request_to_university_business",
@@ -201,6 +202,7 @@ const snapshotSchema = z.object({
         lastName: z.string(),
         email: z.string().min(1),
         phoneNumber: z.string(),
+        affiliation: z.enum(profileAffiliationValues).nullable().optional(),
         dateOfBirth: nullableDateOnlySchema,
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
@@ -508,6 +510,7 @@ type UserSummary = {
     lastName: string;
     email: string;
     phoneNumber: string;
+    affiliation: "staff" | "faculty" | "student" | null;
     dateOfBirth: string | null;
   } | null;
   lastActivity: Date | null;
@@ -832,6 +835,7 @@ async function fetchUsers(
         lastName: profiles.lastName,
         email: profiles.email,
         phoneNumber: profiles.phoneNumber,
+        affiliation: profiles.affiliation,
         dateOfBirth: profiles.dateOfBirth,
       })
       .from(profiles)
@@ -995,6 +999,7 @@ async function fetchUsers(
             lastName: profile.lastName,
             email: profile.email,
             phoneNumber: profile.phoneNumber,
+            affiliation: profile.affiliation ?? null,
             dateOfBirth: parseDateOnly(profile.dateOfBirth ?? null),
           }
         : null,
@@ -2207,6 +2212,7 @@ export const adminRouter = createTRPCRouter({
               lastName: row.lastName,
               email: row.email,
               phoneNumber: row.phoneNumber,
+              affiliation: row.affiliation ?? null,
               dateOfBirth: parseDateOnly(row.dateOfBirth),
               createdAt: parseRequiredTimestamp(row.createdAt),
               updatedAt: parseTimestamp(row.updatedAt),
@@ -3604,6 +3610,7 @@ export const adminRouter = createTRPCRouter({
               lastName: z.string().min(1).max(100),
               email: z.string().email().max(255),
               phoneNumber: z.string().min(1).max(32),
+              affiliation: z.enum(profileAffiliationValues).optional(),
               dateOfBirth: z.string().optional().nullable(),
             })
             .optional(),
@@ -3678,7 +3685,9 @@ export const adminRouter = createTRPCRouter({
         }
 
         let profileId: number | null = null;
-        let existingProfileRecord: { id: number } | undefined;
+        let existingProfileRecord:
+          | { id: number; affiliation: "staff" | "faculty" | "student" | null }
+          | undefined;
 
         if (input.profile) {
           let dateOfBirth: string | null = null;
@@ -3702,7 +3711,7 @@ export const adminRouter = createTRPCRouter({
           }
 
           const [existingProfile] = await tx
-            .select({ id: profiles.id })
+            .select({ id: profiles.id, affiliation: profiles.affiliation })
             .from(profiles)
             .where(eq(profiles.userId, input.userId))
             .limit(1);
@@ -3717,6 +3726,7 @@ export const adminRouter = createTRPCRouter({
                 lastName: input.profile.lastName,
                 email: input.profile.email,
                 phoneNumber: input.profile.phoneNumber,
+                affiliation: input.profile.affiliation ?? existingProfileRecord?.affiliation ?? null,
                 dateOfBirth,
               })
               .where(eq(profiles.id, existingProfileRecord.id));
@@ -3730,6 +3740,7 @@ export const adminRouter = createTRPCRouter({
                 lastName: input.profile.lastName,
                 email: input.profile.email,
                 phoneNumber: input.profile.phoneNumber,
+                affiliation: input.profile.affiliation ?? null,
                 dateOfBirth,
               })
               .returning({ id: profiles.id });
@@ -3823,6 +3834,7 @@ export const adminRouter = createTRPCRouter({
         firstName: z.string().min(1).max(100),
         lastName: z.string().min(1).max(100),
         phoneNumber: z.string().min(10).max(32),
+        affiliation: z.enum(profileAffiliationValues).optional(),
         dateOfBirth: z.string().optional(),
         roleAssignments: z.array(roleAssignmentInputSchema).min(1),
       }),
@@ -3943,6 +3955,7 @@ export const adminRouter = createTRPCRouter({
             lastName: input.lastName.trim(),
             email: emailLower,
             phoneNumber: phoneDigits,
+            affiliation: input.affiliation ?? null,
             dateOfBirth,
           })
           .returning({ id: profiles.id });

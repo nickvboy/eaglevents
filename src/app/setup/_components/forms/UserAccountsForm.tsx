@@ -24,6 +24,18 @@ type AssignmentDraft = {
 
 type Credential = { identifier: string; password: string };
 type GeneratedDefaultUser = RouterOutputs["setup"]["createDefaultUsers"]["generatedUsers"][number];
+type UserAccountFormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  affiliation: "staff" | "faculty" | "student";
+  username: string;
+  password: string;
+  dateOfBirth: string;
+  assignments: AssignmentDraft[];
+  rememberForLogin: boolean;
+};
 
 const roleLabels: Record<AssignmentDraft["roleType"], string> = {
   admin: "Admin",
@@ -33,6 +45,11 @@ const roleLabels: Record<AssignmentDraft["roleType"], string> = {
 };
 
 const PHONE_DIGIT_LIMIT = 10;
+const profileAffiliationOptions = [
+  { value: "staff", label: "Staff" },
+  { value: "faculty", label: "Faculty" },
+  { value: "student", label: "Student" },
+] as const;
 
 const extractPhoneDigits = (value: string) => value.replace(/\D/g, "").slice(0, PHONE_DIGIT_LIMIT);
 
@@ -78,11 +95,12 @@ export function UserAccountsForm({
   }, [status.business, status.departments.flat]);
 
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const createEmptyForm = () => ({
+  const createEmptyForm = (): UserAccountFormState => ({
     firstName: "",
     lastName: "",
     email: "",
     phoneNumber: "",
+    affiliation: "staff",
     username: "",
     password: "",
     dateOfBirth: "",
@@ -214,7 +232,7 @@ export function UserAccountsForm({
   }, [scopeOptions, status.roles]);
 
   const existingUsers = useMemo(() => {
-    const map = new Map<number, { userId: number; displayName: string; username: string; email: string; profile: { firstName: string; lastName: string; email: string; phoneNumber: string; dateOfBirth: string | null }; assignments: AssignmentDraft[] }>();
+    const map = new Map<number, { userId: number; displayName: string; username: string; email: string; profile: { firstName: string; lastName: string; email: string; phoneNumber: string; affiliation: "staff" | "faculty" | "student" | null; dateOfBirth: string | null }; assignments: AssignmentDraft[] }>();
     status.roles.forEach((role) => {
       if (!role.user) return;
       const entry =
@@ -230,6 +248,7 @@ export function UserAccountsForm({
               lastName: role.profile?.lastName ?? "",
               email: role.profile?.email ?? role.user.email,
               phoneNumber: role.profile?.phoneNumber ?? "",
+              affiliation: role.profile?.affiliation ?? "staff",
               dateOfBirth: role.profile?.dateOfBirth ?? null,
             },
             assignments: [] as AssignmentDraft[],
@@ -263,6 +282,7 @@ export function UserAccountsForm({
       lastName: target.profile.lastName,
       email: target.profile.email || target.email,
       phoneNumber: target.profile.phoneNumber,
+      affiliation: target.profile.affiliation ?? "staff",
       username: target.username,
       password: "",
       dateOfBirth: target.profile.dateOfBirth ?? "",
@@ -334,6 +354,7 @@ export function UserAccountsForm({
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         phoneNumber: form.phoneNumber,
+        affiliation: form.affiliation,
         username: form.username.trim(),
         password: form.password.trim() ? form.password : undefined,
         dateOfBirth: form.dateOfBirth ? form.dateOfBirth : null,
@@ -348,6 +369,7 @@ export function UserAccountsForm({
           lastName: form.lastName.trim(),
           email: form.email.trim(),
           phoneNumber: form.phoneNumber,
+          affiliation: form.affiliation,
           username: form.username.trim(),
           password: form.password,
           dateOfBirth: form.dateOfBirth || undefined,
@@ -617,6 +639,25 @@ export function UserAccountsForm({
               required={!editingUserId}
             />
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs uppercase text-ink-subtle">Affiliation</label>
+          <select
+            value={form.affiliation}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                affiliation: e.target.value as "staff" | "faculty" | "student",
+              }))
+            }
+            className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
+          >
+            {profileAffiliationOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-ink-subtle">Date of birth (optional)</label>

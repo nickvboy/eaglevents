@@ -168,6 +168,7 @@ export async function loadSnapshotData(db: DbClient) {
       lastName: row.lastName,
       email: row.email,
       phoneNumber: row.phoneNumber,
+      affiliation: row.affiliation ?? null,
       dateOfBirth: serializeDateOnly(row.dateOfBirth ?? null),
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),

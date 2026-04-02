@@ -204,6 +204,13 @@
       "when": 1774800000000,
       "tag": "0029_event_request_details",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1775102400000,
+      "tag": "0030_profile_affiliation",
+      "breakpoints": true
     }
   ]
 }

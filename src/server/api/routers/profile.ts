@@ -14,6 +14,7 @@ import {
 import { profiles } from "~/server/db/schema";
 
 const DEFAULT_LIMIT = 8;
+const profileAffiliationValues = ["staff", "faculty", "student"] as const;
 
 export const profileRouter = createTRPCRouter({
   me: protectedProcedure.query(async ({ ctx }) => {
@@ -35,6 +36,7 @@ export const profileRouter = createTRPCRouter({
       email: profile.email,
       username: ctx.session.user.name ?? null,
       phoneNumber: profile.phoneNumber,
+      affiliation: profile.affiliation,
       displayName: [profile.firstName, profile.lastName]
         .filter(Boolean)
         .join(" "),
@@ -60,6 +62,7 @@ export const profileRouter = createTRPCRouter({
         email: profile.email,
         username: profile.username,
         phoneNumber: profile.phoneNumber,
+        affiliation: profile.affiliation ?? null,
         displayName: [profile.firstName, profile.lastName]
           .filter(Boolean)
           .join(" "),
@@ -87,6 +90,7 @@ export const profileRouter = createTRPCRouter({
         email: profile.email,
         username: profile.username,
         phoneNumber: profile.phoneNumber,
+        affiliation: profile.affiliation ?? null,
         matchesEmail: profile.matchesEmail,
         matchesPhoneNumber: profile.matchesPhoneNumber,
         displayName: [profile.firstName, profile.lastName]
@@ -102,6 +106,7 @@ export const profileRouter = createTRPCRouter({
           lastName: z.string().trim().min(1).max(100),
           email: z.string().trim().email().max(255),
           phoneNumber: z.string().trim().max(32).optional(),
+          affiliation: z.enum(profileAffiliationValues).optional(),
           ignoreDuplicateContactCheck: z.boolean().optional(),
         })
         .transform((value) => ({
@@ -110,6 +115,7 @@ export const profileRouter = createTRPCRouter({
           lastName: value.lastName.trim(),
           email: value.email.trim().toLowerCase(),
           phoneNumber: value.phoneNumber?.trim() ?? "",
+          affiliation: value.affiliation ?? null,
         })),
     )
     .mutation(async ({ ctx, input }) => {
@@ -139,6 +145,7 @@ export const profileRouter = createTRPCRouter({
           lastName: input.lastName,
           email: input.email,
           phoneNumber: phoneDigits,
+          affiliation: input.affiliation,
         })
         .returning({
           id: profiles.id,
@@ -146,6 +153,7 @@ export const profileRouter = createTRPCRouter({
           lastName: profiles.lastName,
           email: profiles.email,
           phoneNumber: profiles.phoneNumber,
+          affiliation: profiles.affiliation,
         });
 
       if (created) {
@@ -156,6 +164,7 @@ export const profileRouter = createTRPCRouter({
           email: created.email,
           username: null,
           phoneNumber: created.phoneNumber,
+          affiliation: created.affiliation ?? null,
         });
       }
 
@@ -165,6 +174,7 @@ export const profileRouter = createTRPCRouter({
         lastName: created?.lastName ?? input.lastName,
         email: created?.email ?? input.email,
         phoneNumber: created?.phoneNumber ?? phoneDigits,
+        affiliation: created?.affiliation ?? input.affiliation ?? null,
         username: null,
         displayName: [input.firstName, input.lastName]
           .filter(Boolean)

@@ -8,8 +8,9 @@ import {
   __snapshotExportTestUtils,
   getSnapshotExportStatus,
 } from "~/server/services/snapshot-export";
+import type { SnapshotPayload } from "~/server/services/snapshot-payload";
 
-const BASE_PAYLOAD = {
+const BASE_PAYLOAD: SnapshotPayload = {
   version: 3 as const,
   exportedAt: "2026-04-02T12:00:00.000Z",
   metadata: {
@@ -114,21 +115,23 @@ void test("snapshot export skips non-forced refresh when the export is still fre
 
 void test("snapshot export shares an in-flight refresh promise", async () => {
   await withTempCwd(async () => {
-    let resolvePayload: ((value: typeof BASE_PAYLOAD) => void) | null = null;
+    let resolvePayload: (value: SnapshotPayload) => void = () => undefined;
+    let hasResolvePayload = false;
     let buildCount = 0;
     const builder = () =>
-      new Promise<typeof BASE_PAYLOAD>((resolve) => {
+      new Promise<SnapshotPayload>((resolve) => {
         buildCount += 1;
         resolvePayload = resolve;
+        hasResolvePayload = true;
       });
 
     const firstPromise = __snapshotExportTestUtils.refreshSnapshotExportWithBuilder(true, builder);
     const secondPromise = __snapshotExportTestUtils.refreshSnapshotExportWithBuilder(true, builder);
 
-    await waitFor(() => resolvePayload !== null);
+    await waitFor(() => hasResolvePayload);
     assert.equal(buildCount, 1);
 
-    resolvePayload?.(BASE_PAYLOAD);
+    resolvePayload(BASE_PAYLOAD);
     const [first, second] = await Promise.all([firstPromise, secondPromise]);
     assert.deepEqual(first, second);
   });
