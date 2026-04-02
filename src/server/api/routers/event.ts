@@ -673,12 +673,18 @@ export const eventRouter = createTRPCRouter({
       }
 
       if (input?.search && input.search.trim().length > 0) {
-        const like = `%${input.search.trim().replace(/[%_]/g, (m) => `\\${m}`)}%`;
+        const trimmedSearch = input.search.trim();
+        const like = `%${trimmedSearch.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+        const zendeskSearch = cleanZendeskTicketNumber(trimmedSearch);
+        const zendeskLike = zendeskSearch
+          ? `%${zendeskSearch.replace(/[%_]/g, (m) => `\\${m}`)}%`
+          : null;
         const searchCondition = or(
           ilike(events.title, like),
           ilike(events.description, like),
           ilike(events.location, like),
-          eq(events.eventCode, input.search.trim()),
+          eq(events.eventCode, trimmedSearch),
+          zendeskLike ? ilike(events.zendeskTicketNumber, zendeskLike) : undefined,
         );
         if (searchCondition) {
           conditions.push(searchCondition);
