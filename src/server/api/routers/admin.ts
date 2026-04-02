@@ -60,6 +60,15 @@ import {
   getHourLogExportStatus,
   refreshHourLogExport,
 } from "~/server/services/hour-log-export";
+import {
+  ensureSnapshotExportScheduler,
+  getSnapshotExportStatus,
+  refreshSnapshotExport,
+} from "~/server/services/snapshot-export";
+import {
+  buildSnapshotPayload,
+  getSnapshotExportActor,
+} from "~/server/services/snapshot-payload";
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 import { getSetupStatus } from "~/server/services/setup";
 import {
@@ -76,7 +85,6 @@ type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
 type DbExecutor = Pick<DbClient, "execute">;
 
-const SNAPSHOT_VERSION = 3;
 const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
 const businessTypeValues = [
   "university",
@@ -377,8 +385,6 @@ const snapshotSchema = z.object({
   }),
 });
 
-type SnapshotPayload = z.infer<typeof snapshotSchema>;
-
 const MONTHS_IN_TREND = 6;
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 const REPORT_WINDOW_DAYS = 60;
@@ -413,6 +419,7 @@ const EVENT_CODE_RETRY_LIMIT = 10;
 
 ensureJoinTableExportScheduler();
 ensureHourLogExportScheduler();
+ensureSnapshotExportScheduler();
 
 function generateEventCode() {
   return String(Math.floor(EVENT_CODE_MIN + Math.random() * EVENT_CODE_RANGE));
@@ -555,47 +562,8 @@ function formatRequestCategory(code: string | null) {
     .join(" ");
 }
 
-function coerceTimestampValue(value: Date | string) {
-  if (value instanceof Date) return value;
-  if (typeof value === "string") {
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  throw new TRPCError({
-    code: "INTERNAL_SERVER_ERROR",
-    message: "Snapshot timestamp is invalid.",
-  });
-}
-
 function sanitizePhone(raw: string) {
   return raw.replace(/\D/g, "").slice(0, 15);
-}
-
-function serializeTimestamp(value: Date | string | null | undefined) {
-  if (!value) return null;
-  return coerceTimestampValue(value).toISOString();
-}
-
-function serializeRequiredTimestamp(value: Date | string | null | undefined) {
-  if (!value) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Snapshot timestamp is missing.",
-    });
-  }
-  return coerceTimestampValue(value).toISOString();
-}
-
-function serializeDateOnly(value: Date | string | null | undefined) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Snapshot date is invalid.",
-    });
-  }
-  return date.toISOString().slice(0, 10);
 }
 
 function parseTimestamp(value: string | null) {
@@ -1006,255 +974,6 @@ async function fetchUsers(
       totalEvents: activity?.totalEvents ?? 0,
     };
   });
-}
-
-async function loadSnapshotData(
-  db: DbClient,
-): Promise<SnapshotPayload["data"]> {
-  const [
-    userRows,
-    postRows,
-    profileRows,
-    businessRows,
-    buildingRows,
-    roomRows,
-    departmentRows,
-    paletteRows,
-    themeProfileRows,
-    organizationRoleRows,
-    calendarRows,
-    eventRows,
-    eventRoomRows,
-    eventCoOwnerRows,
-    attendeeRows,
-    reminderRows,
-    hourLogRows,
-    confirmationRows,
-    visibilityGrantRows,
-    auditLogRows,
-  ] = await Promise.all([
-    db.select().from(users).orderBy(users.id),
-    db.select().from(posts).orderBy(posts.id),
-    db.select().from(profiles).orderBy(profiles.id),
-    db.select().from(businesses).orderBy(businesses.id),
-    db.select().from(buildings).orderBy(buildings.id),
-    db.select().from(rooms).orderBy(rooms.id),
-    db.select().from(departments).orderBy(departments.id),
-    db.select().from(themePalettes).orderBy(themePalettes.id),
-    db.select().from(themeProfiles).orderBy(themeProfiles.id),
-    db.select().from(organizationRoles).orderBy(organizationRoles.id),
-    db.select().from(calendars).orderBy(calendars.id),
-    db.select().from(events).orderBy(events.id),
-    db.select().from(eventRooms).orderBy(eventRooms.id),
-    db.select().from(eventCoOwners).orderBy(eventCoOwners.id),
-    db.select().from(eventAttendees).orderBy(eventAttendees.id),
-    db.select().from(eventReminders).orderBy(eventReminders.id),
-    db.select().from(eventHourLogs).orderBy(eventHourLogs.id),
-    db
-      .select()
-      .from(eventZendeskConfirmations)
-      .orderBy(eventZendeskConfirmations.id),
-    db.select().from(visibilityGrants).orderBy(visibilityGrants.id),
-    db.select().from(auditLogs).orderBy(auditLogs.id),
-  ]);
-
-  return {
-    users: userRows.map((row) => ({
-      id: row.id,
-      username: row.username,
-      email: row.email,
-      displayName: row.displayName,
-      passwordHash: row.passwordHash,
-      isActive: row.isActive,
-      deactivatedAt: serializeTimestamp(row.deactivatedAt),
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    posts: postRows.map((row) => ({
-      id: row.id,
-      name: row.name ?? null,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    profiles: profileRows.map((row) => ({
-      id: row.id,
-      userId: row.userId ?? null,
-      firstName: row.firstName,
-      lastName: row.lastName,
-      email: row.email,
-      phoneNumber: row.phoneNumber,
-      dateOfBirth: serializeDateOnly(row.dateOfBirth ?? null),
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    businesses: businessRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      setupCompletedAt: serializeTimestamp(row.setupCompletedAt),
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    buildings: buildingRows.map((row) => ({
-      id: row.id,
-      businessId: row.businessId,
-      name: row.name,
-      acronym: row.acronym,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    rooms: roomRows.map((row) => ({
-      id: row.id,
-      buildingId: row.buildingId,
-      roomNumber: row.roomNumber,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    departments: departmentRows.map((row) => ({
-      id: row.id,
-      businessId: row.businessId,
-      parentDepartmentId: row.parentDepartmentId ?? null,
-      name: row.name,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    themePalettes: paletteRows.map((row) => ({
-      id: row.id,
-      businessId: row.businessId,
-      name: row.name,
-      description: row.description,
-      tokens: row.tokens,
-      isDefault: row.isDefault,
-      createdByUserId: row.createdByUserId ?? null,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    themeProfiles: themeProfileRows.map((row) => ({
-      id: row.id,
-      businessId: row.businessId,
-      scopeType: row.scopeType,
-      scopeId: row.scopeId,
-      label: row.label,
-      description: row.description,
-      paletteId: row.paletteId,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    organizationRoles: organizationRoleRows.map((row) => ({
-      id: row.id,
-      userId: row.userId,
-      profileId: row.profileId,
-      roleType: row.roleType,
-      scopeType: row.scopeType,
-      scopeId: row.scopeId,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    calendars: calendarRows.map((row) => ({
-      id: row.id,
-      userId: row.userId,
-      name: row.name,
-      color: row.color,
-      isPrimary: row.isPrimary,
-      isPersonal: row.isPersonal,
-      isArchived: row.isArchived,
-      scopeType: row.scopeType,
-      scopeId: row.scopeId,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    events: eventRows.map((row) => ({
-      id: row.id,
-      calendarId: row.calendarId,
-      buildingId: row.buildingId ?? null,
-      assigneeProfileId: row.assigneeProfileId ?? null,
-      ownerProfileId: row.ownerProfileId ?? null,
-      scopeType: row.scopeType,
-      scopeId: row.scopeId,
-      eventCode: row.eventCode,
-      title: row.title,
-      description: row.description ?? null,
-      location: row.location ?? null,
-      isVirtual: row.isVirtual,
-      isAllDay: row.isAllDay,
-      startDatetime: serializeRequiredTimestamp(row.startDatetime),
-      endDatetime: serializeRequiredTimestamp(row.endDatetime),
-      recurrenceRule: row.recurrenceRule ?? null,
-      participantCount: row.participantCount ?? null,
-      technicianNeeded: row.technicianNeeded,
-      requestCategory: row.requestCategory ?? null,
-      equipmentNeeded: row.equipmentNeeded ?? null,
-      requestDetails: row.requestDetails ?? null,
-      eventStartTime: serializeTimestamp(row.eventStartTime),
-      eventEndTime: serializeTimestamp(row.eventEndTime),
-      setupTime: serializeTimestamp(row.setupTime),
-      zendeskTicketNumber: row.zendeskTicketNumber ?? null,
-      isArchived: row.isArchived,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-      updatedAt: serializeTimestamp(row.updatedAt),
-    })),
-    eventRooms: eventRoomRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      roomId: row.roomId,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-    })),
-    eventCoOwners: eventCoOwnerRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      profileId: row.profileId,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-    })),
-    eventAttendees: attendeeRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      profileId: row.profileId ?? null,
-      email: row.email,
-      responseStatus: row.responseStatus,
-    })),
-    eventReminders: reminderRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      reminderMinutes: row.reminderMinutes,
-    })),
-    eventHourLogs: hourLogRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      loggedByProfileId: row.loggedByProfileId ?? null,
-      startTime: serializeRequiredTimestamp(row.startTime),
-      endTime: serializeRequiredTimestamp(row.endTime),
-      durationMinutes: row.durationMinutes,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-    })),
-    eventZendeskConfirmations: confirmationRows.map((row) => ({
-      id: row.id,
-      eventId: row.eventId,
-      profileId: row.profileId,
-      confirmedAt: serializeRequiredTimestamp(row.confirmedAt),
-    })),
-    visibilityGrants: visibilityGrantRows.map((row) => ({
-      id: row.id,
-      userId: row.userId,
-      scopeType: row.scopeType,
-      scopeId: row.scopeId,
-      createdByUserId: row.createdByUserId ?? null,
-      reason: row.reason,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-    })),
-    auditLogs: auditLogRows.map((row) => ({
-      id: row.id,
-      businessId: row.businessId ?? null,
-      actorUserId: row.actorUserId ?? null,
-      actorProfileId: row.actorProfileId ?? null,
-      action: row.action,
-      targetType: row.targetType,
-      targetId: row.targetId ?? null,
-      scopeType: row.scopeType ?? null,
-      scopeId: row.scopeId ?? null,
-      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
-      createdAt: serializeRequiredTimestamp(row.createdAt),
-    })),
-  };
 }
 
 async function resetIdentitySequences(db: DbExecutor) {
@@ -2201,6 +1920,11 @@ export const adminRouter = createTRPCRouter({
     return getHourLogExportStatus();
   }),
 
+  snapshotExportStatus: protectedProcedure.query(async ({ ctx }) => {
+    await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+    return getSnapshotExportStatus();
+  }),
+
   refreshHourLogExport: protectedProcedure
     .input(
       z
@@ -2219,34 +1943,35 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
+  refreshSnapshotExport: protectedProcedure
+    .input(
+      z
+        .object({
+          force: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      const result = await refreshSnapshotExport(ctx.db, input?.force ?? true);
+      return {
+        refreshed: Boolean(result),
+        result,
+        status: await getSnapshotExportStatus(),
+      };
+    }),
+
   exportSnapshot: protectedProcedure
     .input(z.object({ note: z.string().max(500).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
-      const userIdRaw = ctx.session?.user?.id ?? null;
-      const userId = userIdRaw ? Number(userIdRaw) : null;
-      const user =
-        userId && Number.isFinite(userId)
-          ? (
-              await ctx.db
-                .select({
-                  id: users.id,
-                  email: users.email,
-                  displayName: users.displayName,
-                })
-                .from(users)
-                .where(eq(users.id, userId))
-                .limit(1)
-            )[0]
-          : null;
-
-      const data = await loadSnapshotData(ctx.db);
       const note = input?.note?.trim() ? input.note.trim() : undefined;
+      const actor = await getSnapshotExportActor(ctx.db, ctx.session?.user?.id ?? null);
       const businessId = await findBusinessId(ctx.db);
       if (businessId) {
         await ctx.db.insert(auditLogs).values({
           businessId,
-          actorUserId: user?.id ?? null,
+          actorUserId: actor.userId,
           action: "snapshot.export",
           targetType: "snapshot",
           targetId: null,
@@ -2255,20 +1980,7 @@ export const adminRouter = createTRPCRouter({
           metadata: { note },
         });
       }
-      return {
-        version: SNAPSHOT_VERSION,
-        exportedAt: new Date().toISOString(),
-        metadata: {
-          app: "eaglevents",
-          note,
-        },
-        exportedBy: {
-          userId: user?.id ?? (Number.isFinite(userId) ? userId : null),
-          email: user?.email ?? null,
-          displayName: user?.displayName ?? null,
-        },
-        data,
-      };
+      return buildSnapshotPayload(ctx.db, { note, actor });
     }),
 
   importIcsEvents: protectedProcedure

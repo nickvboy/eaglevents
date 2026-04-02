@@ -9,6 +9,7 @@ type ExportSnapshotPayload = RouterOutputs["admin"]["exportSnapshot"];
 type ImportSnapshotInput = RouterInputs["admin"]["importSnapshot"];
 type JoinTableExportStatus = RouterOutputs["admin"]["joinTableExportStatus"];
 type HourLogExportStatus = RouterOutputs["admin"]["hourLogExportStatus"];
+type SnapshotExportStatus = RouterOutputs["admin"]["snapshotExportStatus"];
 
 type SnapshotSummary = {
   version: number;
@@ -18,8 +19,9 @@ type SnapshotSummary = {
   counts: Array<{ label: string; count: number }>;
 };
 
-const SUPPORTED_SNAPSHOT_VERSION = 2;
-const SNAPSHOT_FORMAT_LABEL = `Version ${SUPPORTED_SNAPSHOT_VERSION} (JSON)`;
+const CURRENT_SNAPSHOT_VERSION = 3;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
+const SNAPSHOT_FORMAT_LABEL = `Version ${CURRENT_SNAPSHOT_VERSION} (JSON)`;
 
 const snapshotDataSections = [
   { key: "users", label: "Users" },
@@ -91,7 +93,7 @@ function validateSnapshotPayload(value: unknown): { snapshot: ImportSnapshotInpu
   if (typeof version !== "number") {
     return { error: "Snapshot version is missing or invalid." };
   }
-  if (version !== SUPPORTED_SNAPSHOT_VERSION) {
+  if (!SUPPORTED_SNAPSHOT_VERSIONS.includes(version as (typeof SUPPORTED_SNAPSHOT_VERSIONS)[number])) {
     return { error: `Snapshot version ${version} is not supported.` };
   }
   if (typeof exportedAt !== "string") {
@@ -135,6 +137,10 @@ export function ImportExportView() {
     refetchInterval: 60000,
   });
   const hourLogRefreshMutation = api.admin.refreshHourLogExport.useMutation();
+  const snapshotStatusQuery = api.admin.snapshotExportStatus.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const snapshotRefreshMutation = api.admin.refreshSnapshotExport.useMutation();
   const { data: calendars } = api.calendar.listAccessible.useQuery(undefined);
 
   const [exportNote, setExportNote] = useState("");
@@ -156,6 +162,9 @@ export function ImportExportView() {
   const [icsFilterEnd, setIcsFilterEnd] = useState("");
   const [joinTableMessage, setJoinTableMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [hourLogMessage, setHourLogMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [snapshotAutoMessage, setSnapshotAutoMessage] = useState<{ type: "success" | "error"; text: string } | null>(
+    null,
+  );
   const [icsPreviewEvents, setIcsPreviewEvents] = useState<
     Array<{
       id: string;
@@ -330,6 +339,25 @@ export function ImportExportView() {
   );
   const joinTableStatus: JoinTableExportStatus | null = joinTableStatusQuery.data ?? null;
   const hourLogStatus: HourLogExportStatus | null = hourLogStatusQuery.data ?? null;
+  const snapshotStatus: SnapshotExportStatus | null = snapshotStatusQuery.data ?? null;
+
+  const handleSnapshotRefresh = async () => {
+    setSnapshotAutoMessage(null);
+    try {
+      const result = await snapshotRefreshMutation.mutateAsync({ force: true });
+      const byteSize = result.result?.byteSize;
+      setSnapshotAutoMessage({
+        type: "success",
+        text: byteSize !== undefined ? `Snapshot file updated (${byteSize.toLocaleString()} bytes).` : "Snapshot file updated.",
+      });
+      void snapshotStatusQuery.refetch();
+    } catch (error) {
+      setSnapshotAutoMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to update the snapshot export.",
+      });
+    }
+  };
 
   const handleAllExportsRefresh = async () => {
     setJoinTableMessage(null);
@@ -393,19 +421,57 @@ export function ImportExportView() {
               className="rounded-xl border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
             />
           </label>
-          <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Snapshot format</p>
-            <p className="text-sm font-semibold text-ink-primary">{SNAPSHOT_FORMAT_LABEL}</p>
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={exportMutation.isPending}
-              className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {exportMutation.isPending ? "Exporting..." : "Export snapshot"}
-            </button>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Auto refresh</p>
+              <p className="text-sm font-semibold text-ink-primary">Every 12 hours</p>
+              <div className="flex flex-col gap-1 text-xs text-ink-subtle">
+                <span>
+                  Last updated:{" "}
+                  {snapshotStatus?.lastUpdatedAt ? formatTimestamp(snapshotStatus.lastUpdatedAt) : "Never"}
+                </span>
+                <span>
+                  Next scheduled: {snapshotStatus?.nextScheduledAt ? formatTimestamp(snapshotStatus.nextScheduledAt) : "Pending"}
+                </span>
+                <span>File: {snapshotStatus?.filePath ?? "Pending"}</span>
+                <span>Backups: {snapshotStatus?.backupDirectory ?? "Pending"}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleSnapshotRefresh()}
+                disabled={snapshotRefreshMutation.isPending}
+                className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {snapshotRefreshMutation.isPending ? "Updating..." : "Force update snapshot"}
+              </button>
+            </div>
+            <div className="flex flex-col justify-between gap-3 rounded-xl border border-outline-muted bg-surface-muted px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Snapshot format</p>
+              <p className="text-sm font-semibold text-ink-primary">{SNAPSHOT_FORMAT_LABEL}</p>
+              <p className="text-xs text-ink-subtle">Export snapshot downloads a one-time JSON file to your browser.</p>
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={exportMutation.isPending}
+                className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {exportMutation.isPending ? "Exporting..." : "Export snapshot"}
+              </button>
+            </div>
           </div>
         </div>
+        {snapshotAutoMessage ? (
+          <div
+            className={
+              "mt-4 rounded-xl border px-4 py-2 text-sm " +
+              (snapshotAutoMessage.type === "success"
+                ? "border-outline-accent bg-accent-muted text-accent-soft"
+                : "border-status-danger bg-status-danger-surface text-status-danger")
+            }
+          >
+            {snapshotAutoMessage.text}
+          </div>
+        ) : null}
         {exportMessage ? (
           <div className="mt-4 rounded-xl border border-outline-muted bg-surface-muted px-4 py-2 text-sm text-ink-muted">
             {exportMessage}
