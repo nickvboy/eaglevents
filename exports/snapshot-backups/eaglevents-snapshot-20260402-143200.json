@@ -1,0 +1,1947 @@
+{
+  "version": 3,
+  "exportedAt": "2026-04-02T18:22:14.681Z",
+  "metadata": {
+    "app": "eaglevents",
+    "note": "Automatic scheduled snapshot export"
+  },
+  "exportedBy": {
+    "userId": null,
+    "email": null,
+    "displayName": null
+  },
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "username": "admin-javierward-1",
+        "email": "admin-javierward-1@florida-gulf-coast-university.local",
+        "displayName": "Javier Ward",
+        "passwordHash": "$2b$10$4AYLW6zdJi2JaAmiimcs7OHAdDwbYAxPY.KjD/4KArNGaQXfCpFWC",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.376Z"
+      },
+      {
+        "id": 2,
+        "username": "manager-dorcashudson-1",
+        "email": "manager-dorcashudson-1@florida-gulf-coast-university.local",
+        "displayName": "Dorcas Hudson",
+        "passwordHash": "$2b$10$J.2m4A1Z2XbKMB15UqvT0OmrJdwmh9atonHSIAFC.mxjz1Uka/i22",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.429Z"
+      },
+      {
+        "id": 3,
+        "username": "employee-hanssipes-1",
+        "email": "employee-hanssipes-1@florida-gulf-coast-university.local",
+        "displayName": "Hans Sipes",
+        "passwordHash": "$2b$10$3SxlzP9UVgw6JaDqqZJm3eXee1ci4bTalbZaZq5TYy0.9AmHCCK7.",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.475Z"
+      },
+      {
+        "id": 4,
+        "username": "admin-alexzanderfay-2",
+        "email": "admin-alexzanderfay-2@florida-gulf-coast-university.local",
+        "displayName": "Alexzander Fay",
+        "passwordHash": "$2b$10$w6.lPWWwXvHH/3vSBWZ3YOW8Y1jxBqPHTQYGVYZU2K8pUhFEabnoS",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.521Z"
+      },
+      {
+        "id": 5,
+        "username": "manager-jordancasper-2",
+        "email": "manager-jordancasper-2@florida-gulf-coast-university.local",
+        "displayName": "Jordan Casper",
+        "passwordHash": "$2b$10$40HnNkhqP2qHRMNPFT5Bneky0vs4YejvJEoBCJj0IfEjRUEVzRI3q",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.567Z"
+      },
+      {
+        "id": 6,
+        "username": "employee-constancedenesik0-2",
+        "email": "employee-constancedenesik0-2@florida-gulf-coast-university.local",
+        "displayName": "Constance Denesik",
+        "passwordHash": "$2b$10$PNuMrOX/qtU17HFliElwQeb/.yKcrn3J0MrCh8dKSnoBCr/aSKifG",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.613Z"
+      },
+      {
+        "id": 7,
+        "username": "admin-caseybosco53-6",
+        "email": "admin-caseybosco53-6@florida-gulf-coast-university.local",
+        "displayName": "Casey Bosco",
+        "passwordHash": "$2b$10$620sTNkP0utNus8SvhXD8Oy7TA00as8YkH0QvELpq.p9mlBE4u8x6",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.659Z"
+      },
+      {
+        "id": 8,
+        "username": "manager-andresfay-6",
+        "email": "manager-andresfay-6@florida-gulf-coast-university.local",
+        "displayName": "Andres Fay",
+        "passwordHash": "$2b$10$q7DrwUOt7Ju1NSoLsBEVcuNC60uRdELReNN7GSRlbgmdeHpZzVfjG",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.704Z"
+      },
+      {
+        "id": 9,
+        "username": "employee-parisgrimes-6",
+        "email": "employee-parisgrimes-6@florida-gulf-coast-university.local",
+        "displayName": "Paris Grimes",
+        "passwordHash": "$2b$10$g1EpI9VbSRPpenslGQtxi.4orjy9OnQmgUejggEF6EjgL3yA7iBQ.",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.750Z"
+      },
+      {
+        "id": 10,
+        "username": "admin-bernhardhansen-4",
+        "email": "admin-bernhardhansen-4@florida-gulf-coast-university.local",
+        "displayName": "Bernhard Hansen",
+        "passwordHash": "$2b$10$SlytuBM475Mh2SIN3P4ZM.kBh9.FCFNuhEIbFCPCtk9WJAz1nH.JS",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.796Z"
+      },
+      {
+        "id": 11,
+        "username": "manager-elainaemmerich-4",
+        "email": "manager-elainaemmerich-4@florida-gulf-coast-university.local",
+        "displayName": "Elaina Emmerich",
+        "passwordHash": "$2b$10$zLFK31Y086r1MD4UfPgvj.fYnom.HGTqDrf5tN1uCWMqc8a.VDE32",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.841Z"
+      },
+      {
+        "id": 12,
+        "username": "employee-mireillezieme78-4",
+        "email": "employee-mireillezieme78-4@florida-gulf-coast-university.local",
+        "displayName": "Mireille Zieme",
+        "passwordHash": "$2b$10$cWh8YzGMI5U/8xte/avXkegvwzXfVdeZ4mvmBTEAQiziA7ILKOlwO",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.887Z"
+      },
+      {
+        "id": 13,
+        "username": "admin-jacquelynward53-1",
+        "email": "admin-jacquelynward53-1@florida-gulf-coast-university.local",
+        "displayName": "Jacquelyn Ward",
+        "passwordHash": "$2b$10$rS1/Ib5jfgUNaK3uOLwX4uYZb5.NQqkfk7a64g8OSpanHk.1utdre",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.933Z"
+      },
+      {
+        "id": 14,
+        "username": "manager-napoleonwiegand-1",
+        "email": "manager-napoleonwiegand-1@florida-gulf-coast-university.local",
+        "displayName": "Napoleon Wiegand",
+        "passwordHash": "$2b$10$1jJY7KJBQ9ZlfK183qXucuROFUIOSAJnnS4lmaKW7lkOJJM7kEMgm",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.979Z"
+      },
+      {
+        "id": 15,
+        "username": "employee-jazmynstokes-1",
+        "email": "employee-jazmynstokes-1@florida-gulf-coast-university.local",
+        "displayName": "Jazmyn Stokes",
+        "passwordHash": "$2b$10$dfiv7Y9c/3nTTyl1SVR42.m6M1EEiEWypSecqMy2debRcP.1sEI0C",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.028Z"
+      },
+      {
+        "id": 16,
+        "username": "admin-robbgoodwin-5",
+        "email": "admin-robbgoodwin-5@florida-gulf-coast-university.local",
+        "displayName": "Robb Goodwin",
+        "passwordHash": "$2b$10$15UmCJZM8L7IvINSLcf.b.3a8mCtGE6PXy4XCcvHvrg0ZS41STtH2",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.075Z"
+      },
+      {
+        "id": 17,
+        "username": "manager-hayliehyatt-5",
+        "email": "manager-hayliehyatt-5@florida-gulf-coast-university.local",
+        "displayName": "Haylie Hyatt",
+        "passwordHash": "$2b$10$ulCsGdP43RmcpB6cwuTdRO4Uky4/AuYP.1bAdDT9FtQK/2QdFZHem",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.121Z"
+      },
+      {
+        "id": 18,
+        "username": "employee-lornakuhn35-5",
+        "email": "employee-lornakuhn35-5@florida-gulf-coast-university.local",
+        "displayName": "Lorna Kuhn",
+        "passwordHash": "$2b$10$D6j.iKoJOQQ8OAZ8R5btLO32gxYnMAuo3oqpmtfKWYTldy.YRhtAq",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.167Z"
+      },
+      {
+        "id": 19,
+        "username": "admin-jefferyabshire-3",
+        "email": "admin-jefferyabshire-3@florida-gulf-coast-university.local",
+        "displayName": "Jeffery Abshire",
+        "passwordHash": "$2b$10$nhovzqzl2gEaMOvIWfZtjuzXomlvfsLciP8xAscw4oxcuoR4GbMEu",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.214Z"
+      },
+      {
+        "id": 20,
+        "username": "manager-jodylegros-3",
+        "email": "manager-jodylegros-3@florida-gulf-coast-university.local",
+        "displayName": "Jody Legros",
+        "passwordHash": "$2b$10$kXdSJdKwDg84YEdhXiTz8ulZoL9/LkcF0E6jyyNRG0jHMe9V48fS2",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.260Z"
+      },
+      {
+        "id": 21,
+        "username": "employee-dorothymohr46-3",
+        "email": "employee-dorothymohr46-3@florida-gulf-coast-university.local",
+        "displayName": "Dorothy Mohr",
+        "passwordHash": "$2b$10$j7prlkFfLh07iIjzF/txVe3H4U6tjibrA4n1WcUNe2E3o5wSaPkkq",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.306Z"
+      },
+      {
+        "id": 22,
+        "username": "nickvboy",
+        "email": "nickvboy@gmail.com",
+        "displayName": "Nicholas Villiers",
+        "passwordHash": "$2b$10$WfxNSTYRH6f5uiJaBc50ROqvPG0MumbdCnzSTPoaMvfIobBV2EAeu",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:33:48.272Z",
+        "updatedAt": "2026-03-27T21:33:48.323Z"
+      },
+      {
+        "id": 23,
+        "username": "jbledsoe",
+        "email": "jbledsoe@fgcu.edu",
+        "displayName": "John Bledsoe",
+        "passwordHash": "$2b$10$4BoS12DB9HLDQTknNjsDH.xfqjiilXx5vD6fOgbwt5hZRJcduOjLi",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:36:35.017Z",
+        "updatedAt": "2026-03-27T21:36:35.063Z"
+      },
+      {
+        "id": 24,
+        "username": "jwilson",
+        "email": "jwilson@fgcu.edu",
+        "displayName": "John Wilson",
+        "passwordHash": "$2b$10$UdD84j38hSSd/dCA2FhVb.ZAQlM4T7X2UqjYYSx9.ZB425I1Gx0pW",
+        "isActive": true,
+        "deactivatedAt": null,
+        "createdAt": "2026-03-27T21:38:26.332Z",
+        "updatedAt": "2026-03-27T21:38:26.380Z"
+      }
+    ],
+    "posts": [],
+    "profiles": [
+      {
+        "id": 1,
+        "userId": 1,
+        "firstName": "Javier",
+        "lastName": "Ward",
+        "email": "admin-javierward-1@florida-gulf-coast-university.local",
+        "phoneNumber": "4741930524",
+        "dateOfBirth": "1975-05-16",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.377Z"
+      },
+      {
+        "id": 2,
+        "userId": 2,
+        "firstName": "Dorcas",
+        "lastName": "Hudson",
+        "email": "manager-dorcashudson-1@florida-gulf-coast-university.local",
+        "phoneNumber": "1866476002",
+        "dateOfBirth": "1969-05-08",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.430Z"
+      },
+      {
+        "id": 3,
+        "userId": 3,
+        "firstName": "Hans",
+        "lastName": "Sipes",
+        "email": "employee-hanssipes-1@florida-gulf-coast-university.local",
+        "phoneNumber": "7209483970",
+        "dateOfBirth": "1967-12-29",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.476Z"
+      },
+      {
+        "id": 4,
+        "userId": 4,
+        "firstName": "Alexzander",
+        "lastName": "Fay",
+        "email": "admin-alexzanderfay-2@florida-gulf-coast-university.local",
+        "phoneNumber": "4225888444",
+        "dateOfBirth": "1981-04-13",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.521Z"
+      },
+      {
+        "id": 5,
+        "userId": 5,
+        "firstName": "Jordan",
+        "lastName": "Casper",
+        "email": "manager-jordancasper-2@florida-gulf-coast-university.local",
+        "phoneNumber": "0460513538",
+        "dateOfBirth": "1986-11-19",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.567Z"
+      },
+      {
+        "id": 6,
+        "userId": 6,
+        "firstName": "Constance",
+        "lastName": "Denesik",
+        "email": "employee-constancedenesik0-2@florida-gulf-coast-university.local",
+        "phoneNumber": "3596324362",
+        "dateOfBirth": "1974-06-16",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.613Z"
+      },
+      {
+        "id": 7,
+        "userId": 7,
+        "firstName": "Casey",
+        "lastName": "Bosco",
+        "email": "admin-caseybosco53-6@florida-gulf-coast-university.local",
+        "phoneNumber": "1143809338",
+        "dateOfBirth": "1983-02-24",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.659Z"
+      },
+      {
+        "id": 8,
+        "userId": 8,
+        "firstName": "Andres",
+        "lastName": "Fay",
+        "email": "manager-andresfay-6@florida-gulf-coast-university.local",
+        "phoneNumber": "2456988114",
+        "dateOfBirth": "2003-05-12",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.705Z"
+      },
+      {
+        "id": 9,
+        "userId": 9,
+        "firstName": "Paris",
+        "lastName": "Grimes",
+        "email": "employee-parisgrimes-6@florida-gulf-coast-university.local",
+        "phoneNumber": "8182856478",
+        "dateOfBirth": "2001-08-28",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.751Z"
+      },
+      {
+        "id": 10,
+        "userId": 10,
+        "firstName": "Bernhard",
+        "lastName": "Hansen",
+        "email": "admin-bernhardhansen-4@florida-gulf-coast-university.local",
+        "phoneNumber": "2276392569",
+        "dateOfBirth": "1980-10-06",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.796Z"
+      },
+      {
+        "id": 11,
+        "userId": 11,
+        "firstName": "Elaina",
+        "lastName": "Emmerich",
+        "email": "manager-elainaemmerich-4@florida-gulf-coast-university.local",
+        "phoneNumber": "4107803419",
+        "dateOfBirth": "1975-03-25",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.842Z"
+      },
+      {
+        "id": 12,
+        "userId": 12,
+        "firstName": "Mireille",
+        "lastName": "Zieme",
+        "email": "employee-mireillezieme78-4@florida-gulf-coast-university.local",
+        "phoneNumber": "5911650739",
+        "dateOfBirth": "1997-08-27",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.888Z"
+      },
+      {
+        "id": 13,
+        "userId": 13,
+        "firstName": "Jacquelyn",
+        "lastName": "Ward",
+        "email": "admin-jacquelynward53-1@florida-gulf-coast-university.local",
+        "phoneNumber": "2128071722",
+        "dateOfBirth": "1994-08-17",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.934Z"
+      },
+      {
+        "id": 14,
+        "userId": 14,
+        "firstName": "Napoleon",
+        "lastName": "Wiegand",
+        "email": "manager-napoleonwiegand-1@florida-gulf-coast-university.local",
+        "phoneNumber": "0719807364",
+        "dateOfBirth": "1995-03-05",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.980Z"
+      },
+      {
+        "id": 15,
+        "userId": 15,
+        "firstName": "Jazmyn",
+        "lastName": "Stokes",
+        "email": "employee-jazmynstokes-1@florida-gulf-coast-university.local",
+        "phoneNumber": "4183303320",
+        "dateOfBirth": "1990-06-11",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.028Z"
+      },
+      {
+        "id": 16,
+        "userId": 16,
+        "firstName": "Robb",
+        "lastName": "Goodwin",
+        "email": "admin-robbgoodwin-5@florida-gulf-coast-university.local",
+        "phoneNumber": "5250094822",
+        "dateOfBirth": "1974-08-11",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.075Z"
+      },
+      {
+        "id": 17,
+        "userId": 17,
+        "firstName": "Haylie",
+        "lastName": "Hyatt",
+        "email": "manager-hayliehyatt-5@florida-gulf-coast-university.local",
+        "phoneNumber": "3481367145",
+        "dateOfBirth": "1973-05-18",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.121Z"
+      },
+      {
+        "id": 18,
+        "userId": 18,
+        "firstName": "Lorna",
+        "lastName": "Kuhn",
+        "email": "employee-lornakuhn35-5@florida-gulf-coast-university.local",
+        "phoneNumber": "1957066471",
+        "dateOfBirth": "2003-06-29",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.168Z"
+      },
+      {
+        "id": 19,
+        "userId": 19,
+        "firstName": "Jeffery",
+        "lastName": "Abshire",
+        "email": "admin-jefferyabshire-3@florida-gulf-coast-university.local",
+        "phoneNumber": "8652762661",
+        "dateOfBirth": "1984-08-10",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.214Z"
+      },
+      {
+        "id": 20,
+        "userId": 20,
+        "firstName": "Jody",
+        "lastName": "Legros",
+        "email": "manager-jodylegros-3@florida-gulf-coast-university.local",
+        "phoneNumber": "1111068847",
+        "dateOfBirth": "1993-09-06",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.260Z"
+      },
+      {
+        "id": 21,
+        "userId": 21,
+        "firstName": "Dorothy",
+        "lastName": "Mohr",
+        "email": "employee-dorothymohr46-3@florida-gulf-coast-university.local",
+        "phoneNumber": "8399541686",
+        "dateOfBirth": "1967-11-02",
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.306Z"
+      },
+      {
+        "id": 22,
+        "userId": 22,
+        "firstName": "Nicholas",
+        "lastName": "Villiers",
+        "email": "nickvboy@gmail.com",
+        "phoneNumber": "2396922639",
+        "dateOfBirth": null,
+        "createdAt": "2026-03-27T21:33:48.272Z",
+        "updatedAt": "2026-03-27T21:33:48.324Z"
+      },
+      {
+        "id": 23,
+        "userId": 23,
+        "firstName": "John",
+        "lastName": "Bledsoe",
+        "email": "jbledsoe@fgcu.edu",
+        "phoneNumber": "2399402731",
+        "dateOfBirth": "1938-05-20",
+        "createdAt": "2026-03-27T21:36:35.017Z",
+        "updatedAt": "2026-03-27T21:36:35.063Z"
+      },
+      {
+        "id": 24,
+        "userId": 24,
+        "firstName": "John",
+        "lastName": "Wilson",
+        "email": "jwilson@fgcu.edu",
+        "phoneNumber": "2396913674",
+        "dateOfBirth": "1968-02-03",
+        "createdAt": "2026-03-27T21:38:26.332Z",
+        "updatedAt": "2026-03-27T21:38:26.381Z"
+      },
+      {
+        "id": 25,
+        "userId": null,
+        "firstName": "Annie",
+        "lastName": "Crouch",
+        "email": "acrouch@fgcu.edu",
+        "phoneNumber": "",
+        "dateOfBirth": null,
+        "createdAt": "2026-03-28T12:59:36.241Z",
+        "updatedAt": "2026-03-28T12:59:36.240Z"
+      }
+    ],
+    "businesses": [
+      {
+        "id": 1,
+        "name": "Florida Gulf Coast University",
+        "type": "university",
+        "setupCompletedAt": "2026-03-27T21:43:47.980Z",
+        "createdAt": "2026-03-26T21:24:26.514Z",
+        "updatedAt": "2026-03-27T21:54:12.103Z"
+      }
+    ],
+    "buildings": [
+      {
+        "id": 29,
+        "businessId": 1,
+        "name": "Academic Building 9",
+        "acronym": "AB9",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.442Z"
+      },
+      {
+        "id": 30,
+        "businessId": 1,
+        "name": "Ben Hill Griffin",
+        "acronym": "BHG",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.447Z"
+      },
+      {
+        "id": 31,
+        "businessId": 1,
+        "name": "Bower School of Music Building",
+        "acronym": "MUSIC",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 32,
+        "businessId": 1,
+        "name": "Cohen Student Union",
+        "acronym": "CC",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 33,
+        "businessId": 1,
+        "name": "Edwards Hall",
+        "acronym": "EH",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.451Z"
+      },
+      {
+        "id": 34,
+        "businessId": 1,
+        "name": "Lutgert Hall",
+        "acronym": "LH",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 35,
+        "businessId": 1,
+        "name": "Sugden Resort & Hospitality Management",
+        "acronym": "SHRM",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 36,
+        "businessId": 1,
+        "name": "Wilson G. Bradshaw Library",
+        "acronym": "LIB",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.454Z"
+      },
+      {
+        "id": 37,
+        "businessId": 1,
+        "name": "Marieb Hall",
+        "acronym": "MARIEB",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      }
+    ],
+    "rooms": [
+      {
+        "id": 329,
+        "buildingId": 29,
+        "roomNumber": "106",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 330,
+        "buildingId": 29,
+        "roomNumber": "111",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 331,
+        "buildingId": 29,
+        "roomNumber": "112",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 332,
+        "buildingId": 29,
+        "roomNumber": "113",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 333,
+        "buildingId": 29,
+        "roomNumber": "114",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 334,
+        "buildingId": 29,
+        "roomNumber": "118",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 335,
+        "buildingId": 29,
+        "roomNumber": "119",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 336,
+        "buildingId": 29,
+        "roomNumber": "120",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 337,
+        "buildingId": 29,
+        "roomNumber": "138",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 338,
+        "buildingId": 29,
+        "roomNumber": "138 A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 339,
+        "buildingId": 29,
+        "roomNumber": "138 B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 340,
+        "buildingId": 29,
+        "roomNumber": "220",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 341,
+        "buildingId": 29,
+        "roomNumber": "220A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 342,
+        "buildingId": 29,
+        "roomNumber": "220B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 343,
+        "buildingId": 29,
+        "roomNumber": "222",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 344,
+        "buildingId": 29,
+        "roomNumber": "222A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 345,
+        "buildingId": 29,
+        "roomNumber": "222B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 346,
+        "buildingId": 29,
+        "roomNumber": "AB9 Atrium",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 347,
+        "buildingId": 29,
+        "roomNumber": "AB9 GARDEN",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.443Z"
+      },
+      {
+        "id": 348,
+        "buildingId": 30,
+        "roomNumber": "104",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 349,
+        "buildingId": 30,
+        "roomNumber": "107",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 350,
+        "buildingId": 30,
+        "roomNumber": "111",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 351,
+        "buildingId": 30,
+        "roomNumber": "114",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 352,
+        "buildingId": 30,
+        "roomNumber": "142",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 353,
+        "buildingId": 30,
+        "roomNumber": "172",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 354,
+        "buildingId": 30,
+        "roomNumber": "201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 355,
+        "buildingId": 30,
+        "roomNumber": "205",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 356,
+        "buildingId": 30,
+        "roomNumber": "209",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 357,
+        "buildingId": 30,
+        "roomNumber": "211",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 358,
+        "buildingId": 30,
+        "roomNumber": "213",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 359,
+        "buildingId": 30,
+        "roomNumber": "215",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 360,
+        "buildingId": 30,
+        "roomNumber": "240",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 361,
+        "buildingId": 30,
+        "roomNumber": "262",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 362,
+        "buildingId": 30,
+        "roomNumber": "267",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.448Z"
+      },
+      {
+        "id": 363,
+        "buildingId": 31,
+        "roomNumber": "104",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 364,
+        "buildingId": 31,
+        "roomNumber": "112",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 365,
+        "buildingId": 31,
+        "roomNumber": "120",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 366,
+        "buildingId": 31,
+        "roomNumber": "126",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 367,
+        "buildingId": 31,
+        "roomNumber": "201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 368,
+        "buildingId": 31,
+        "roomNumber": "206",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 369,
+        "buildingId": 31,
+        "roomNumber": "214",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 370,
+        "buildingId": 31,
+        "roomNumber": "MUSIC BUILDING LOBBY",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.449Z"
+      },
+      {
+        "id": 371,
+        "buildingId": 32,
+        "roomNumber": "162",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 372,
+        "buildingId": 32,
+        "roomNumber": "201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 373,
+        "buildingId": 32,
+        "roomNumber": "213",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 374,
+        "buildingId": 32,
+        "roomNumber": "214",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 375,
+        "buildingId": 32,
+        "roomNumber": "245",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 376,
+        "buildingId": 32,
+        "roomNumber": "246",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 377,
+        "buildingId": 32,
+        "roomNumber": "247",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 378,
+        "buildingId": 32,
+        "roomNumber": "247A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 379,
+        "buildingId": 32,
+        "roomNumber": "247B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 380,
+        "buildingId": 32,
+        "roomNumber": "247C",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 381,
+        "buildingId": 32,
+        "roomNumber": "COHEN ATRIUM",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 382,
+        "buildingId": 32,
+        "roomNumber": "COHEN BALLROOM",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 383,
+        "buildingId": 32,
+        "roomNumber": "COHEN BALLROOM A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 384,
+        "buildingId": 32,
+        "roomNumber": "COHEN BALLROOM B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.450Z"
+      },
+      {
+        "id": 385,
+        "buildingId": 33,
+        "roomNumber": "112",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.451Z"
+      },
+      {
+        "id": 386,
+        "buildingId": 33,
+        "roomNumber": "210",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.451Z"
+      },
+      {
+        "id": 387,
+        "buildingId": 34,
+        "roomNumber": "1201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 388,
+        "buildingId": 34,
+        "roomNumber": "1202",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 389,
+        "buildingId": 34,
+        "roomNumber": "1203",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 390,
+        "buildingId": 34,
+        "roomNumber": "1204",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 391,
+        "buildingId": 34,
+        "roomNumber": "1205",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 392,
+        "buildingId": 34,
+        "roomNumber": "1206",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 393,
+        "buildingId": 34,
+        "roomNumber": "2201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 394,
+        "buildingId": 34,
+        "roomNumber": "2202",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 395,
+        "buildingId": 34,
+        "roomNumber": "2208",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 396,
+        "buildingId": 34,
+        "roomNumber": "2209",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 397,
+        "buildingId": 34,
+        "roomNumber": "2210",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 398,
+        "buildingId": 34,
+        "roomNumber": "4201",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 399,
+        "buildingId": 34,
+        "roomNumber": "LH OUTDOOR COURTYARD",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.452Z"
+      },
+      {
+        "id": 400,
+        "buildingId": 35,
+        "roomNumber": "110",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 401,
+        "buildingId": 35,
+        "roomNumber": "111",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 402,
+        "buildingId": 35,
+        "roomNumber": "114",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 403,
+        "buildingId": 35,
+        "roomNumber": "114 A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 404,
+        "buildingId": 35,
+        "roomNumber": "114 B",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 405,
+        "buildingId": 35,
+        "roomNumber": "115",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 406,
+        "buildingId": 35,
+        "roomNumber": "116",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 407,
+        "buildingId": 35,
+        "roomNumber": "117",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 408,
+        "buildingId": 35,
+        "roomNumber": "208",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 409,
+        "buildingId": 35,
+        "roomNumber": "209",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 410,
+        "buildingId": 35,
+        "roomNumber": "210",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 411,
+        "buildingId": 35,
+        "roomNumber": "211",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.453Z"
+      },
+      {
+        "id": 412,
+        "buildingId": 36,
+        "roomNumber": "121",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.454Z"
+      },
+      {
+        "id": 413,
+        "buildingId": 36,
+        "roomNumber": "221",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.454Z"
+      },
+      {
+        "id": 414,
+        "buildingId": 36,
+        "roomNumber": "222",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.454Z"
+      },
+      {
+        "id": 415,
+        "buildingId": 36,
+        "roomNumber": "438",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.454Z"
+      },
+      {
+        "id": 416,
+        "buildingId": 36,
+        "roomNumber": "445",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 417,
+        "buildingId": 36,
+        "roomNumber": "446",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 418,
+        "buildingId": 36,
+        "roomNumber": "464",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 419,
+        "buildingId": 36,
+        "roomNumber": "LIBRARY LAWN",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 420,
+        "buildingId": 37,
+        "roomNumber": "100",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 421,
+        "buildingId": 37,
+        "roomNumber": "101",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 422,
+        "buildingId": 37,
+        "roomNumber": "103",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 423,
+        "buildingId": 37,
+        "roomNumber": "110",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 424,
+        "buildingId": 37,
+        "roomNumber": "111",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 425,
+        "buildingId": 37,
+        "roomNumber": "200",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 426,
+        "buildingId": 37,
+        "roomNumber": "203",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 427,
+        "buildingId": 37,
+        "roomNumber": "205",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 428,
+        "buildingId": 37,
+        "roomNumber": "206",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.455Z"
+      },
+      {
+        "id": 429,
+        "buildingId": 37,
+        "roomNumber": "212A",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 430,
+        "buildingId": 37,
+        "roomNumber": "214",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 431,
+        "buildingId": 37,
+        "roomNumber": "400",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 432,
+        "buildingId": 37,
+        "roomNumber": "402",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 433,
+        "buildingId": 37,
+        "roomNumber": "447",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 434,
+        "buildingId": 37,
+        "roomNumber": "MARIEB ATRIUM",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 435,
+        "buildingId": 37,
+        "roomNumber": "MARIEB COURTYARD",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      },
+      {
+        "id": 436,
+        "buildingId": 37,
+        "roomNumber": "MARIEB FGCU TURFGRASS",
+        "createdAt": "2026-03-27T21:12:25.434Z",
+        "updatedAt": "2026-03-27T21:12:25.456Z"
+      }
+    ],
+    "departments": [
+      {
+        "id": 1,
+        "businessId": 1,
+        "parentDepartmentId": null,
+        "name": "Edwards Hall - Academic Executive",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-03-27T21:21:56.027Z"
+      },
+      {
+        "id": 2,
+        "businessId": 1,
+        "parentDepartmentId": 1,
+        "name": "Administrative Services and Finance",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-04-02T18:21:26.909Z"
+      },
+      {
+        "id": 3,
+        "businessId": 1,
+        "parentDepartmentId": null,
+        "name": "The Office Senior Associate Vice President",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-03-27T21:21:56.029Z"
+      },
+      {
+        "id": 4,
+        "businessId": 1,
+        "parentDepartmentId": null,
+        "name": "Director, Events &  Campus Reservations",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-03-27T21:21:56.030Z"
+      },
+      {
+        "id": 5,
+        "businessId": 1,
+        "parentDepartmentId": null,
+        "name": "IT Campus Events",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-03-27T21:21:56.030Z"
+      },
+      {
+        "id": 6,
+        "businessId": 1,
+        "parentDepartmentId": 5,
+        "name": "Audio Visual Services",
+        "createdAt": "2026-03-27T21:21:56.027Z",
+        "updatedAt": "2026-04-02T18:21:26.910Z"
+      }
+    ],
+    "themePalettes": [
+      {
+        "id": 2,
+        "businessId": 1,
+        "name": "FGCU Band Color Theme",
+        "description": "This is the default FGCU Band Color Theme",
+        "tokens": {
+          "dark": {
+            "inkFaint": "#4a6a8a",
+            "inkMuted": "#b8c9dc",
+            "inkSubtle": "#7b9ab8",
+            "accentSoft": "#4dc99a",
+            "inkPrimary": "#f0f4f8",
+            "accentMuted": "#002e1d",
+            "inkInverted": "#ffffff",
+            "accentStrong": "#00a86b",
+            "outlineMuted": "#2e2e2e",
+            "statusDanger": "#f87171",
+            "surfaceMuted": "#242424",
+            "accentDefault": "#00794C",
+            "outlineAccent": "#00794C",
+            "outlineStrong": "#3d3d3d",
+            "statusSuccess": "#00a86b",
+            "statusWarning": "#CCAB00",
+            "surfaceCanvas": "#0f0f0f",
+            "surfaceRaised": "#1a1a1a",
+            "surfaceSunken": "#141414",
+            "surfaceOverlay": "#1a1a1abf",
+            "overlayBackdrop": "#000000b3",
+            "statusDangerSurface": "#2a0a0a",
+            "statusSuccessSurface": "#001f12",
+            "statusWarningSurface": "#2e2500"
+          },
+          "light": {
+            "inkFaint": "#7a8fa6",
+            "inkMuted": "#2c3e55",
+            "inkSubtle": "#55616D",
+            "accentSoft": "#4dc99a",
+            "inkPrimary": "#0a1929",
+            "accentMuted": "#cceedd",
+            "inkInverted": "#ffffff",
+            "accentStrong": "#005c39",
+            "outlineMuted": "#c2cedf",
+            "statusDanger": "#b91c1c",
+            "surfaceMuted": "#dce4ef",
+            "accentDefault": "#00794C",
+            "outlineAccent": "#00794C",
+            "outlineStrong": "#7a96b8",
+            "statusSuccess": "#006b3c",
+            "statusWarning": "#7A6700",
+            "surfaceCanvas": "#f0f4f9",
+            "surfaceRaised": "#ffffff",
+            "surfaceSunken": "#e6ecf4",
+            "surfaceOverlay": "#f5f8fceb",
+            "overlayBackdrop": "#004785a0",
+            "statusDangerSurface": "#fee2e2",
+            "statusSuccessSurface": "#e0f5ec",
+            "statusWarningSurface": "#fdf7d0"
+          }
+        },
+        "isDefault": false,
+        "createdByUserId": null,
+        "createdAt": "2026-03-27T21:40:26.641Z",
+        "updatedAt": "2026-03-28T12:42:18.075Z"
+      }
+    ],
+    "themeProfiles": [
+      {
+        "id": 1,
+        "businessId": 1,
+        "scopeType": "business",
+        "scopeId": 1,
+        "label": "Workspace default",
+        "description": "",
+        "paletteId": 2,
+        "createdAt": "2026-03-27T21:43:47.977Z",
+        "updatedAt": "2026-03-27T21:43:47.978Z"
+      }
+    ],
+    "organizationRoles": [
+      {
+        "id": 1,
+        "userId": 1,
+        "profileId": 1,
+        "roleType": "admin",
+        "scopeType": "business",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.379Z"
+      },
+      {
+        "id": 2,
+        "userId": 2,
+        "profileId": 2,
+        "roleType": "manager",
+        "scopeType": "business",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.430Z"
+      },
+      {
+        "id": 3,
+        "userId": 3,
+        "profileId": 3,
+        "roleType": "employee",
+        "scopeType": "business",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.476Z"
+      },
+      {
+        "id": 4,
+        "userId": 4,
+        "profileId": 4,
+        "roleType": "admin",
+        "scopeType": "division",
+        "scopeId": 2,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.522Z"
+      },
+      {
+        "id": 5,
+        "userId": 5,
+        "profileId": 5,
+        "roleType": "manager",
+        "scopeType": "division",
+        "scopeId": 2,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.568Z"
+      },
+      {
+        "id": 6,
+        "userId": 6,
+        "profileId": 6,
+        "roleType": "employee",
+        "scopeType": "division",
+        "scopeId": 2,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.614Z"
+      },
+      {
+        "id": 7,
+        "userId": 7,
+        "profileId": 7,
+        "roleType": "admin",
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.659Z"
+      },
+      {
+        "id": 8,
+        "userId": 8,
+        "profileId": 8,
+        "roleType": "manager",
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.705Z"
+      },
+      {
+        "id": 9,
+        "userId": 9,
+        "profileId": 9,
+        "roleType": "employee",
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.751Z"
+      },
+      {
+        "id": 10,
+        "userId": 10,
+        "profileId": 10,
+        "roleType": "admin",
+        "scopeType": "department",
+        "scopeId": 4,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.796Z"
+      },
+      {
+        "id": 11,
+        "userId": 11,
+        "profileId": 11,
+        "roleType": "manager",
+        "scopeType": "department",
+        "scopeId": 4,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.842Z"
+      },
+      {
+        "id": 12,
+        "userId": 12,
+        "profileId": 12,
+        "roleType": "employee",
+        "scopeType": "department",
+        "scopeId": 4,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.888Z"
+      },
+      {
+        "id": 13,
+        "userId": 13,
+        "profileId": 13,
+        "roleType": "admin",
+        "scopeType": "department",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.934Z"
+      },
+      {
+        "id": 14,
+        "userId": 14,
+        "profileId": 14,
+        "roleType": "manager",
+        "scopeType": "department",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:06.980Z"
+      },
+      {
+        "id": 15,
+        "userId": 15,
+        "profileId": 15,
+        "roleType": "employee",
+        "scopeType": "department",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.029Z"
+      },
+      {
+        "id": 16,
+        "userId": 16,
+        "profileId": 16,
+        "roleType": "admin",
+        "scopeType": "department",
+        "scopeId": 5,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.076Z"
+      },
+      {
+        "id": 17,
+        "userId": 17,
+        "profileId": 17,
+        "roleType": "manager",
+        "scopeType": "department",
+        "scopeId": 5,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.122Z"
+      },
+      {
+        "id": 18,
+        "userId": 18,
+        "profileId": 18,
+        "roleType": "employee",
+        "scopeType": "department",
+        "scopeId": 5,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.168Z"
+      },
+      {
+        "id": 19,
+        "userId": 19,
+        "profileId": 19,
+        "roleType": "admin",
+        "scopeType": "department",
+        "scopeId": 3,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.215Z"
+      },
+      {
+        "id": 20,
+        "userId": 20,
+        "profileId": 20,
+        "roleType": "manager",
+        "scopeType": "department",
+        "scopeId": 3,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.261Z"
+      },
+      {
+        "id": 21,
+        "userId": 21,
+        "profileId": 21,
+        "roleType": "employee",
+        "scopeType": "department",
+        "scopeId": 3,
+        "createdAt": "2026-03-27T21:22:06.318Z",
+        "updatedAt": "2026-03-27T21:22:07.306Z"
+      },
+      {
+        "id": 22,
+        "userId": 22,
+        "profileId": 22,
+        "roleType": "admin",
+        "scopeType": "business",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:33:48.272Z",
+        "updatedAt": "2026-03-27T21:33:48.324Z"
+      },
+      {
+        "id": 23,
+        "userId": 23,
+        "profileId": 23,
+        "roleType": "admin",
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-27T21:36:35.017Z",
+        "updatedAt": "2026-03-27T21:36:35.064Z"
+      },
+      {
+        "id": 24,
+        "userId": 24,
+        "profileId": 24,
+        "roleType": "admin",
+        "scopeType": "department",
+        "scopeId": 5,
+        "createdAt": "2026-03-27T21:38:26.332Z",
+        "updatedAt": "2026-03-27T21:38:26.381Z"
+      }
+    ],
+    "calendars": [
+      {
+        "id": 1,
+        "userId": 22,
+        "name": "Nicholas V. Personal Calendar #1",
+        "color": "#22c55e",
+        "isPrimary": true,
+        "isPersonal": true,
+        "isArchived": false,
+        "scopeType": "business",
+        "scopeId": 1,
+        "createdAt": "2026-03-27T21:33:48.272Z",
+        "updatedAt": "2026-03-27T21:33:48.327Z"
+      },
+      {
+        "id": 2,
+        "userId": 23,
+        "name": "John B. Personal Calendar #1",
+        "color": "#22c55e",
+        "isPrimary": true,
+        "isPersonal": true,
+        "isArchived": false,
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-27T21:36:35.017Z",
+        "updatedAt": "2026-03-27T21:36:35.067Z"
+      },
+      {
+        "id": 3,
+        "userId": 24,
+        "name": "John W. Personal Calendar #1",
+        "color": "#22c55e",
+        "isPrimary": true,
+        "isPersonal": true,
+        "isArchived": false,
+        "scopeType": "department",
+        "scopeId": 5,
+        "createdAt": "2026-03-27T21:38:26.332Z",
+        "updatedAt": "2026-03-27T21:38:26.384Z"
+      },
+      {
+        "id": 4,
+        "userId": 22,
+        "name": "Main AETS Calandar",
+        "color": "#ff8040",
+        "isPrimary": false,
+        "isPersonal": false,
+        "isArchived": false,
+        "scopeType": "division",
+        "scopeId": 6,
+        "createdAt": "2026-03-28T12:41:06.682Z",
+        "updatedAt": "2026-03-28T12:41:06.682Z"
+      }
+    ],
+    "events": [
+      {
+        "id": 1,
+        "calendarId": 4,
+        "buildingId": 35,
+        "assigneeProfileId": null,
+        "ownerProfileId": 22,
+        "scopeType": "division",
+        "scopeId": 6,
+        "eventCode": "6504400",
+        "title": "WINGS Program 2026",
+        "description": "Just need 5 microphones for a Q&A panel. If not possible, 2 microphones.",
+        "location": "SHRM 115",
+        "isVirtual": false,
+        "isAllDay": false,
+        "startDatetime": "2026-03-27T14:00:00.000Z",
+        "endDatetime": "2026-03-27T16:00:00.000Z",
+        "recurrenceRule": null,
+        "participantCount": 20,
+        "technicianNeeded": false,
+        "requestCategory": "university_affiliated_nonrequest_to_university_business",
+        "equipmentNeeded": "Audio PA System",
+        "requestDetails": null,
+        "eventStartTime": "2026-03-27T15:00:00.000Z",
+        "eventEndTime": "2026-03-27T18:00:00.000Z",
+        "setupTime": "2026-03-29T15:00:00.000Z",
+        "zendeskTicketNumber": "480048",
+        "isArchived": false,
+        "createdAt": "2026-03-28T13:03:45.685Z",
+        "updatedAt": "2026-03-28T13:03:45.685Z"
+      }
+    ],
+    "eventRooms": [
+      {
+        "id": 1,
+        "eventId": 1,
+        "roomId": 405,
+        "createdAt": "2026-03-28T13:03:45.685Z"
+      }
+    ],
+    "eventCoOwners": [],
+    "eventAttendees": [
+      {
+        "id": 2,
+        "eventId": 1,
+        "profileId": 25,
+        "email": "acrouch@fgcu.edu",
+        "responseStatus": "needsAction"
+      }
+    ],
+    "eventReminders": [],
+    "eventHourLogs": [],
+    "eventZendeskConfirmations": [],
+    "visibilityGrants": [],
+    "auditLogs": [
+      {
+        "id": 1,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.export",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": {},
+        "createdAt": "2026-03-28T14:05:42.645Z"
+      },
+      {
+        "id": 2,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.export",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": {},
+        "createdAt": "2026-03-28T14:30:58.518Z"
+      },
+      {
+        "id": 3,
+        "businessId": 1,
+        "actorUserId": 23,
+        "actorProfileId": null,
+        "action": "snapshot.import",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": null,
+        "createdAt": "2026-04-02T18:17:51.248Z"
+      },
+      {
+        "id": 4,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.export",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": {},
+        "createdAt": "2026-04-02T18:20:55.633Z"
+      },
+      {
+        "id": 5,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.import",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": null,
+        "createdAt": "2026-04-02T18:21:26.997Z"
+      }
+    ]
+  }
+}

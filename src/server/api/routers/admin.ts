@@ -84,6 +84,7 @@ import type { db as dbClient } from "~/server/db";
 type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
 type DbExecutor = Pick<DbClient, "execute">;
+type DbInserter = Pick<DbClient, "insert">;
 
 const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
 const businessTypeValues = [
@@ -122,6 +123,32 @@ const roleAssignmentInputSchema = z.object({
   scopeType: z.enum(organizationScopeTypeValues),
   scopeId: z.number().int().positive(),
 });
+
+function normalizeLegacySnapshotRequestDetails(value: unknown) {
+  if (!value || typeof value !== "object") return value;
+  const details = value as Record<string, unknown>;
+  if (details.version !== 2) return value;
+
+  const eventTypes = Array.isArray(details.eventTypes)
+    ? details.eventTypes.flatMap((entry) =>
+        entry === "Audio PA"
+          ? ["Inside Audio PA", "Outside Audio PA"]
+          : typeof entry === "string"
+            ? [entry]
+            : [],
+      )
+    : details.eventTypes;
+
+  return {
+    ...details,
+    eventTypes,
+  };
+}
+
+const snapshotRequestDetailsSchema = z.preprocess(
+  normalizeLegacySnapshotRequestDetails,
+  eventRequestDetailsSchema.nullable().optional(),
+);
 
 const snapshotSchema = z.object({
   version: z.union(
@@ -293,7 +320,7 @@ const snapshotSchema = z.object({
         technicianNeeded: z.boolean(),
         requestCategory: z.enum(eventRequestCategoryValues).nullable(),
         equipmentNeeded: z.string().nullable(),
-        requestDetails: eventRequestDetailsSchema.nullable().optional(),
+        requestDetails: snapshotRequestDetailsSchema,
         eventStartTime: nullableTimestampSchema,
         eventEndTime: nullableTimestampSchema,
         setupTime: nullableTimestampSchema,
@@ -416,6 +443,7 @@ const REQUEST_CATEGORY_LABELS = {
 const EVENT_CODE_MIN = 1000000;
 const EVENT_CODE_RANGE = 9000000;
 const EVENT_CODE_RETRY_LIMIT = 10;
+const SNAPSHOT_IMPORT_BATCH_SIZE = 200;
 
 ensureJoinTableExportScheduler();
 ensureHourLogExportScheduler();
@@ -1007,6 +1035,47 @@ async function resetIdentitySequences(db: DbExecutor) {
         `SELECT setval(pg_get_serial_sequence('${quoted}', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM ${quoted}`,
       ),
     );
+  }
+}
+
+async function truncateSnapshotTables(db: DbExecutor) {
+  const tableNames = [
+    "event_zendesk_confirmation",
+    "event_hour_log",
+    "event_reminder",
+    "event_attendee",
+    "event_co_owner",
+    "event_room",
+    "event",
+    "calendar",
+    "organization_role",
+    "visibility_grant",
+    "audit_log",
+    "theme_profile",
+    "theme_palette",
+    "room",
+    "building",
+    "department",
+    "business",
+    "profile",
+    "post",
+    "user",
+  ]
+    .map(withDbTablePrefix)
+    .map((name) => `"${name}"`)
+    .join(", ");
+  await db.execute(sql.raw(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`));
+}
+
+async function insertRowsInBatches<T>(
+  db: DbInserter,
+  table: Parameters<DbInserter["insert"]>[0],
+  rows: T[],
+  chunkSize = SNAPSHOT_IMPORT_BATCH_SIZE,
+) {
+  if (rows.length === 0) return;
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    await db.insert(table).values(rows.slice(index, index + chunkSize));
   }
 }
 
@@ -2098,30 +2167,12 @@ export const adminRouter = createTRPCRouter({
 
       const data = input.data;
 
-      await ctx.db.transaction(async (tx) => {
-        await tx.delete(eventZendeskConfirmations);
-        await tx.delete(eventHourLogs);
-        await tx.delete(eventReminders);
-        await tx.delete(eventAttendees);
-        await tx.delete(eventCoOwners);
-        await tx.delete(eventRooms);
-        await tx.delete(events);
-        await tx.delete(calendars);
-        await tx.delete(organizationRoles);
-        await tx.delete(visibilityGrants);
-        await tx.delete(auditLogs);
-        await tx.delete(themeProfiles);
-        await tx.delete(themePalettes);
-        await tx.delete(rooms);
-        await tx.delete(buildings);
-        await tx.delete(departments);
-        await tx.delete(businesses);
-        await tx.delete(profiles);
-        await tx.delete(posts);
-        await tx.delete(users);
+      try {
+        await ctx.db.transaction(async (tx) => {
+          await truncateSnapshotTables(tx);
 
         if (data.users.length > 0) {
-          await tx.insert(users).values(
+          await insertRowsInBatches(tx, users,
             data.users.map((row) => ({
               id: row.id,
               username: row.username,
@@ -2137,7 +2188,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.posts.length > 0) {
-          await tx.insert(posts).values(
+          await insertRowsInBatches(tx, posts,
             data.posts.map((row) => ({
               id: row.id,
               name: row.name ?? null,
@@ -2148,7 +2199,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.profiles.length > 0) {
-          await tx.insert(profiles).values(
+          await insertRowsInBatches(tx, profiles,
             data.profiles.map((row) => ({
               id: row.id,
               userId: row.userId ?? null,
@@ -2164,7 +2215,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.businesses.length > 0) {
-          await tx.insert(businesses).values(
+          await insertRowsInBatches(tx, businesses,
             data.businesses.map((row) => ({
               id: row.id,
               name: row.name,
@@ -2177,7 +2228,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.buildings.length > 0) {
-          await tx.insert(buildings).values(
+          await insertRowsInBatches(tx, buildings,
             data.buildings.map((row) => ({
               id: row.id,
               businessId: row.businessId,
@@ -2190,7 +2241,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.rooms.length > 0) {
-          await tx.insert(rooms).values(
+          await insertRowsInBatches(tx, rooms,
             data.rooms.map((row) => ({
               id: row.id,
               buildingId: row.buildingId,
@@ -2215,7 +2266,7 @@ export const adminRouter = createTRPCRouter({
             };
           });
 
-          await tx.insert(departments).values(insertRows);
+          await insertRowsInBatches(tx, departments, insertRows);
 
           for (const [id, parentId] of departmentParents.entries()) {
             if (parentId === null) continue;
@@ -2227,7 +2278,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.themePalettes.length > 0) {
-          await tx.insert(themePalettes).values(
+          await insertRowsInBatches(tx, themePalettes,
             data.themePalettes.map((row) => ({
               id: row.id,
               businessId: row.businessId,
@@ -2244,7 +2295,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.themeProfiles.length > 0) {
-          await tx.insert(themeProfiles).values(
+          await insertRowsInBatches(tx, themeProfiles,
             data.themeProfiles.map((row) => ({
               id: row.id,
               businessId: row.businessId,
@@ -2259,10 +2310,25 @@ export const adminRouter = createTRPCRouter({
           );
         }
 
+        if (data.organizationRoles.length > 0) {
+          await insertRowsInBatches(tx, organizationRoles,
+            data.organizationRoles.map((row) => ({
+              id: row.id,
+              userId: row.userId,
+              profileId: row.profileId,
+              roleType: row.roleType,
+              scopeType: row.scopeType,
+              scopeId: row.scopeId,
+              createdAt: parseRequiredTimestamp(row.createdAt),
+              updatedAt: parseTimestamp(row.updatedAt),
+            })),
+          );
+        }
+
         const fallbackBusinessId = data.businesses[0]?.id ?? null;
 
         if (data.calendars.length > 0) {
-          await tx.insert(calendars).values(
+          await insertRowsInBatches(tx, calendars,
             data.calendars.map((row) => ({
               id: row.id,
               userId: row.userId,
@@ -2280,7 +2346,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.events.length > 0) {
-          await tx.insert(events).values(
+          await insertRowsInBatches(tx, events,
             data.events.map((row) => ({
               id: row.id,
               calendarId: row.calendarId,
@@ -2315,7 +2381,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventRooms.length > 0) {
-          await tx.insert(eventRooms).values(
+          await insertRowsInBatches(tx, eventRooms,
             data.eventRooms.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2326,7 +2392,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventCoOwners.length > 0) {
-          await tx.insert(eventCoOwners).values(
+          await insertRowsInBatches(tx, eventCoOwners,
             data.eventCoOwners.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2337,7 +2403,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventAttendees.length > 0) {
-          await tx.insert(eventAttendees).values(
+          await insertRowsInBatches(tx, eventAttendees,
             data.eventAttendees.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2349,7 +2415,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventReminders.length > 0) {
-          await tx.insert(eventReminders).values(
+          await insertRowsInBatches(tx, eventReminders,
             data.eventReminders.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2359,7 +2425,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventHourLogs.length > 0) {
-          await tx.insert(eventHourLogs).values(
+          await insertRowsInBatches(tx, eventHourLogs,
             data.eventHourLogs.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2373,7 +2439,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.eventZendeskConfirmations.length > 0) {
-          await tx.insert(eventZendeskConfirmations).values(
+          await insertRowsInBatches(tx, eventZendeskConfirmations,
             data.eventZendeskConfirmations.map((row) => ({
               id: row.id,
               eventId: row.eventId,
@@ -2383,23 +2449,8 @@ export const adminRouter = createTRPCRouter({
           );
         }
 
-        if (data.organizationRoles.length > 0) {
-          await tx.insert(organizationRoles).values(
-            data.organizationRoles.map((row) => ({
-              id: row.id,
-              userId: row.userId,
-              profileId: row.profileId,
-              roleType: row.roleType,
-              scopeType: row.scopeType,
-              scopeId: row.scopeId,
-              createdAt: parseRequiredTimestamp(row.createdAt),
-              updatedAt: parseTimestamp(row.updatedAt),
-            })),
-          );
-        }
-
         if (data.visibilityGrants.length > 0) {
-          await tx.insert(visibilityGrants).values(
+          await insertRowsInBatches(tx, visibilityGrants,
             data.visibilityGrants.map((row) => ({
               id: row.id,
               userId: row.userId,
@@ -2413,7 +2464,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         if (data.auditLogs.length > 0) {
-          await tx.insert(auditLogs).values(
+          await insertRowsInBatches(tx, auditLogs,
             data.auditLogs.map((row) => ({
               id: row.id,
               businessId: row.businessId ?? null,
@@ -2430,8 +2481,12 @@ export const adminRouter = createTRPCRouter({
           );
         }
 
-        await resetIdentitySequences(tx);
-      });
+          await resetIdentitySequences(tx);
+        });
+      } catch (error) {
+        console.error("[snapshot-import] restore failed", error);
+        throw error;
+      }
 
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error(
@@ -2447,9 +2502,18 @@ export const adminRouter = createTRPCRouter({
       if (businessId) {
         const actorUserIdRaw = ctx.session?.user?.id ?? null;
         const actorUserId = actorUserIdRaw ? Number(actorUserIdRaw) : null;
+        const actorExists =
+          Number.isFinite(actorUserId ?? NaN) && actorUserId !== null
+            ? await ctx.db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.id, actorUserId))
+                .limit(1)
+                .then((rows) => Boolean(rows[0]))
+            : false;
         await ctx.db.insert(auditLogs).values({
           businessId,
-          actorUserId: Number.isFinite(actorUserId ?? NaN) ? actorUserId : null,
+          actorUserId: actorExists ? actorUserId : null,
           action: "snapshot.import",
           targetType: "snapshot",
           targetId: null,
