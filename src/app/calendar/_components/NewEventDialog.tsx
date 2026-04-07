@@ -117,7 +117,10 @@ function formatTimeLabel(value: string) {
   });
 }
 
-function splitOptionsIntoColumns<T>(options: readonly T[], columnCount: number) {
+function splitOptionsIntoColumns<T>(
+  options: readonly T[],
+  columnCount: number,
+) {
   if (columnCount <= 1) return [Array.from(options)];
   const rowsPerColumn = Math.ceil(options.length / columnCount);
   return Array.from({ length: columnCount }, (_, index) =>
@@ -364,7 +367,8 @@ function DropdownSelect({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
 
-  const selectedOption = options.find((option) => option.value === value) ?? null;
+  const selectedOption =
+    options.find((option) => option.value === value) ?? null;
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -451,7 +455,7 @@ function DropdownSelect({
         <div
           id={listboxId}
           role="listbox"
-          className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+          className="border-outline-strong bg-surface-overlay/95 absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
         >
           {options.map((option, index) => {
             const isActive = index === highlightedIndex;
@@ -741,7 +745,9 @@ function TimeSelect({
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listboxId}
-          aria-activedescendant={highlightedValue ? `${listboxId}-${highlightedValue}` : undefined}
+          aria-activedescendant={
+            highlightedValue ? `${listboxId}-${highlightedValue}` : undefined
+          }
           className="text-ink-primary placeholder:text-ink-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
         />
         <button
@@ -775,7 +781,7 @@ function TimeSelect({
         <div
           id={listboxId}
           role="listbox"
-          className="border-outline-muted bg-surface-overlay scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
+          className="border-outline-strong bg-surface-overlay/95 scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
         >
           {selectableOptions.map((option) => {
             const active = option.value === value;
@@ -840,6 +846,10 @@ type AssigneeSelection = {
   email: string;
   username?: string | null;
 };
+type ProfileEditTarget =
+  | { type: "assignee"; profile: AssigneeSelection }
+  | { type: "attendee"; profile: AssigneeSelection }
+  | { type: "coOwner"; profile: AssigneeSelection };
 type ContactConflict = RouterOutputs["profile"]["findContactConflicts"][number];
 const profileAffiliationOptions = [
   { value: "staff", label: "Staff" },
@@ -1040,7 +1050,9 @@ function readEditEventDraft(eventId: number): NewEventDraft | null {
   if (typeof window === "undefined") return null;
   if (!Number.isFinite(eventId)) return null;
   try {
-    const currentRaw = window.sessionStorage.getItem(getEditEventDraftKey(eventId));
+    const currentRaw = window.sessionStorage.getItem(
+      getEditEventDraftKey(eventId),
+    );
     if (currentRaw) {
       const parsed = JSON.parse(currentRaw) as Partial<NewEventDraft>;
       if (parsed.version === 2) return parsed as NewEventDraft;
@@ -1127,7 +1139,7 @@ function getQuickCreateErrorMessage(err: unknown) {
       return zodError.formErrors[0] ?? err.message;
   }
   if (err instanceof Error && err.message.trim()) return err.message;
-  return "Failed to create profile.";
+  return "Failed to save profile.";
 }
 
 export function NewEventDialog({
@@ -1182,8 +1194,7 @@ export function NewEventDialog({
   const [selectedEquipmentNeeded, setSelectedEquipmentNeeded] = useState<
     EquipmentNeededOption[]
   >([]);
-  const [equipmentOtherDetails, setEquipmentOtherDetails] =
-    useState("");
+  const [equipmentOtherDetails, setEquipmentOtherDetails] = useState("");
   const [selectedEventTypes, setSelectedEventTypes] = useState<
     EventTypeOption[]
   >([]);
@@ -1213,6 +1224,8 @@ export function NewEventDialog({
   const [quickCreateTarget, setQuickCreateTarget] = useState<
     "assignee" | "attendee" | "coOwner" | null
   >(null);
+  const [profileEditTarget, setProfileEditTarget] =
+    useState<ProfileEditTarget | null>(null);
   const [quickCreateDraft, setQuickCreateDraft] =
     useState<ProfileDraft>(emptyProfileDraft);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
@@ -1242,6 +1255,14 @@ export function NewEventDialog({
       ? "Zendesk ticket must be exactly 6 digits."
       : null;
   const currentProfile = api.profile.me.useQuery(undefined, { enabled: open });
+  const editingProfileDetails = api.profile.getById.useQuery(
+    {
+      profileId: profileEditTarget?.profile.profileId ?? 0,
+    },
+    {
+      enabled: open && profileEditTarget !== null,
+    },
+  );
   const requestDetails = useMemo(
     () =>
       buildEventRequestDetailsV2({
@@ -2016,22 +2037,29 @@ export function NewEventDialog({
   );
   const assigneeMatches = assigneeResults.data ?? [];
   const shouldShowAssigneeResults =
-    assigneeQuery.length > 1 && quickCreateTarget === null;
+    assigneeQuery.length > 1 &&
+    quickCreateTarget === null &&
+    profileEditTarget === null;
   const attendeeResults = api.profile.search.useQuery(
     { query: attendeeQuery, limit: 7 },
     { enabled: open && attendeeQuery.length > 1 },
   );
   const attendeeMatches = attendeeResults.data ?? [];
   const shouldShowAttendeeResults =
-    attendeeQuery.length > 1 && quickCreateTarget === null;
+    attendeeQuery.length > 1 &&
+    quickCreateTarget === null &&
+    profileEditTarget === null;
   const coOwnerResults = api.profile.search.useQuery(
     { query: coOwnerQuery, limit: 7 },
     { enabled: open && coOwnerQuery.length > 1 },
   );
   const coOwnerMatches = coOwnerResults.data ?? [];
   const shouldShowCoOwnerResults =
-    coOwnerQuery.length > 1 && quickCreateTarget === null;
+    coOwnerQuery.length > 1 &&
+    quickCreateTarget === null &&
+    profileEditTarget === null;
   const createProfile = api.profile.create.useMutation();
+  const updateProfile = api.profile.update.useMutation();
   // Facilities data
   const buildingList = api.facility.listBuildings.useQuery(undefined, {
     enabled: open,
@@ -2040,6 +2068,19 @@ export function NewEventDialog({
   const [activeLocationSearch, setActiveLocationSearch] = useState<
     "all" | "selected-building" | null
   >(null);
+
+  useEffect(() => {
+    if (!profileEditTarget || !editingProfileDetails.data) return;
+    setQuickCreateDraft({
+      firstName: editingProfileDetails.data.firstName,
+      lastName: editingProfileDetails.data.lastName,
+      email: editingProfileDetails.data.email,
+      phoneNumber: formatPhoneInput(
+        editingProfileDetails.data.phoneNumber ?? "",
+      ),
+      affiliation: editingProfileDetails.data.affiliation ?? "staff",
+    });
+  }, [editingProfileDetails.data, profileEditTarget]);
   const locationResults = api.facility.searchRooms.useQuery(
     {
       query: locationQuery,
@@ -2465,10 +2506,17 @@ export function NewEventDialog({
     setShowDuplicateContactConfirm(false);
   };
 
+  const closeProfileEditor = () => {
+    setProfileEditTarget(null);
+    setQuickCreateDraft(emptyProfileDraft);
+    setQuickCreateError(null);
+  };
+
   const openQuickCreate = (
     target: "assignee" | "attendee" | "coOwner",
     seed?: string,
   ) => {
+    setProfileEditTarget(null);
     const source =
       seed ??
       (target === "assignee"
@@ -2483,6 +2531,41 @@ export function NewEventDialog({
       ...derived,
     });
     setQuickCreateError(null);
+  };
+
+  const openProfileEditor = (target: ProfileEditTarget) => {
+    setQuickCreateTarget(null);
+    setShowDuplicateContactConfirm(false);
+    setDuplicateContactMatches([]);
+    const source = target.profile;
+    const [firstName = "", ...lastNameParts] = source.displayName
+      .trim()
+      .split(/\s+/);
+    setProfileEditTarget(target);
+    setQuickCreateDraft({
+      firstName,
+      lastName: lastNameParts.join(" "),
+      email: source.email,
+      phoneNumber: "",
+      affiliation: "staff",
+    });
+    setQuickCreateError(null);
+  };
+
+  const applyUpdatedProfileSelection = (selection: AssigneeSelection) => {
+    setAssignee((prev) =>
+      prev?.profileId === selection.profileId ? selection : prev,
+    );
+    setSelectedAttendees((prev) =>
+      prev.map((entry) =>
+        entry.profileId === selection.profileId ? selection : entry,
+      ),
+    );
+    setSelectedCoOwners((prev) =>
+      prev.map((entry) =>
+        entry.profileId === selection.profileId ? selection : entry,
+      ),
+    );
   };
 
   const applyQuickCreateSelection = (selection: AssigneeSelection) => {
@@ -2577,23 +2660,80 @@ export function NewEventDialog({
     await submitQuickCreate(true);
   };
 
+  const handleProfileUpdate = async () => {
+    if (!profileEditTarget) return;
+    setQuickCreateError(null);
+    const firstName = quickCreateDraft.firstName.trim();
+    const lastName = quickCreateDraft.lastName.trim();
+    const email = sanitizeEmailDraft(quickCreateDraft.email);
+    const phoneNumber = quickCreateDraft.phoneNumber.trim();
+    if (!firstName || !lastName || !email) {
+      setQuickCreateError("Add a first name, last name, and email.");
+      return;
+    }
+    if (!isValidEmailAddress(email)) {
+      setQuickCreateError("Enter a valid email address.");
+      return;
+    }
+    if (email !== quickCreateDraft.email) {
+      setQuickCreateDraft((prev) => ({
+        ...prev,
+        email,
+      }));
+    }
+
+    try {
+      const updated = await updateProfile.mutateAsync({
+        profileId: profileEditTarget.profile.profileId,
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        affiliation: quickCreateDraft.affiliation,
+      });
+      const nextSelection = {
+        profileId: updated.profileId,
+        displayName: resolveProfileLabel(updated),
+        email: updated.email,
+        username:
+          updated.username ?? profileEditTarget.profile.username ?? null,
+      };
+      applyUpdatedProfileSelection(nextSelection);
+      await utils.profile.search.invalidate();
+      closeProfileEditor();
+    } catch (err) {
+      setQuickCreateError(getQuickCreateErrorMessage(err));
+    }
+  };
+
   function renderQuickCreateForm() {
-    if (quickCreateTarget === null) return null;
+    const isEditingProfile = profileEditTarget !== null;
+    const isProfileEditLoading =
+      isEditingProfile && editingProfileDetails.isLoading;
+    if (!isEditingProfile && quickCreateTarget === null) return null;
     return (
       <div className="border-outline-muted bg-surface-muted mt-2 rounded-md border p-3">
         <div className="text-ink-primary flex items-center justify-between text-sm font-semibold">
           <span>
-            Create{" "}
-            {quickCreateTarget === "assignee"
-              ? "assignee"
-              : quickCreateTarget === "coOwner"
-                ? "co-owner"
-                : "attendee"}{" "}
-            profile
+            {isEditingProfile
+              ? `Edit ${
+                  profileEditTarget.type === "assignee"
+                    ? "assignee"
+                    : profileEditTarget.type === "coOwner"
+                      ? "co-owner"
+                      : "attendee"
+                } profile`
+              : `Create ${
+                  quickCreateTarget === "assignee"
+                    ? "assignee"
+                    : quickCreateTarget === "coOwner"
+                      ? "co-owner"
+                      : "attendee"
+                } profile`}
           </span>
           <button
             type="button"
-            onClick={closeQuickCreate}
+            onClick={isEditingProfile ? closeProfileEditor : closeQuickCreate}
             className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
           >
             Cancel
@@ -2663,6 +2803,11 @@ export function NewEventDialog({
             />
           </div>
         </div>
+        {isProfileEditLoading ? (
+          <div className="text-ink-muted mt-2 text-xs">
+            Loading profile details...
+          </div>
+        ) : null}
         {quickCreateError && (
           <div className="text-status-danger mt-2 text-xs">
             {quickCreateError}
@@ -2672,21 +2817,31 @@ export function NewEventDialog({
           <button
             type="button"
             className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
-            onClick={closeQuickCreate}
+            onClick={isEditingProfile ? closeProfileEditor : closeQuickCreate}
           >
             Dismiss
           </button>
           <button
             type="button"
             className="bg-accent-strong text-ink-inverted rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            disabled={createProfile.isPending}
-            onClick={handleQuickCreateSubmit}
+            disabled={
+              createProfile.isPending ||
+              updateProfile.isPending ||
+              Boolean(isProfileEditLoading)
+            }
+            onClick={
+              isEditingProfile
+                ? () => void handleProfileUpdate()
+                : handleQuickCreateSubmit
+            }
           >
-            {createProfile.isPending
+            {createProfile.isPending || updateProfile.isPending
               ? "Saving..."
-              : quickCreateTarget === "assignee"
-                ? "Save & assign"
-                : "Save & add"}
+              : isEditingProfile
+                ? "Save changes"
+                : quickCreateTarget === "assignee"
+                  ? "Save & assign"
+                  : "Save & add"}
           </button>
         </div>
       </div>
@@ -2697,7 +2852,12 @@ export function NewEventDialog({
     setSubmitAttempted(true);
     setError(null);
     try {
-      if (titleMissing || !hasCalendar || attendeeSelectionInvalid || buildingSelectionInvalid) {
+      if (
+        titleMissing ||
+        !hasCalendar ||
+        attendeeSelectionInvalid ||
+        buildingSelectionInvalid
+      ) {
         setError("Complete the required fields before saving.");
         return;
       }
@@ -2829,7 +2989,8 @@ export function NewEventDialog({
           const participantCountPayload = participantCountValue ?? undefined;
           const requestCategoryPayload = requestCategoryValue ?? undefined;
           const equipmentPayloadCreate = equipmentPayload ?? undefined;
-          const requestDetailsPayloadCreate = requestDetailsPayload ?? undefined;
+          const requestDetailsPayloadCreate =
+            requestDetailsPayload ?? undefined;
           const eventInfoStartPayload = eventInfoStartValue ?? undefined;
           const eventInfoEndPayload = eventInfoEndValue ?? undefined;
           const setupInfoPayload = setupInfoValue ?? undefined;
@@ -3074,11 +3235,13 @@ export function NewEventDialog({
               onChange={(e) => setTitle(e.target.value)}
               className={
                 "bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none " +
-                (showTitleError ? "border-status-danger" : "border-outline-muted")
+                (showTitleError
+                  ? "border-status-danger"
+                  : "border-outline-muted")
               }
             />
             {showTitleError ? (
-              <div className="mt-2 text-xs text-status-danger">
+              <div className="text-status-danger mt-2 text-xs">
                 Title is required.
               </div>
             ) : null}
@@ -3159,7 +3322,7 @@ export function NewEventDialog({
                   {selectedCalendarIds.length} selected
                 </p>
                 {showCalendarError ? (
-                  <div className="mt-2 text-xs text-status-danger">
+                  <div className="text-status-danger mt-2 text-xs">
                     At least one calendar is required.
                   </div>
                 ) : null}
@@ -3282,7 +3445,17 @@ export function NewEventDialog({
                 selectedAttendees.map((attendee) => (
                   <span
                     key={attendee.profileId}
-                    className="border-outline-muted bg-surface-muted text-ink-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
+                    className={
+                      "bg-surface-muted text-ink-primary inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm " +
+                      (profileEditTarget?.type === "attendee" &&
+                      profileEditTarget.profile.profileId === attendee.profileId
+                        ? "border-outline-accent ring-accent-strong ring-2"
+                        : "border-outline-muted")
+                    }
+                    onDoubleClick={() =>
+                      openProfileEditor({ type: "attendee", profile: attendee })
+                    }
+                    title="Double-click to edit profile"
                   >
                     <span className="font-medium">{attendee.displayName}</span>
                     <span className="text-ink-muted text-xs">
@@ -3292,6 +3465,7 @@ export function NewEventDialog({
                       type="button"
                       className="text-ink-faint hover:text-status-danger transition"
                       onClick={() => handleRemoveAttendee(attendee.profileId)}
+                      onDoubleClick={(event) => event.stopPropagation()}
                       aria-label="Remove attendee"
                     >
                       <XIcon className="h-3 w-3" />
@@ -3349,7 +3523,7 @@ export function NewEventDialog({
                 <div
                   id={attendeeListboxId}
                   role="listbox"
-                  className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                  className="border-outline-strong bg-surface-overlay/95 absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
                 >
                   {attendeeResults.isFetching ? (
                     <div className="text-ink-muted px-3 py-2 text-sm">
@@ -3418,18 +3592,33 @@ export function NewEventDialog({
               )}
             </div>
             {showAttendeeSelectionError ? (
-              <div className="mt-2 text-xs text-status-danger">
+              <div className="text-status-danger mt-2 text-xs">
                 At least one attendee is required.
               </div>
             ) : null}
-            {quickCreateTarget === "attendee" ? renderQuickCreateForm() : null}
+            {quickCreateTarget === "attendee" ||
+            profileEditTarget?.type === "attendee"
+              ? renderQuickCreateForm()
+              : null}
           </div>
 
           <div>
             <div className="text-ink-muted mb-1 text-xs">Assign to</div>
             <div className="space-y-2">
               {assignee && (
-                <div className="border-outline-accent bg-accent-muted flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                <div
+                  className={
+                    "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm " +
+                    (profileEditTarget?.type === "assignee" &&
+                    profileEditTarget.profile.profileId === assignee.profileId
+                      ? "border-outline-accent bg-accent-muted ring-accent-strong ring-2"
+                      : "border-outline-accent bg-accent-muted")
+                  }
+                  onDoubleClick={() =>
+                    openProfileEditor({ type: "assignee", profile: assignee })
+                  }
+                  title="Double-click to edit profile"
+                >
                   <div>
                     <div className="text-ink-primary font-medium">
                       {assignee.displayName}
@@ -3442,6 +3631,7 @@ export function NewEventDialog({
                     type="button"
                     className="text-status-success hover:text-accent-soft text-xs font-medium"
                     onClick={handleClearAssignee}
+                    onDoubleClick={(event) => event.stopPropagation()}
                   >
                     Clear
                   </button>
@@ -3465,12 +3655,20 @@ export function NewEventDialog({
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
                       setAssigneeHighlight((prev) =>
-                        getNextHighlightedIndex(prev, assigneeMatches.length, 1),
+                        getNextHighlightedIndex(
+                          prev,
+                          assigneeMatches.length,
+                          1,
+                        ),
                       );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
                       setAssigneeHighlight((prev) =>
-                        getNextHighlightedIndex(prev, assigneeMatches.length, -1),
+                        getNextHighlightedIndex(
+                          prev,
+                          assigneeMatches.length,
+                          -1,
+                        ),
                       );
                     } else if (e.key === "Enter") {
                       e.preventDefault();
@@ -3500,7 +3698,7 @@ export function NewEventDialog({
                   <div
                     id={assigneeListboxId}
                     role="listbox"
-                    className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                    className="border-outline-strong bg-surface-overlay/95 absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
                   >
                     {assigneeResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
@@ -3569,7 +3767,8 @@ export function NewEventDialog({
                   </div>
                 )}
               </div>
-              {quickCreateTarget === "assignee"
+              {quickCreateTarget === "assignee" ||
+              profileEditTarget?.type === "assignee"
                 ? renderQuickCreateForm()
                 : null}
             </div>
@@ -3585,7 +3784,17 @@ export function NewEventDialog({
                   selectedCoOwners.map((owner) => (
                     <span
                       key={owner.profileId}
-                      className="border-outline-muted bg-surface-muted text-ink-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
+                      className={
+                        "bg-surface-muted text-ink-primary inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm " +
+                        (profileEditTarget?.type === "coOwner" &&
+                        profileEditTarget.profile.profileId === owner.profileId
+                          ? "border-outline-accent ring-accent-strong ring-2"
+                          : "border-outline-muted")
+                      }
+                      onDoubleClick={() =>
+                        openProfileEditor({ type: "coOwner", profile: owner })
+                      }
+                      title="Double-click to edit profile"
                     >
                       <span className="font-medium">{owner.displayName}</span>
                       <span className="text-ink-muted text-xs">
@@ -3595,6 +3804,7 @@ export function NewEventDialog({
                         type="button"
                         className="text-ink-faint hover:text-status-danger transition"
                         onClick={() => handleRemoveCoOwner(owner.profileId)}
+                        onDoubleClick={(event) => event.stopPropagation()}
                         aria-label="Remove co-owner"
                       >
                         <XIcon className="h-3 w-3" />
@@ -3622,7 +3832,11 @@ export function NewEventDialog({
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
                       setCoOwnerHighlight((prev) =>
-                        getNextHighlightedIndex(prev, coOwnerMatches.length, -1),
+                        getNextHighlightedIndex(
+                          prev,
+                          coOwnerMatches.length,
+                          -1,
+                        ),
                       );
                     } else if (e.key === "Enter") {
                       e.preventDefault();
@@ -3652,7 +3866,7 @@ export function NewEventDialog({
                   <div
                     id={coOwnerListboxId}
                     role="listbox"
-                    className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                    className="border-outline-strong bg-surface-overlay/95 absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
                   >
                     {coOwnerResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
@@ -3720,7 +3934,10 @@ export function NewEventDialog({
                   </div>
                 )}
               </div>
-              {quickCreateTarget === "coOwner" ? renderQuickCreateForm() : null}
+              {quickCreateTarget === "coOwner" ||
+              profileEditTarget?.type === "coOwner"
+                ? renderQuickCreateForm()
+                : null}
             </div>
           </div>
 
@@ -4135,7 +4352,10 @@ export function NewEventDialog({
             <div className="mb-2 grid gap-2 sm:grid-cols-2">
               <div>
                 <div className="text-ink-muted mb-1 text-xs">
-                  Building {!isVirtual ? <span className="text-status-danger">*</span> : null}
+                  Building{" "}
+                  {!isVirtual ? (
+                    <span className="text-status-danger">*</span>
+                  ) : null}
                 </div>
                 <div className="relative">
                   <DropdownSelect
@@ -4160,7 +4380,7 @@ export function NewEventDialog({
                   />
                 </div>
                 {showBuildingError ? (
-                  <div className="mt-2 text-xs text-status-danger">
+                  <div className="text-status-danger mt-2 text-xs">
                     Select a building or mark the event as virtual.
                   </div>
                 ) : null}
@@ -4188,12 +4408,20 @@ export function NewEventDialog({
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
                       setLocationHighlight((prev) =>
-                        getNextHighlightedIndex(prev, locationMatches.length, 1),
+                        getNextHighlightedIndex(
+                          prev,
+                          locationMatches.length,
+                          1,
+                        ),
                       );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
                       setLocationHighlight((prev) =>
-                        getNextHighlightedIndex(prev, locationMatches.length, -1),
+                        getNextHighlightedIndex(
+                          prev,
+                          locationMatches.length,
+                          -1,
+                        ),
                       );
                     } else if (e.key === "Enter") {
                       const highlightedMatch = getHighlightedItem(
@@ -4228,7 +4456,7 @@ export function NewEventDialog({
                       <div
                         id={specificLocationListboxId}
                         role="listbox"
-                        className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl"
+                        className="border-outline-strong bg-surface-overlay/95 absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
                       >
                         {locationResults.isFetching ? (
                           <div className="text-ink-muted px-3 py-2 text-sm">
@@ -4255,7 +4483,9 @@ export function NewEventDialog({
                                       ? "bg-accent-muted"
                                       : "hover:bg-surface-muted")
                                   }
-                                  onMouseDown={(event) => event.preventDefault()}
+                                  onMouseDown={(event) =>
+                                    event.preventDefault()
+                                  }
                                   onMouseEnter={() =>
                                     setLocationHighlight(index)
                                   }
@@ -4401,7 +4631,7 @@ export function NewEventDialog({
                   <div
                     id={generalLocationListboxId}
                     role="listbox"
-                    className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl"
+                    className="border-outline-strong bg-surface-overlay/95 absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
                   >
                     {locationResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
@@ -4502,4 +4732,3 @@ export function NewEventDialog({
     </div>
   );
 }
-

@@ -328,7 +328,7 @@ function MobileViewSwitcher({
         <ChevronDownIcon className="h-4 w-4 text-ink-muted" />
       </button>
       {open && (
-        <div className="absolute left-0 right-auto z-40 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-outline-muted bg-surface-overlay shadow-xl">
+        <div className="absolute left-0 right-auto z-40 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-outline-muted bg-surface-overlay shadow-xl backdrop-blur">
           {options.map((opt) => (
             <button
               key={opt.value}
