@@ -223,6 +223,23 @@ type UserSummary = {
   totalEvents: number;
 };
 
+type ProfileSummary = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  affiliation: "staff" | "faculty" | "student" | null;
+  createdAt: Date;
+  updatedAt: Date | null;
+  linkedUser: {
+    id: number;
+    username: string;
+    displayName: string;
+    isActive: boolean;
+  } | null;
+};
+
 type SelectParameter = {
   id: string;
   label: string;
@@ -679,6 +696,82 @@ async function fetchUsers(
         : null,
       lastActivity: activity?.lastActivity ?? null,
       totalEvents: activity?.totalEvents ?? 0,
+    };
+  });
+}
+
+async function fetchProfiles(
+  db: DbReader,
+  userIds?: number[],
+): Promise<ProfileSummary[]> {
+  if (userIds?.length === 0) return [];
+
+  const baseQuery = db
+    .select({
+      id: profiles.id,
+      userId: profiles.userId,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      email: profiles.email,
+      phoneNumber: profiles.phoneNumber,
+      affiliation: profiles.affiliation,
+      createdAt: profiles.createdAt,
+      updatedAt: profiles.updatedAt,
+    })
+    .from(profiles);
+  const filteredQuery =
+    userIds && userIds.length > 0
+      ? baseQuery.where(inArray(profiles.userId, userIds))
+      : baseQuery;
+  const profileRows = await filteredQuery.orderBy(
+    desc(profiles.createdAt),
+    profiles.id,
+  );
+  if (profileRows.length === 0) return [];
+
+  const linkedUserIds = Array.from(
+    new Set(
+      profileRows
+        .map((profile) => profile.userId)
+        .filter((userId): userId is number => userId !== null),
+    ),
+  );
+  const linkedUsers =
+    linkedUserIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+            isActive: users.isActive,
+          })
+          .from(users)
+          .where(inArray(users.id, linkedUserIds));
+  const linkedUserMap = new Map(
+    linkedUsers.map((user) => [user.id, user] as const),
+  );
+
+  return profileRows.map((profile) => {
+    const linkedUser =
+      profile.userId !== null ? linkedUserMap.get(profile.userId) ?? null : null;
+    return {
+      id: profile.id,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+      phoneNumber: profile.phoneNumber,
+      affiliation: profile.affiliation ?? null,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt ?? null,
+      linkedUser: linkedUser
+        ? {
+            id: linkedUser.id,
+            username: linkedUser.username,
+            displayName: linkedUser.displayName,
+            isActive: linkedUser.isActive,
+          }
+        : null,
     };
   });
 }
@@ -2675,6 +2768,34 @@ export const adminRouter = createTRPCRouter({
       return { users: [] };
     }
     return { users: await fetchUsers(ctx.db, scopedUserIds) };
+  }),
+
+  profiles: protectedProcedure.query(async ({ ctx }) => {
+    const context = await requireAdminCapability(
+      ctx.db,
+      ctx.session,
+      "users:manage",
+    );
+    const hasBusinessAdmin = context.roles.some(
+      (role) => role.scopeType === "business",
+    );
+    if (hasBusinessAdmin) {
+      return { profiles: await fetchProfiles(ctx.db) };
+    }
+
+    const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
+    if (visibleScopes.business) {
+      return { profiles: await fetchProfiles(ctx.db) };
+    }
+
+    const scopedUserIds = await getUsersInScopes(ctx.db, {
+      departmentIds: visibleScopes.departmentIds,
+      divisionIds: visibleScopes.divisionIds,
+    });
+    if (scopedUserIds.length === 0) {
+      return { profiles: [] };
+    }
+    return { profiles: await fetchProfiles(ctx.db, scopedUserIds) };
   }),
 
   addVisibilityGrant: protectedProcedure

@@ -1,9 +1,11 @@
 "use client";
 
+import { TRPCClientError } from "@trpc/client";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { SearchIcon, XIcon } from "~/app/_components/icons";
+import type { AppRouter } from "~/server/api/root";
 import { api, type RouterOutputs } from "~/trpc/react";
 import {
   createRoleAssignmentDraft,
@@ -35,11 +37,22 @@ type CreateFormState = {
 };
 
 type AdminUser = RouterOutputs["admin"]["users"]["users"][number];
+type AdminProfile = RouterOutputs["admin"]["profiles"]["profiles"][number];
+type DirectoryMode = "users" | "profiles";
+type ProfileEditFormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  affiliation: "staff" | "faculty" | "student";
+};
+
 const profileAffiliationOptions = [
   { value: "staff", label: "Staff" },
   { value: "faculty", label: "Faculty" },
   { value: "student", label: "Student" },
 ] as const;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function createDefaultForm(): FormState {
   return {
@@ -63,6 +76,16 @@ function createDefaultCreateForm(): CreateFormState {
     phoneNumber: "",
     affiliation: "staff",
     dateOfBirth: "",
+  };
+}
+
+function createDefaultProfileEditForm(): ProfileEditFormState {
+  return {
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    affiliation: "staff",
   };
 }
 
@@ -192,15 +215,65 @@ function resolveDisplayName(user: Pick<AdminUser, "displayName" | "username">) {
   return trimmed && trimmed.length > 0 ? trimmed : user.username;
 }
 
+function resolveProfileDisplayName(
+  profile: Pick<AdminProfile, "firstName" | "lastName" | "email">,
+) {
+  const fullName = [profile.firstName, profile.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return fullName.length > 0 ? fullName : profile.email;
+}
+
+function formatAffiliation(
+  value: "staff" | "faculty" | "student" | null | undefined,
+) {
+  if (!value) return "Staff";
+  return value[0]!.toUpperCase() + value.slice(1);
+}
+
+function sanitizeEmailDraft(value: string) {
+  return value.trim().replace(/\s+/g, "");
+}
+
+function isValidEmailAddress(value: string) {
+  return EMAIL_REGEX.test(value.trim());
+}
+
+function getProfileErrorMessage(error: unknown) {
+  if (error instanceof TRPCClientError) {
+    const zodError = (error as TRPCClientError<AppRouter>).data?.zodError;
+    const fieldErrors = zodError?.fieldErrors ?? {};
+    if (fieldErrors.firstName?.length) return "First name is required.";
+    if (fieldErrors.lastName?.length) return "Last name is required.";
+    if (fieldErrors.email?.length) return "Enter a valid email address.";
+    if (zodError?.formErrors?.length) {
+      return zodError.formErrors[0] ?? error.message;
+    }
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Failed to save profile.";
+}
+
 export function UsersView() {
   const { data: session } = useSession();
   const { data: permissions } = api.admin.permissions.useQuery();
+  const [directoryMode, setDirectoryMode] = useState<DirectoryMode>("users");
   const { data, isLoading, isError, refetch } = api.admin.users.useQuery(
     undefined,
     {
       staleTime: 45_000,
     },
   );
+  const {
+    data: profileData,
+    isLoading: isProfilesLoading,
+    isError: isProfilesError,
+    refetch: refetchProfiles,
+  } = api.admin.profiles.useQuery(undefined, {
+    staleTime: 45_000,
+    enabled: directoryMode === "profiles",
+  });
   const canManageUsers =
     permissions?.capabilities.includes("users:manage") ?? false;
   const canGrantVisibility =
@@ -256,13 +329,27 @@ export function UsersView() {
       await utils.admin.users.invalidate();
     },
   });
+  const updateProfileMutation = api.profile.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.admin.users.invalidate(),
+        utils.admin.profiles.invalidate(),
+        utils.profile.search.invalidate(),
+      ]);
+    },
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(
+    null,
+  );
   const [formState, setFormState] = useState<FormState>(createDefaultForm);
   const [createFormState, setCreateFormState] = useState<CreateFormState>(
     createDefaultCreateForm,
   );
+  const [profileEditFormState, setProfileEditFormState] =
+    useState<ProfileEditFormState>(createDefaultProfileEditForm);
   const [roleAssignmentsDraft, setRoleAssignmentsDraft] = useState<
     RoleAssignmentDraft[]
   >([]);
@@ -275,10 +362,16 @@ export function UsersView() {
   } | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
+  const [profileEditError, setProfileEditError] = useState<string | null>(null);
   const [grantScopeKey, setGrantScopeKey] = useState("");
   const [grantReason, setGrantReason] = useState("");
 
   const users = useMemo(() => data?.users ?? [], [data?.users]);
+  const profiles = useMemo(
+    () => profileData?.profiles ?? [],
+    [profileData?.profiles],
+  );
   const scopeOptions = useMemo(() => {
     if (!companyOverview) return [];
     const options: RoleScopeOption[] = [];
@@ -319,6 +412,21 @@ export function UsersView() {
     }
   }, [users, selectedUserId]);
 
+  useEffect(() => {
+    if (profiles.length === 0) {
+      if (selectedProfileId !== null) {
+        setSelectedProfileId(null);
+      }
+      return;
+    }
+    if (
+      selectedProfileId === null ||
+      !profiles.some((profile) => profile.id === selectedProfileId)
+    ) {
+      setSelectedProfileId(profiles[0]!.id);
+    }
+  }, [profiles, selectedProfileId]);
+
   const filteredUsers = useMemo(() => {
     if (!searchTerm) return users;
     const term = searchTerm.toLowerCase();
@@ -337,9 +445,32 @@ export function UsersView() {
     });
   }, [users, searchTerm]);
 
+  const filteredProfiles = useMemo(() => {
+    if (!searchTerm) return profiles;
+    const term = searchTerm.toLowerCase();
+    return profiles.filter((profile) => {
+      const haystack = [
+        profile.firstName,
+        profile.lastName,
+        profile.email,
+        profile.phoneNumber,
+        profile.linkedUser?.displayName,
+        profile.linkedUser?.username,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [profiles, searchTerm]);
+
   const selectedUser =
     filteredUsers.find((user) => user.id === selectedUserId) ??
     users.find((user) => user.id === selectedUserId) ??
+    null;
+  const selectedProfile =
+    filteredProfiles.find((profile) => profile.id === selectedProfileId) ??
+    profiles.find((profile) => profile.id === selectedProfileId) ??
     null;
   const sessionUserId = session?.user?.id;
   const currentUserId =
@@ -351,11 +482,30 @@ export function UsersView() {
   );
   const isDeactivated = selectedUser ? !selectedUser.isActive : false;
   const canEditSelectedUserRoles = canEditRoles && !isSelfSelected;
+  const editingProfileDetails = api.profile.getById.useQuery(
+    {
+      profileId: editingProfileId ?? 0,
+    },
+    {
+      enabled: editingProfileId !== null,
+    },
+  );
 
   useEffect(() => {
     setFormState(buildFormStateFromUser(selectedUser));
     setRoleAssignmentsDraft(buildRoleAssignmentsDraftFromUser(selectedUser));
   }, [selectedUser]);
+
+  useEffect(() => {
+    if (!editingProfileDetails.data) return;
+    setProfileEditFormState({
+      firstName: editingProfileDetails.data.firstName,
+      lastName: editingProfileDetails.data.lastName,
+      email: editingProfileDetails.data.email,
+      phoneNumber: formatPhoneInput(editingProfileDetails.data.phoneNumber ?? ""),
+      affiliation: editingProfileDetails.data.affiliation ?? "staff",
+    });
+  }, [editingProfileDetails.data]);
 
   useEffect(() => {
     setGrantScopeKey("");
@@ -551,6 +701,65 @@ export function UsersView() {
     }
   };
 
+  const openProfileEditor = (profile: AdminProfile) => {
+    setEditingProfileId(profile.id);
+    setProfileEditError(null);
+    setProfileEditFormState({
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+      phoneNumber: formatPhoneInput(profile.phoneNumber),
+      affiliation: profile.affiliation ?? "staff",
+    });
+  };
+
+  const closeProfileEditor = () => {
+    setEditingProfileId(null);
+    setProfileEditError(null);
+    setProfileEditFormState(createDefaultProfileEditForm());
+  };
+
+  const handleProfileEditSubmit = async () => {
+    if (editingProfileId === null) return;
+    setProfileEditError(null);
+    const firstName = profileEditFormState.firstName.trim();
+    const lastName = profileEditFormState.lastName.trim();
+    const email = sanitizeEmailDraft(profileEditFormState.email);
+    const phoneNumber = profileEditFormState.phoneNumber.trim();
+
+    if (!firstName || !lastName || !email) {
+      setProfileEditError("Add a first name, last name, and email.");
+      return;
+    }
+    if (!isValidEmailAddress(email)) {
+      setProfileEditError("Enter a valid email address.");
+      return;
+    }
+    if (email !== profileEditFormState.email) {
+      setProfileEditFormState((prev) => ({
+        ...prev,
+        email,
+      }));
+    }
+
+    try {
+      await updateProfileMutation.mutateAsync({
+        profileId: editingProfileId,
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        affiliation: profileEditFormState.affiliation,
+      });
+      await Promise.all([refetchProfiles(), refetch()]);
+      setFeedback({ type: "success", message: "Profile updated" });
+      closeProfileEditor();
+    } catch (error) {
+      setProfileEditError(getProfileErrorMessage(error));
+    }
+  };
+  const isProfilesView = directoryMode === "profiles";
+
   if (isLoading) {
     return (
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
@@ -574,125 +783,275 @@ export function UsersView() {
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-ink-primary text-lg font-semibold">
-              User Directory
+              {isProfilesView ? "Profile Directory" : "User Directory"}
             </h2>
             <p className="text-ink-muted text-sm">
-              Search, review, and select a user to manage their details.
+              {isProfilesView
+                ? "Review created profiles and open them in the profile editor."
+                : "Search, review, and select a user to manage their details."}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="border-outline-muted bg-surface-muted flex w-full max-w-xs items-center gap-2 rounded-full border px-4 py-2">
-              <SearchIcon className="text-ink-muted" />
-              <input
-                type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search users..."
-                className="text-ink-primary placeholder:text-ink-faint flex-1 bg-transparent text-sm focus:outline-none"
-              />
+          <div className="flex flex-col items-stretch gap-3 md:items-end">
+            <div className="border-outline-muted bg-surface-muted inline-flex rounded-full border p-1">
+              {(["users", "profiles"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDirectoryMode(mode)}
+                  className={
+                    "rounded-full px-3 py-1.5 text-xs font-semibold transition " +
+                    (directoryMode === mode
+                      ? "bg-accent-strong text-ink-inverted"
+                      : "text-ink-muted hover:text-ink-primary")
+                  }
+                >
+                  {mode === "users" ? "Users" : "Profiles"}
+                </button>
+              ))}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setCreateFormState(createDefaultCreateForm());
-                setCreateRoleAssignmentsDraft([
-                  createRoleAssignmentDraft(scopeOptions, businessScopeOption, {
-                    employeeOnly: canCreateEmployeeOnly,
-                    allowAdminRoles: canAssignAdminRoles,
-                  }),
-                ]);
-                setIsCreateOpen(true);
-              }}
-              disabled={!canCreateUsers}
-              className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Add user
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="border-outline-muted bg-surface-muted flex w-full max-w-xs items-center gap-2 rounded-full border px-4 py-2">
+                <SearchIcon className="text-ink-muted" />
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder={
+                    isProfilesView ? "Search profiles..." : "Search users..."
+                  }
+                  className="text-ink-primary placeholder:text-ink-faint flex-1 bg-transparent text-sm focus:outline-none"
+                />
+              </div>
+              {!isProfilesView ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateFormState(createDefaultCreateForm());
+                    setCreateRoleAssignmentsDraft([
+                      createRoleAssignmentDraft(
+                        scopeOptions,
+                        businessScopeOption,
+                        {
+                          employeeOnly: canCreateEmployeeOnly,
+                          allowAdminRoles: canAssignAdminRoles,
+                        },
+                      ),
+                    ]);
+                    setIsCreateOpen(true);
+                  }}
+                  disabled={!canCreateUsers}
+                  className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Add user
+                </button>
+              ) : null}
+            </div>
           </div>
         </header>
 
         <div className="border-outline-muted mt-6 overflow-x-auto rounded-2xl border">
-          <table className="divide-outline-muted text-ink-primary min-w-full divide-y text-sm">
-            <thead className="bg-surface-muted text-ink-muted text-left text-xs tracking-wide uppercase">
-              <tr>
-                <th scope="col" className="px-4 py-3">
-                  Name
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  Email
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  Role
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  Last Activity
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-outline-muted divide-y">
-              {filteredUsers.map((user) => {
-                const isActive = user.id === selectedUserId;
-                return (
-                  <tr
-                    key={user.id}
-                    onClick={() => setSelectedUserId(user.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedUserId(user.id);
+          {isProfilesView ? (
+            isProfilesError ? (
+              <div className="text-status-danger px-4 py-6 text-sm">
+                Unable to load profiles. Please refresh.
+              </div>
+            ) : isProfilesLoading && profileData === undefined ? (
+              <div className="text-ink-muted px-4 py-6 text-sm">
+                Loading profiles...
+              </div>
+            ) : (
+              <table className="divide-outline-muted text-ink-primary min-w-full divide-y text-sm">
+                <thead className="bg-surface-muted text-ink-muted text-left text-xs tracking-wide uppercase">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">
+                      Name
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Email
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Affiliation
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Linked Account
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-outline-muted divide-y">
+                  {filteredProfiles.map((profile) => {
+                    const isActive = profile.id === selectedProfileId;
+                    return (
+                      <tr
+                        key={profile.id}
+                        onClick={() => setSelectedProfileId(profile.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedProfileId(profile.id);
+                          }
+                        }}
+                        className={
+                          "hover:bg-accent-muted focus-visible:outline-accent-strong cursor-pointer transition focus-visible:outline focus-visible:outline-2 " +
+                          (isActive ? "bg-accent-muted" : "")
+                        }
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="text-ink-primary font-medium">
+                              {resolveProfileDisplayName(profile)}
+                            </span>
+                            <span className="text-ink-faint text-xs">
+                              Created {profile.createdAt.toLocaleDateString()}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="text-ink-subtle px-4 py-3">
+                          {profile.email}
+                        </td>
+                        <td className="text-ink-subtle px-4 py-3">
+                          {formatAffiliation(profile.affiliation)}
+                        </td>
+                        <td className="text-ink-subtle px-4 py-3">
+                          {profile.linkedUser ? (
+                            <div className="flex flex-col">
+                              <span>
+                                {resolveDisplayName(profile.linkedUser)}
+                              </span>
+                              <span className="text-ink-faint text-xs">
+                                @{profile.linkedUser.username}
+                              </span>
+                              {!profile.linkedUser.isActive ? (
+                                <span className="text-status-danger text-xs font-semibold tracking-wide uppercase">
+                                  Deactivated
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-ink-faint">
+                              Standalone profile
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openProfileEditor(profile);
+                            }}
+                            className="border-outline-muted text-ink-subtle hover:bg-surface-muted focus-visible:outline-accent-strong rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredProfiles.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="text-ink-muted px-4 py-6 text-center text-sm"
+                      >
+                        No profiles match your search.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            )
+          ) : (
+            <table className="divide-outline-muted text-ink-primary min-w-full divide-y text-sm">
+              <thead className="bg-surface-muted text-ink-muted text-left text-xs tracking-wide uppercase">
+                <tr>
+                  <th scope="col" className="px-4 py-3">
+                    Name
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Email
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Role
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Last Activity
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-outline-muted divide-y">
+                {filteredUsers.map((user) => {
+                  const isActive = user.id === selectedUserId;
+                  return (
+                    <tr
+                      key={user.id}
+                      onClick={() => setSelectedUserId(user.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedUserId(user.id);
+                        }
+                      }}
+                      className={
+                        "hover:bg-accent-muted focus-visible:outline-accent-strong cursor-pointer transition focus-visible:outline focus-visible:outline-2 " +
+                        (isActive ? "bg-accent-muted" : "")
                       }
-                    }}
-                    className={
-                      "hover:bg-accent-muted focus-visible:outline-accent-strong cursor-pointer transition focus-visible:outline focus-visible:outline-2 " +
-                      (isActive ? "bg-accent-muted" : "")
-                    }
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-ink-primary font-medium">
-                          {resolveDisplayName(user)}
-                        </span>
-                        <span className="text-ink-faint text-xs">
-                          Created {user.createdAt.toLocaleDateString()}
-                        </span>
-                        {!user.isActive ? (
-                          <span className="text-status-danger text-xs font-semibold tracking-wide uppercase">
-                            Deactivated
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-ink-primary font-medium">
+                            {resolveDisplayName(user)}
                           </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="text-ink-subtle px-4 py-3">{user.email}</td>
-                    <td className="text-ink-subtle px-4 py-3 capitalize">
-                      {user.primaryRole
-                        ? user.primaryRole.replace("_", " ")
-                        : "Unassigned"}
-                    </td>
-                    <td className="text-ink-subtle px-4 py-3">
-                      {formatDateCell(user.lastActivity)}
+                          <span className="text-ink-faint text-xs">
+                            Created {user.createdAt.toLocaleDateString()}
+                          </span>
+                          {!user.isActive ? (
+                            <span className="text-status-danger text-xs font-semibold tracking-wide uppercase">
+                              Deactivated
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="text-ink-subtle px-4 py-3">
+                        {user.email}
+                      </td>
+                      <td className="text-ink-subtle px-4 py-3 capitalize">
+                        {user.primaryRole
+                          ? user.primaryRole.replace("_", " ")
+                          : "Unassigned"}
+                      </td>
+                      <td className="text-ink-subtle px-4 py-3">
+                        {formatDateCell(user.lastActivity)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-ink-muted px-4 py-6 text-center text-sm"
+                    >
+                      No users match your search.
                     </td>
                   </tr>
-                );
-              })}
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="text-ink-muted px-4 py-6 text-center text-sm"
-                  >
-                    No users match your search.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+                ) : null}
+              </tbody>
+            </table>
+          )}
         </div>
         <div className="mt-4 flex justify-end">
           <button
             type="button"
-            onClick={() => void refetch()}
+            onClick={() =>
+              void (isProfilesView ? refetchProfiles() : refetch())
+            }
             className="border-outline-muted text-ink-subtle hover:bg-surface-muted focus-visible:outline-accent-strong rounded-full border px-4 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2"
           >
             Refresh list
@@ -700,19 +1059,141 @@ export function UsersView() {
         </div>
       </section>
 
-      <section className="border-outline-muted bg-surface-raised rounded-2xl border p-6 shadow-[var(--shadow-pane)]">
+      <section className="border-outline-muted bg-surface-raised self-start rounded-2xl border p-6 shadow-[var(--shadow-pane)]">
         <header className="flex items-center justify-between">
           <div>
             <h2 className="text-ink-primary text-lg font-semibold">
-              User Details
+              {isProfilesView ? "Profile Details" : "User Details"}
             </h2>
             <p className="text-ink-muted text-sm">
-              Update profile information and role assignments.
+              {isProfilesView
+                ? "Review created profiles and edit them in the profile editor."
+                : "Update profile information and role assignments."}
             </p>
           </div>
         </header>
 
-        {!selectedUser ? (
+        {isProfilesView ? (
+          !selectedProfile ? (
+            <div className="border-outline-muted bg-surface-muted text-ink-muted mt-8 rounded-2xl border border-dashed px-4 py-10 text-center text-sm">
+              Select a profile from the directory to review its details.
+            </div>
+          ) : (
+            <div className="mt-6 flex flex-col gap-6">
+              <div className="grid gap-4">
+                <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                  <span>Profile name</span>
+                  <input
+                    value={resolveProfileDisplayName(selectedProfile)}
+                    readOnly
+                    className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                  />
+                </label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>First name</span>
+                    <input
+                      value={selectedProfile.firstName}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Last name</span>
+                    <input
+                      value={selectedProfile.lastName}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Contact email</span>
+                    <input
+                      value={selectedProfile.email}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Phone number</span>
+                    <input
+                      value={selectedProfile.phoneNumber}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                      placeholder="No phone number"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Affiliation</span>
+                    <input
+                      value={formatAffiliation(selectedProfile.affiliation)}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Linked account</span>
+                    <input
+                      value={
+                        selectedProfile.linkedUser
+                          ? `${resolveDisplayName(selectedProfile.linkedUser)} (@${selectedProfile.linkedUser.username})`
+                          : "Standalone profile"
+                      }
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Created</span>
+                    <input
+                      value={selectedProfile.createdAt.toLocaleDateString()}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Last updated</span>
+                    <input
+                      value={formatDateCell(selectedProfile.updatedAt)}
+                      readOnly
+                      className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="text-ink-muted text-xs">
+                  Profile #{selectedProfile.id}
+                </div>
+              </div>
+              {feedback ? (
+                <div
+                  className={
+                    "rounded-xl border px-3 py-2 text-sm " +
+                    (feedback.type === "success"
+                      ? "border-outline-accent bg-accent-muted text-accent-soft"
+                      : "border-status-danger bg-status-danger-surface text-status-danger")
+                  }
+                >
+                  {feedback.message}
+                </div>
+              ) : null}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => openProfileEditor(selectedProfile)}
+                  className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Edit profile
+                </button>
+              </div>
+            </div>
+          )
+        ) : !selectedUser ? (
           <div className="border-outline-muted bg-surface-muted text-ink-muted mt-8 rounded-2xl border border-dashed px-4 py-10 text-center text-sm">
             Select a user from the directory to edit their details.
           </div>
@@ -1031,6 +1512,137 @@ export function UsersView() {
                   ? "Deactivating..."
                   : "Deactivate user"}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {editingProfileId !== null ? (
+        <div className="fixed inset-0 z-[10000] flex items-start justify-center bg-[var(--color-overlay-backdrop)] px-4 py-8">
+          <div className="border-outline-muted bg-surface-raised max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-y-auto rounded-2xl border p-6 shadow-[var(--shadow-pane)]">
+            <h3 className="text-ink-primary text-lg font-semibold">
+              Edit profile
+            </h3>
+            <p className="text-ink-muted mt-2 text-sm">
+              Update this profile using the same event-profile editor fields.
+            </p>
+            <div className="mt-6 grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                  <span>First name</span>
+                  <input
+                    value={profileEditFormState.firstName}
+                    onChange={(event) =>
+                      setProfileEditFormState((prev) => ({
+                        ...prev,
+                        firstName: event.target.value,
+                      }))
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none"
+                    placeholder="First name"
+                  />
+                </label>
+                <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                  <span>Last name</span>
+                  <input
+                    value={profileEditFormState.lastName}
+                    onChange={(event) =>
+                      setProfileEditFormState((prev) => ({
+                        ...prev,
+                        lastName: event.target.value,
+                      }))
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none"
+                    placeholder="Last name"
+                  />
+                </label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                  <span>Email</span>
+                  <input
+                    type="text"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={profileEditFormState.email}
+                    onChange={(event) =>
+                      setProfileEditFormState((prev) => ({
+                        ...prev,
+                        email: sanitizeEmailDraft(event.target.value),
+                      }))
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none"
+                    placeholder="Email"
+                  />
+                </label>
+                <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                  <span>Affiliation</span>
+                  <select
+                    value={profileEditFormState.affiliation}
+                    onChange={(event) =>
+                      setProfileEditFormState((prev) => ({
+                        ...prev,
+                        affiliation: event.target.value as
+                          | "staff"
+                          | "faculty"
+                          | "student",
+                      }))
+                    }
+                    className="border-outline-muted bg-surface-muted text-ink-primary rounded-lg border px-3 py-2 text-sm outline-none"
+                  >
+                    {profileAffiliationOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                <span>Phone (optional)</span>
+                <input
+                  value={profileEditFormState.phoneNumber}
+                  onChange={(event) =>
+                    setProfileEditFormState((prev) => ({
+                      ...prev,
+                      phoneNumber: formatPhoneInput(event.target.value),
+                    }))
+                  }
+                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none"
+                  placeholder="Phone (optional)"
+                />
+              </label>
+              {editingProfileDetails.isLoading ? (
+                <div className="text-ink-muted text-xs">
+                  Loading profile details...
+                </div>
+              ) : null}
+              {profileEditError ? (
+                <div className="text-status-danger text-xs">
+                  {profileEditError}
+                </div>
+              ) : null}
+              <div className="mt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeProfileEditor}
+                  className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleProfileEditSubmit()}
+                  disabled={
+                    updateProfileMutation.isPending ||
+                    editingProfileDetails.isLoading
+                  }
+                  className="bg-accent-strong text-ink-inverted rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                >
+                  {updateProfileMutation.isPending
+                    ? "Saving..."
+                    : "Save changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
