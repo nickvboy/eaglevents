@@ -121,6 +121,18 @@ function splitOptionsIntoColumns<T>(options: readonly T[], columnCount: number) 
   );
 }
 
+function normalizeEmailInput(value: string) {
+  return value.trim();
+}
+
+function sanitizeEmailDraft(value: string) {
+  return normalizeEmailInput(value).replace(/\s+/g, "");
+}
+
+function isValidEmailAddress(value: string) {
+  return EMAIL_REGEX.test(normalizeEmailInput(value));
+}
+
 function normalizeTimeInput(value: string) {
   if (!value) return null;
   const trimmed = value.trim().toLowerCase();
@@ -2239,15 +2251,21 @@ export function NewEventDialog({
     setQuickCreateError(null);
     const firstName = quickCreateDraft.firstName.trim();
     const lastName = quickCreateDraft.lastName.trim();
-    const email = quickCreateDraft.email.trim();
+    const email = sanitizeEmailDraft(quickCreateDraft.email);
     const phoneNumber = quickCreateDraft.phoneNumber.trim();
     if (!firstName || !lastName || !email) {
       setQuickCreateError("Add a first name, last name, and email.");
       return;
     }
-    if (!EMAIL_REGEX.test(email)) {
+    if (!isValidEmailAddress(email)) {
       setQuickCreateError("Enter a valid email address.");
       return;
+    }
+    if (email !== quickCreateDraft.email) {
+      setQuickCreateDraft((prev) => ({
+        ...prev,
+        email,
+      }));
     }
     try {
       if (!ignoreDuplicateContactCheck) {
@@ -2341,12 +2359,15 @@ export function NewEventDialog({
           </div>
           <div className="space-y-2">
             <input
+              type="text"
+              inputMode="email"
+              autoComplete="email"
               placeholder="Email"
               value={quickCreateDraft.email}
               onChange={(e) =>
                 setQuickCreateDraft((prev) => ({
                   ...prev,
-                  email: e.target.value,
+                  email: sanitizeEmailDraft(e.target.value),
                 }))
               }
               className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
