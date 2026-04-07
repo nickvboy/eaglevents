@@ -12,6 +12,7 @@ type DbClient = typeof dbClient;
 type DateTimeRow = typeof dateTimes.$inferSelect;
 
 export const DEFAULT_TIME_ZONE = "UTC";
+const DATE_TIME_INSERT_BATCH_SIZE = 100;
 
 const MONTH_SHORT_NAMES = [
   "Jan",
@@ -446,12 +447,15 @@ export async function resolveDateTimeIds(
     };
   }
 
-  await db
-    .insert(dateTimes)
-    .values(distinctInstants.map((instantUtc) => buildDateTimeDimensionValue(instantUtc, settings)))
-    .onConflictDoNothing({
-      target: [dateTimes.instantUtc, dateTimes.timeZone],
-    });
+  for (let index = 0; index < distinctInstants.length; index += DATE_TIME_INSERT_BATCH_SIZE) {
+    const batch = distinctInstants.slice(index, index + DATE_TIME_INSERT_BATCH_SIZE);
+    await db
+      .insert(dateTimes)
+      .values(batch.map((instantUtc) => buildDateTimeDimensionValue(instantUtc, settings)))
+      .onConflictDoNothing({
+        target: [dateTimes.instantUtc, dateTimes.timeZone],
+      });
+  }
 
   const rows = await db
     .select()

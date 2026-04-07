@@ -59,7 +59,9 @@ const timestampSchema = z.string().datetime();
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableTimestampSchema = timestampSchema.nullable();
 const nullableDateOnlySchema = dateOnlySchema.nullable();
-const SNAPSHOT_IMPORT_BATCH_SIZE = 200;
+// Keep insert batches modest because large multi-row inserts with wide JSON payloads
+// can overflow Drizzle's SQL builder on older/larger snapshots.
+const SNAPSHOT_IMPORT_BATCH_SIZE = 50;
 
 const dateFormatConfigSchema = z
   .object({
@@ -542,11 +544,22 @@ async function insertRowsInBatches<T>(
   db: DbInserter,
   table: Parameters<DbInserter["insert"]>[0],
   rows: T[],
+  label: string,
   chunkSize = SNAPSHOT_IMPORT_BATCH_SIZE,
 ) {
   if (rows.length === 0) return;
   for (let index = 0; index < rows.length; index += chunkSize) {
-    await db.insert(table).values(rows.slice(index, index + chunkSize));
+    const batch = rows.slice(index, index + chunkSize);
+    try {
+      await db.insert(table).values(batch);
+    } catch (error) {
+      const start = index + 1;
+      const end = index + batch.length;
+      const message = error instanceof Error ? error.message : "Failed to insert snapshot rows.";
+      throw new Error(`[snapshot-import:${label}] Failed batch ${start}-${end}: ${message}`, {
+        cause: error instanceof Error ? error : undefined,
+      });
+    }
   }
 }
 
@@ -648,6 +661,10 @@ function buildParsedEventRows(rows: SnapshotEventRow[]) {
   }));
 }
 
+export function normalizeSnapshotImport(input: unknown): SnapshotImportInput {
+  return snapshotSchema.parse(input);
+}
+
 export async function findBusinessId(db: Pick<DbClient, "select">): Promise<number | null> {
   const [business] = await db
     .select({ id: businesses.id })
@@ -658,14 +675,16 @@ export async function findBusinessId(db: Pick<DbClient, "select">): Promise<numb
 }
 
 export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) {
-  if (!SUPPORTED_SNAPSHOT_VERSIONS.includes(input.version)) {
+  const normalizedInput = normalizeSnapshotImport(input);
+
+  if (!SUPPORTED_SNAPSHOT_VERSIONS.includes(normalizedInput.version)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Unsupported snapshot version.",
     });
   }
 
-  const data = input.data;
+  const data = normalizedInput.data;
 
   await db.transaction(async (tx) => {
     await truncateSnapshotTables(tx);
@@ -685,6 +704,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "users",
       );
     }
 
@@ -698,6 +718,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "posts",
       );
     }
 
@@ -717,6 +738,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "profiles",
       );
     }
 
@@ -732,7 +754,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
     }));
 
     if (businessRows.length > 0) {
-      await insertRowsInBatches(tx, businesses, businessRows);
+      await insertRowsInBatches(tx, businesses, businessRows, "businesses");
     }
 
     const businessDateSettings = {
@@ -752,6 +774,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "buildings",
       );
     }
 
@@ -766,6 +789,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "rooms",
       );
     }
 
@@ -783,7 +807,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
         };
       });
 
-      await insertRowsInBatches(tx, departments, departmentRows);
+      await insertRowsInBatches(tx, departments, departmentRows, "departments");
 
       for (const [id, parentId] of departmentParents.entries()) {
         if (parentId === null) continue;
@@ -806,6 +830,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "themePalettes",
       );
     }
 
@@ -824,6 +849,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "themeProfiles",
       );
     }
 
@@ -841,6 +867,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "organizationRoles",
       );
     }
 
@@ -863,6 +890,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           createdAt: parseRequiredTimestamp(row.createdAt),
           updatedAt: parseTimestamp(row.updatedAt),
         })),
+        "calendars",
       );
     }
 
@@ -871,6 +899,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
         tx,
         dateTimes,
         data.dateTimes.map((row) => buildImportedDateTimeRow(row, businessDateSettings)),
+        "dateTimes",
       );
       await resetIdentitySequence(tx, "date_time");
     }
@@ -952,6 +981,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
             updatedAt: parseTimestamp(row.updatedAt),
           };
         }),
+        "events",
       );
     }
 
@@ -965,6 +995,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           roomId: row.roomId,
           createdAt: parseRequiredTimestamp(row.createdAt),
         })),
+        "eventRooms",
       );
     }
 
@@ -978,6 +1009,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           profileId: row.profileId,
           createdAt: parseRequiredTimestamp(row.createdAt),
         })),
+        "eventCoOwners",
       );
     }
 
@@ -992,6 +1024,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           email: row.email,
           responseStatus: row.responseStatus,
         })),
+        "eventAttendees",
       );
     }
 
@@ -1004,6 +1037,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           eventId: row.eventId,
           reminderMinutes: row.reminderMinutes,
         })),
+        "eventReminders",
       );
     }
 
@@ -1020,6 +1054,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           durationMinutes: row.durationMinutes,
           createdAt: parseRequiredTimestamp(row.createdAt),
         })),
+        "eventHourLogs",
       );
     }
 
@@ -1033,6 +1068,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           profileId: row.profileId,
           confirmedAt: parseRequiredTimestamp(row.confirmedAt),
         })),
+        "eventZendeskConfirmations",
       );
     }
 
@@ -1049,6 +1085,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           reason: row.reason,
           createdAt: parseRequiredTimestamp(row.createdAt),
         })),
+        "visibilityGrants",
       );
     }
 
@@ -1069,6 +1106,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
           metadata: row.metadata ?? null,
           createdAt: parseRequiredTimestamp(row.createdAt),
         })),
+        "auditLogs",
       );
     }
 

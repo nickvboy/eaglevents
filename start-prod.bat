@@ -26,8 +26,19 @@ REM === VERIFY TOOLS EXIST ===
 where node >> "%LOGFILE%" 2>&1 || exit /b 3
 where pnpm >> "%LOGFILE%" 2>&1 || exit /b 3
 
+REM === BUILD FRESH PRODUCTION ARTIFACTS ===
+if exist ".next" (
+    echo Removing stale .next build output >> "%LOGFILE%"
+    rmdir /s /q ".next" >> "%LOGFILE%" 2>&1
+)
+
+echo Running production build >> "%LOGFILE%"
+pnpm build >> "%LOGFILE%" 2>&1
+if errorlevel 1 exit /b %ERRORLEVEL%
+
 REM === START APPLICATION ===
-pnpm prod >> "%LOGFILE%" 2>&1
+echo Starting production server >> "%LOGFILE%"
+pnpm prod start >> "%LOGFILE%" 2>&1
 
 set EXITCODE=%ERRORLEVEL%
 echo Exit code: %EXITCODE% >> "%LOGFILE%"
