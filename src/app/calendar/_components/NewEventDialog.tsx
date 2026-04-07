@@ -10,6 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { TRPCClientError } from "@trpc/client";
+import { useSession } from "next-auth/react";
 import { addDays, startOfDay } from "../utils/date";
 import {
   EQUIPMENT_NEEDED_OPTIONS,
@@ -439,7 +440,20 @@ function DropdownSelect({
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div
+      className="relative"
+      ref={containerRef}
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          nextTarget instanceof Node &&
+          containerRef.current?.contains(nextTarget)
+        ) {
+          return;
+        }
+        setOpen(false);
+      }}
+    >
       <button
         type="button"
         role="combobox"
@@ -448,7 +462,6 @@ function DropdownSelect({
         aria-activedescendant={
           highlightedIndex >= 0 ? `${listboxId}-${highlightedIndex}` : undefined
         }
-        onFocus={() => setOpen(true)}
         onClick={() => setOpen((prev) => !prev)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
@@ -478,6 +491,8 @@ function DropdownSelect({
             }
           } else if (event.key === "Escape") {
             event.preventDefault();
+            setOpen(false);
+          } else if (event.key === "Tab") {
             setOpen(false);
           }
         }}
@@ -637,6 +652,7 @@ function TimeSelect({
     onChange(normalized);
     setDraft(getTimeSegmentDraft(normalized));
     setEditError(null);
+    setOpen(false);
   };
 
   const resetDraft = () => {
@@ -715,6 +731,13 @@ function TimeSelect({
     }
   };
 
+  const commitAndClose = (activeElement?: HTMLInputElement | null) => {
+    commitDraft(draft);
+    if (normalizeSegmentedTimeInput(draft)) {
+      activeElement?.blur();
+    }
+  };
+
   return (
     <div className="relative inline-flex min-w-0" ref={containerRef}>
       <div
@@ -722,7 +745,6 @@ function TimeSelect({
           "border-outline-muted bg-surface-muted text-ink-primary hover:border-outline-strong focus-within:ring-accent-strong inline-flex min-h-[2.5rem] items-center gap-0.5 rounded-md border px-1.5 py-1 text-sm transition focus-within:ring-2 " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
-        onFocusCapture={() => setOpen(true)}
         onBlurCapture={(event) => {
           const nextTarget = event.relatedTarget;
           if (
@@ -761,14 +783,9 @@ function TimeSelect({
               nudgeSegment("hour", event.key === "ArrowUp" ? 1 : -1);
             } else if (event.key === "Enter") {
               event.preventDefault();
-              const highlightedOption = selectableOptions.find(
-                (option) => option.value === highlightedValue,
-              );
-              if (open && highlightedOption) {
-                commitSelection(highlightedOption.value);
-                return;
-              }
-              commitDraft(draft);
+              commitAndClose(event.currentTarget);
+            } else if (event.key === "Tab") {
+              setOpen(false);
             } else if (event.key === "Escape") {
               event.preventDefault();
               resetDraft();
@@ -813,14 +830,9 @@ function TimeSelect({
               nudgeSegment("minute", event.key === "ArrowUp" ? 1 : -1);
             } else if (event.key === "Enter") {
               event.preventDefault();
-              const highlightedOption = selectableOptions.find(
-                (option) => option.value === highlightedValue,
-              );
-              if (open && highlightedOption) {
-                commitSelection(highlightedOption.value);
-                return;
-              }
-              commitDraft(draft);
+              commitAndClose(event.currentTarget);
+            } else if (event.key === "Tab") {
+              setOpen(false);
             } else if (event.key === "Escape") {
               event.preventDefault();
               resetDraft();
@@ -859,14 +871,9 @@ function TimeSelect({
               nudgeSegment("meridiem", event.key === "ArrowUp" ? 1 : -1);
             } else if (event.key === "Enter") {
               event.preventDefault();
-              const highlightedOption = selectableOptions.find(
-                (option) => option.value === highlightedValue,
-              );
-              if (open && highlightedOption) {
-                commitSelection(highlightedOption.value);
-                return;
-              }
-              commitDraft(draft);
+              commitAndClose(event.currentTarget);
+            } else if (event.key === "Tab") {
+              setOpen(false);
             } else if (event.key === "Escape") {
               event.preventDefault();
               resetDraft();
@@ -1339,6 +1346,9 @@ export function NewEventDialog({
   const [assigneeHighlight, setAssigneeHighlight] = useState(-1);
   const [attendeeHighlight, setAttendeeHighlight] = useState(-1);
   const [coOwnerHighlight, setCoOwnerHighlight] = useState(-1);
+  const [assigneeFocused, setAssigneeFocused] = useState(false);
+  const [attendeeFocused, setAttendeeFocused] = useState(false);
+  const [coOwnerFocused, setCoOwnerFocused] = useState(false);
   const [autoAssignPending, setAutoAssignPending] = useState(false);
   const [quickCreateTarget, setQuickCreateTarget] = useState<
     "assignee" | "attendee" | "coOwner" | null
@@ -1359,6 +1369,12 @@ export function NewEventDialog({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const specificLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const generalLocationWrapRef = useRef<HTMLDivElement | null>(null);
+  const attendeeSearchWrapRef = useRef<HTMLDivElement | null>(null);
+  const assigneeSearchWrapRef = useRef<HTMLDivElement | null>(null);
+  const coOwnerSearchWrapRef = useRef<HTMLDivElement | null>(null);
+  const quickCreatePanelRef = useRef<HTMLDivElement | null>(null);
+  const deleteConfirmRef = useRef<HTMLDivElement | null>(null);
+  const duplicateConfirmRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const logBaseDate = useMemo(
     () => startOfDay(event ? new Date(event.startDatetime) : defaultDate),
@@ -1373,13 +1389,17 @@ export function NewEventDialog({
     !ZENDESK_TICKET_REGEX.test(zendeskTicket.trim())
       ? "Zendesk ticket must be exactly 6 digits."
       : null;
-  const currentProfile = api.profile.me.useQuery(undefined, { enabled: open });
+  const { status: sessionStatus } = useSession();
+  const hasAuthenticatedSession = sessionStatus === "authenticated";
+  const currentProfile = api.profile.me.useQuery(undefined, {
+    enabled: open && hasAuthenticatedSession,
+  });
   const editingProfileDetails = api.profile.getById.useQuery(
     {
       profileId: profileEditTarget?.profile.profileId ?? 0,
     },
     {
-      enabled: open && profileEditTarget !== null,
+      enabled: open && hasAuthenticatedSession && profileEditTarget !== null,
     },
   );
   const requestDetails = useMemo(
@@ -2156,6 +2176,7 @@ export function NewEventDialog({
   );
   const assigneeMatches = assigneeResults.data ?? [];
   const shouldShowAssigneeResults =
+    assigneeFocused &&
     assigneeQuery.length > 1 &&
     quickCreateTarget === null &&
     profileEditTarget === null;
@@ -2165,6 +2186,7 @@ export function NewEventDialog({
   );
   const attendeeMatches = attendeeResults.data ?? [];
   const shouldShowAttendeeResults =
+    attendeeFocused &&
     attendeeQuery.length > 1 &&
     quickCreateTarget === null &&
     profileEditTarget === null;
@@ -2174,6 +2196,7 @@ export function NewEventDialog({
   );
   const coOwnerMatches = coOwnerResults.data ?? [];
   const shouldShowCoOwnerResults =
+    coOwnerFocused &&
     coOwnerQuery.length > 1 &&
     quickCreateTarget === null &&
     profileEditTarget === null;
@@ -2358,6 +2381,23 @@ export function NewEventDialog({
       block: "nearest",
     });
   }, [locationHighlight]);
+
+  useEffect(() => {
+    if (quickCreateTarget === null && profileEditTarget === null) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!quickCreatePanelRef.current) return;
+      if (quickCreatePanelRef.current.contains(event.target as Node)) return;
+      if (profileEditTarget !== null) {
+        closeProfileEditor();
+        return;
+      }
+      closeQuickCreate();
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileEditTarget, quickCreateTarget]);
 
   const handleBackdropMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
@@ -2831,7 +2871,24 @@ export function NewEventDialog({
       isEditingProfile && editingProfileDetails.isLoading;
     if (!isEditingProfile && quickCreateTarget === null) return null;
     return (
-      <div className="border-outline-muted bg-surface-muted mt-2 rounded-md border p-3">
+      <div
+        ref={quickCreatePanelRef}
+        className="border-outline-muted bg-surface-muted mt-2 rounded-md border p-3"
+        onBlurCapture={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (
+            nextTarget instanceof Node &&
+            quickCreatePanelRef.current?.contains(nextTarget)
+          ) {
+            return;
+          }
+          if (profileEditTarget !== null) {
+            closeProfileEditor();
+            return;
+          }
+          closeQuickCreate();
+        }}
+      >
         <div className="text-ink-primary flex items-center justify-between text-sm font-semibold">
           <span>
             {isEditingProfile
@@ -3230,8 +3287,29 @@ export function NewEventDialog({
       onMouseDown={handleBackdropMouseDown}
     >
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
-          <div className="border-status-danger bg-surface-raised w-full max-w-md rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+        <div
+          className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowDeleteConfirm(false);
+            }
+          }}
+        >
+          <div
+            ref={deleteConfirmRef}
+            className="border-status-danger bg-surface-raised w-full max-w-md rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]"
+            tabIndex={-1}
+            onBlurCapture={(event) => {
+              const nextTarget = event.relatedTarget;
+              if (
+                nextTarget instanceof Node &&
+                deleteConfirmRef.current?.contains(nextTarget)
+              ) {
+                return;
+              }
+              setShowDeleteConfirm(false);
+            }}
+          >
             <div className="text-status-danger text-xs font-semibold tracking-wide uppercase">
               Confirm delete
             </div>
@@ -3260,8 +3338,29 @@ export function NewEventDialog({
         </div>
       )}
       {showDuplicateContactConfirm && quickCreateTarget !== null && (
-        <div className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4">
-          <div className="border-status-danger bg-surface-raised w-full max-w-lg rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]">
+        <div
+          className="fixed inset-0 z-[10021] flex items-center justify-center bg-[var(--color-overlay-backdrop)]/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowDuplicateContactConfirm(false);
+            }
+          }}
+        >
+          <div
+            ref={duplicateConfirmRef}
+            className="border-status-danger bg-surface-raised w-full max-w-lg rounded-2xl border p-5 text-sm shadow-2xl shadow-[var(--shadow-pane)]"
+            tabIndex={-1}
+            onBlurCapture={(event) => {
+              const nextTarget = event.relatedTarget;
+              if (
+                nextTarget instanceof Node &&
+                duplicateConfirmRef.current?.contains(nextTarget)
+              ) {
+                return;
+              }
+              setShowDuplicateContactConfirm(false);
+            }}
+          >
             <div className="text-status-danger text-xs font-semibold tracking-wide uppercase">
               Possible duplicate profile
             </div>
@@ -3593,12 +3692,27 @@ export function NewEventDialog({
                 ))
               )}
             </div>
-            <div className="relative mt-2">
+            <div
+              className="relative mt-2"
+              ref={attendeeSearchWrapRef}
+              onBlurCapture={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (
+                  nextTarget instanceof Node &&
+                  attendeeSearchWrapRef.current?.contains(nextTarget)
+                ) {
+                  return;
+                }
+                setAttendeeFocused(false);
+                setAttendeeHighlight(-1);
+              }}
+            >
               <input
                 placeholder="Search by name, email, or phone"
                 value={attendeeSearch}
                 onChange={(e) => setAttendeeSearch(e.target.value)}
                 onFocus={() => {
+                  setAttendeeFocused(true);
                   if (attendeeMatches.length > 0) {
                     setAttendeeHighlight((prev) => (prev >= 0 ? prev : 0));
                   }
@@ -3624,6 +3738,9 @@ export function NewEventDialog({
                       handleAddAttendee(highlightedMatch);
                     }
                   } else if (e.key === "Escape") {
+                    setAttendeeHighlight(-1);
+                  } else if (e.key === "Tab") {
+                    setAttendeeFocused(false);
                     setAttendeeHighlight(-1);
                   }
                 }}
@@ -3756,7 +3873,21 @@ export function NewEventDialog({
                   </button>
                 </div>
               )}
-              <div className="relative">
+              <div
+                className="relative"
+                ref={assigneeSearchWrapRef}
+                onBlurCapture={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (
+                    nextTarget instanceof Node &&
+                    assigneeSearchWrapRef.current?.contains(nextTarget)
+                  ) {
+                    return;
+                  }
+                  setAssigneeFocused(false);
+                  setAssigneeHighlight(-1);
+                }}
+              >
                 <input
                   placeholder={
                     assignee
@@ -3766,6 +3897,7 @@ export function NewEventDialog({
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
                   onFocus={() => {
+                    setAssigneeFocused(true);
                     if (assigneeMatches.length > 0) {
                       setAssigneeHighlight((prev) => (prev >= 0 ? prev : 0));
                     }
@@ -3799,6 +3931,9 @@ export function NewEventDialog({
                         handleSelectAssignee(highlightedMatch);
                       }
                     } else if (e.key === "Escape") {
+                      setAssigneeHighlight(-1);
+                    } else if (e.key === "Tab") {
+                      setAssigneeFocused(false);
                       setAssigneeHighlight(-1);
                     }
                   }}
@@ -3932,12 +4067,27 @@ export function NewEventDialog({
                   ))
                 )}
               </div>
-              <div className="relative mt-2">
+              <div
+                className="relative mt-2"
+                ref={coOwnerSearchWrapRef}
+                onBlurCapture={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (
+                    nextTarget instanceof Node &&
+                    coOwnerSearchWrapRef.current?.contains(nextTarget)
+                  ) {
+                    return;
+                  }
+                  setCoOwnerFocused(false);
+                  setCoOwnerHighlight(-1);
+                }}
+              >
                 <input
                   placeholder="Search by name, email, or phone"
                   value={coOwnerSearch}
                   onChange={(e) => setCoOwnerSearch(e.target.value)}
                   onFocus={() => {
+                    setCoOwnerFocused(true);
                     if (coOwnerMatches.length > 0) {
                       setCoOwnerHighlight((prev) => (prev >= 0 ? prev : 0));
                     }
@@ -3967,6 +4117,9 @@ export function NewEventDialog({
                         handleAddCoOwner(highlightedMatch);
                       }
                     } else if (e.key === "Escape") {
+                      setCoOwnerHighlight(-1);
+                    } else if (e.key === "Tab") {
+                      setCoOwnerFocused(false);
                       setCoOwnerHighlight(-1);
                     }
                   }}
@@ -4500,7 +4653,22 @@ export function NewEventDialog({
                   </div>
                 ) : null}
               </div>
-              <div ref={specificLocationWrapRef}>
+              <div
+                ref={specificLocationWrapRef}
+                onBlurCapture={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (
+                    nextTarget instanceof Node &&
+                    specificLocationWrapRef.current?.contains(nextTarget)
+                  ) {
+                    return;
+                  }
+                  if (activeLocationSearch === "selected-building") {
+                    setActiveLocationSearch(null);
+                    setLocationHighlight(-1);
+                  }
+                }}
+              >
                 <div className="text-ink-muted mb-1 text-xs">Room</div>
                 <input
                   placeholder="Search selected building rooms, e.g. 210 or 210A"
@@ -4548,6 +4716,11 @@ export function NewEventDialog({
                         handleLocationSelect(highlightedMatch);
                       }
                     } else if (e.key === "Escape") {
+                      setLocationHighlight(-1);
+                    } else if (e.key === "Tab") {
+                      if (activeLocationSearch === "selected-building") {
+                        setActiveLocationSearch(null);
+                      }
                       setLocationHighlight(-1);
                     }
                   }}
@@ -4679,7 +4852,22 @@ export function NewEventDialog({
                 ))}
               </div>
             )}
-            <div ref={generalLocationWrapRef}>
+            <div
+              ref={generalLocationWrapRef}
+              onBlurCapture={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (
+                  nextTarget instanceof Node &&
+                  generalLocationWrapRef.current?.contains(nextTarget)
+                ) {
+                  return;
+                }
+                if (activeLocationSearch === "all") {
+                  setActiveLocationSearch(null);
+                  setLocationHighlight(-1);
+                }
+              }}
+            >
               <div className="text-ink-subtle mb-1 text-xs font-semibold tracking-[0.2em] uppercase">
                 General building search
               </div>
@@ -4725,6 +4913,11 @@ export function NewEventDialog({
                       handleLocationSelect(highlightedMatch);
                     }
                   } else if (e.key === "Escape") {
+                    setLocationHighlight(-1);
+                  } else if (e.key === "Tab") {
+                    if (activeLocationSearch === "all") {
+                      setActiveLocationSearch(null);
+                    }
                     setLocationHighlight(-1);
                   }
                 }}
