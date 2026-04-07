@@ -26,6 +26,7 @@
   --color-accent-default: #10b981;
   --color-accent-soft: #6ee7b7;
   --color-accent-muted: #0f3c29;
+  --color-calendar-event-day: color-mix(in srgb, var(--color-ink-primary) 72%, var(--color-accent-strong) 28%);
 
   --color-status-success: #34d399;
   --color-status-success-surface: #04261d;
@@ -62,6 +63,7 @@
   --color-accent-default: #10b981;
   --color-accent-soft: #6ee7b7;
   --color-accent-muted: #0f3c29;
+  --color-calendar-event-day: color-mix(in srgb, var(--color-ink-primary) 72%, var(--color-accent-strong) 28%);
 
   --color-status-success: #34d399;
   --color-status-success-surface: #04261d;
@@ -98,6 +100,7 @@
   --color-accent-default: #0ea876;
   --color-accent-soft: #34d399;
   --color-accent-muted: #bff1da;
+  --color-calendar-event-day: color-mix(in srgb, var(--color-accent-strong) 82%, var(--color-ink-primary) 18%);
 
   --color-status-success: #15803d;
   --color-status-success-surface: #dcfce7;

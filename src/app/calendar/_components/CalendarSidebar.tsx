@@ -11,6 +11,7 @@ type MonthWidgetProps = {
   onSelect: (d: Date) => void;
   onMonthChange: (direction: number) => void;
   focusedWeekStart: Date; // start of the week currently in focus
+  eventDayKeys?: Set<string>;
   calendars: { id: number; name: string; color: string; isPersonal: boolean; canManage: boolean }[];
   visibleCalendarIds: number[];
   onToggleCalendar: (id: number) => void;
@@ -192,15 +193,17 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                   </div>
                 ))}
                 {days.map((d, idx) => {
+                  const dayStart = startOfDay(d);
                   const inMonth = d.getMonth() === props.monthDate.getMonth();
-                  const isToday = startOfDay(d).getTime() === today.getTime();
-                  const isSelected = startOfDay(d).getTime() === selected.getTime();
+                  const isToday = dayStart.getTime() === today.getTime();
+                  const isSelected = dayStart.getTime() === selected.getTime();
                   const isInFocusWeek =
-                    startOfDay(d).getTime() >= focusWeek.getTime() &&
-                    startOfDay(d).getTime() < addDays(focusWeek, 7).getTime();
+                    dayStart.getTime() >= focusWeek.getTime() &&
+                    dayStart.getTime() < addDays(focusWeek, 7).getTime();
+                  const hasEvent = inMonth && (props.eventDayKeys?.has(dayStart.toISOString()) ?? false);
                   return (
                     <button
-                      key={`${d.toISOString()}-${idx}`}
+                      key={`${dayStart.toISOString()}-${idx}`}
                       onClick={() => props.onSelect(d)}
                       className={
                         "relative h-8 rounded-md text-center transition-colors " +
@@ -215,13 +218,16 @@ export function CalendarSidebar(props: MonthWidgetProps) {
                         }
                       />
                       <span
+                        style={hasEvent && !isSelected ? { color: "var(--color-calendar-event-day)" } : undefined}
                         className={
                           "relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full " +
                           (isSelected
                             ? "bg-accent-strong text-ink-inverted font-medium"
                             : isToday
                               ? "border border-outline-accent"
-                              : "hover:bg-surface-muted")
+                              : hasEvent
+                                ? "hover:bg-surface-muted"
+                                : "hover:bg-surface-muted")
                         }
                       >
                         {d.getDate()}

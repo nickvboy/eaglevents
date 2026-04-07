@@ -369,6 +369,7 @@ export function CalendarShell() {
 
   const monthViewDays = useMemo(() => buildMonthGrid(selectedDate), [selectedDate]);
   const mobileMonthDays = useMemo(() => buildMonthGrid(mobileMonthDate), [mobileMonthDate]);
+  const sidebarMonthDays = useMemo(() => buildMonthGrid(sidebarMonthDate), [sidebarMonthDate]);
 
   // events
   const eventsQuery = api.event.list.useQuery({
@@ -380,6 +381,19 @@ export function CalendarShell() {
     if (visibleCalendarsLoaded && effectiveVisible.length === 0) return [];
     return eventsQuery.data ?? [];
   }, [eventsQuery.data, effectiveVisible.length, visibleCalendarsLoaded]);
+  const sidebarEventsQuery = api.event.list.useQuery({
+    start: sidebarMonthDays[0] ?? sidebarMonthDate,
+    end: addDays(sidebarMonthDays[sidebarMonthDays.length - 1] ?? sidebarMonthDate, 1),
+    calendarIds: effectiveVisible.length > 0 ? effectiveVisible : undefined,
+  });
+  const sidebarEventDayKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (visibleCalendarsLoaded && effectiveVisible.length === 0) return keys;
+    for (const event of sidebarEventsQuery.data ?? []) {
+      keys.add(startOfDay(new Date(event.startDatetime)).toISOString());
+    }
+    return keys;
+  }, [effectiveVisible.length, sidebarEventsQuery.data, visibleCalendarsLoaded]);
   const previewEvent = useMemo(
     () => events.find((e) => e.id === previewEventId) ?? null,
     [events, previewEventId],
@@ -557,6 +571,7 @@ export function CalendarShell() {
               })
             }
             focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
+            eventDayKeys={sidebarEventDayKeys}
             calendars={(calendars ?? []).map((c) => ({
               id: c.id,
               name: c.name,
@@ -743,6 +758,7 @@ export function CalendarShell() {
                 })
               }
               focusedWeekStart={startOfWeek(selectedDate, activeView === "workweek")}
+              eventDayKeys={sidebarEventDayKeys}
               calendars={(calendars ?? []).map((c) => ({
                 id: c.id,
                 name: c.name,
