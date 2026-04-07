@@ -2,9 +2,11 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { TRPCClientError } from "@trpc/client";
@@ -32,6 +34,8 @@ const DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v2";
 const LEGACY_DRAFT_STORAGE_KEY = "eaglevents:new-event-draft:v1";
 const EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v2";
 const LEGACY_EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v1";
+const FOCUSABLE_FIELD_CLASS =
+  "transition focus-visible:border-outline-strong focus-visible:ring-accent-strong focus-visible:ring-2";
 
 type Segment = {
   id: string;
@@ -280,6 +284,35 @@ function formatLocationSummaryFromRooms(rooms: LocationMatch[]) {
   return segments.join("; ");
 }
 
+function getNextHighlightedIndex(
+  currentIndex: number,
+  itemCount: number,
+  direction: 1 | -1,
+) {
+  if (itemCount <= 0) return -1;
+  if (direction === 1) {
+    return currentIndex < 0 ? 0 : Math.min(currentIndex + 1, itemCount - 1);
+  }
+  return currentIndex < 0 ? itemCount - 1 : Math.max(currentIndex - 1, 0);
+}
+
+function getHighlightedItem<T>(items: T[], highlightedIndex: number) {
+  if (items.length === 0) return null;
+  if (highlightedIndex >= 0 && highlightedIndex < items.length) {
+    return items[highlightedIndex] ?? null;
+  }
+  return items.length === 1 ? (items[0] ?? null) : null;
+}
+
+function handleCheckboxEnterKey(
+  event: ReactKeyboardEvent<HTMLInputElement>,
+  onToggle: () => void,
+) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  onToggle();
+}
+
 function parseHourLogTime(value: string, baseDate: Date) {
   if (!value) return null;
   const normalized = normalizeTimeInput(value);
@@ -307,6 +340,153 @@ type TimeSelectProps = {
   allowEmpty?: boolean;
 };
 
+type DropdownSelectOption = {
+  value: string;
+  label: string;
+};
+
+function DropdownSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  invalid = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly DropdownSelectOption[];
+  placeholder?: string;
+  invalid?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listboxId = useId();
+
+  const selectedOption = options.find((option) => option.value === value) ?? null;
+
+  useEffect(() => {
+    function handleClick(event: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const selectedIndex = options.findIndex((option) => option.value === value);
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0);
+  }, [open, options, value]);
+
+  useEffect(() => {
+    if (!open || highlightedIndex < 0) return;
+    optionRefs.current[highlightedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex, open]);
+
+  const commitSelection = (nextValue: string) => {
+    onChange(nextValue);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-activedescendant={
+          highlightedIndex >= 0 ? `${listboxId}-${highlightedIndex}` : undefined
+        }
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setOpen(true);
+            setHighlightedIndex((prev) =>
+              getNextHighlightedIndex(prev, options.length, 1),
+            );
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+            setHighlightedIndex((prev) =>
+              getNextHighlightedIndex(prev, options.length, -1),
+            );
+          } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            if (!open) {
+              setOpen(true);
+              return;
+            }
+            const highlightedOption = getHighlightedItem(
+              options as DropdownSelectOption[],
+              highlightedIndex,
+            );
+            if (highlightedOption) {
+              commitSelection(highlightedOption.value);
+            }
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setOpen(false);
+          }
+        }}
+        className={
+          `bg-surface-muted text-ink-primary flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm outline-none ${FOCUSABLE_FIELD_CLASS} ` +
+          (invalid ? "border-status-danger" : "border-outline-muted")
+        }
+      >
+        <span className={selectedOption ? "" : "text-ink-faint"}>
+          {selectedOption?.label ?? placeholder ?? ""}
+        </span>
+        <ChevronDownIcon className="h-3.5 w-3.5 shrink-0" />
+      </button>
+      {open && options.length > 0 ? (
+        <div
+          id={listboxId}
+          role="listbox"
+          className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+        >
+          {options.map((option, index) => {
+            const isActive = index === highlightedIndex;
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                id={`${listboxId}-${index}`}
+                role="option"
+                aria-selected={isActive}
+                tabIndex={-1}
+                ref={(node) => {
+                  optionRefs.current[index] = node;
+                }}
+                className={
+                  "border-outline-muted text-ink-primary flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-b-0 " +
+                  (isActive || isSelected
+                    ? "bg-accent-muted"
+                    : "hover:bg-surface-muted")
+                }
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => commitSelection(option.value)}
+              >
+                <span>{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TimeSelect({
   value,
   onChange,
@@ -324,10 +504,11 @@ function TimeSelect({
   const [pendingConfirmedValue, setPendingConfirmedValue] = useState<
     string | null
   >(null);
+  const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const activeOptionRef = useRef<HTMLButtonElement | null>(null);
-  const defaultOptionRef = useRef<HTMLButtonElement | null>(null);
+  const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const listboxId = useId();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -356,18 +537,40 @@ function TimeSelect({
     setDraftValue(formatTimeFieldValue(value));
   }, [isEditing, pendingConfirmedValue, value]);
 
-  useEffect(() => {
-    if (!open) return;
-    const target = activeOptionRef.current ?? defaultOptionRef.current;
-    target?.scrollIntoView({ block: "nearest" });
-  }, [open, value]);
-
   const optionLabel = value
     ? (options.find((opt) => opt.value === value)?.label ?? null)
     : null;
   const hasCustomValue = Boolean(value && !optionLabel);
   const customOptionLabel = value ? `${formatTimeLabel(value)} (custom)` : null;
-  activeOptionRef.current = null;
+  const selectableOptions = useMemo(() => {
+    const nextOptions = options.map((option) => ({
+      label: option.label,
+      value: option.value,
+    }));
+    if (hasCustomValue && customOptionLabel && value) {
+      nextOptions.unshift({
+        label: customOptionLabel,
+        value,
+      });
+    }
+    return nextOptions;
+  }, [customOptionLabel, hasCustomValue, options, value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const defaultHighlightedValue =
+      value ||
+      selectableOptions.find((option) => option.value === DEFAULT_TIME_VALUE)
+        ?.value ||
+      selectableOptions[0]?.value ||
+      null;
+    setHighlightedValue(defaultHighlightedValue);
+  }, [open, selectableOptions, value]);
+
+  useEffect(() => {
+    if (!open || !highlightedValue) return;
+    optionRefs.current[highlightedValue]?.scrollIntoView({ block: "nearest" });
+  }, [highlightedValue, open]);
 
   const commitSelection = (nextValue: string) => {
     onChange(nextValue);
@@ -500,8 +703,29 @@ function TimeSelect({
             ) {
               event.preventDefault();
               applyMeridiemShortcut("PM");
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              setIsEditing(true);
+              const direction = event.key === "ArrowDown" ? 1 : -1;
+              const currentIndex = selectableOptions.findIndex(
+                (option) => option.value === highlightedValue,
+              );
+              const nextIndex = getNextHighlightedIndex(
+                currentIndex,
+                selectableOptions.length,
+                direction,
+              );
+              setHighlightedValue(selectableOptions[nextIndex]?.value ?? null);
             } else if (event.key === "Enter") {
               event.preventDefault();
+              const highlightedOption = selectableOptions.find(
+                (option) => option.value === highlightedValue,
+              );
+              if (open && highlightedOption) {
+                commitSelection(highlightedOption.value);
+                return;
+              }
               commitDraft();
             } else if (event.key === "Escape") {
               event.preventDefault();
@@ -509,11 +733,15 @@ function TimeSelect({
               setEditError(null);
               setOpen(false);
               setIsEditing(false);
+              setHighlightedValue(null);
               inputRef.current?.blur();
-            } else if (event.key === "ArrowDown") {
-              setOpen(true);
             }
           }}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={highlightedValue ? `${listboxId}-${highlightedValue}` : undefined}
           className="text-ink-primary placeholder:text-ink-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
         />
         <button
@@ -525,6 +753,7 @@ function TimeSelect({
               setOpen(false);
               setIsEditing(false);
               setEditError(null);
+              setHighlightedValue(null);
               setDraftValue(formatTimeFieldValue(value));
               inputRef.current?.blur();
               return;
@@ -543,46 +772,43 @@ function TimeSelect({
         <div className="text-status-danger mt-1 text-xs">{editError}</div>
       )}
       {open && (
-        <div className="border-outline-muted bg-surface-overlay scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur">
-          {hasCustomValue && customOptionLabel && (
-            <button
-              type="button"
-              ref={activeOptionRef}
-              className="bg-accent-muted text-ink-primary flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                commitSelection(value);
-              }}
-            >
-              <span>{customOptionLabel}</span>
-            </button>
-          )}
-          {options.map((option) => {
+        <div
+          id={listboxId}
+          role="listbox"
+          className="border-outline-muted bg-surface-overlay scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur"
+        >
+          {selectableOptions.map((option) => {
             const active = option.value === value;
-            const shouldDefault = !value && option.value === DEFAULT_TIME_VALUE;
+            const highlighted = option.value === highlightedValue;
             return (
               <button
                 key={option.value}
                 type="button"
-                ref={
-                  active && !hasCustomValue
-                    ? activeOptionRef
-                    : shouldDefault
-                      ? defaultOptionRef
-                      : null
-                }
+                id={`${listboxId}-${option.value}`}
+                role="option"
+                aria-selected={highlighted}
+                tabIndex={-1}
+                ref={(node) => {
+                  optionRefs.current[option.value] = node;
+                }}
                 className={
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition " +
-                  (active
+                  (highlighted || active
                     ? "bg-accent-muted text-ink-primary font-medium"
                     : "text-ink-subtle hover:bg-surface-muted")
                 }
+                onMouseEnter={() => setHighlightedValue(option.value)}
                 onMouseDown={(event) => {
                   event.preventDefault();
+                  setHighlightedValue(option.value);
                   commitSelection(option.value);
                 }}
               >
-                <span>{option.label}</span>
+                <span>
+                  {option.value === value && hasCustomValue && customOptionLabel
+                    ? customOptionLabel
+                    : option.label}
+                </span>
               </button>
             );
           })}
@@ -1827,6 +2053,15 @@ export function NewEventDialog({
   );
   const locationMatches = locationResults.data ?? [];
   const [locationHighlight, setLocationHighlight] = useState(-1);
+  const attendeeListboxId = useId();
+  const assigneeListboxId = useId();
+  const coOwnerListboxId = useId();
+  const specificLocationListboxId = useId();
+  const generalLocationListboxId = useId();
+  const attendeeOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const assigneeOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const coOwnerOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const locationOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const createRoom = api.facility.createRoom.useMutation({
     onSuccess: async () => {
       await utils.facility.searchRooms.invalidate();
@@ -1931,6 +2166,38 @@ export function NewEventDialog({
   useEffect(() => {
     setAttendeeHighlight(-1);
   }, [attendeeSearch, attendeeMatches.length]);
+
+  useEffect(() => {
+    setCoOwnerHighlight(-1);
+  }, [coOwnerSearch, coOwnerMatches.length]);
+
+  useEffect(() => {
+    if (attendeeHighlight < 0) return;
+    attendeeOptionRefs.current[attendeeHighlight]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [attendeeHighlight]);
+
+  useEffect(() => {
+    if (assigneeHighlight < 0) return;
+    assigneeOptionRefs.current[assigneeHighlight]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [assigneeHighlight]);
+
+  useEffect(() => {
+    if (coOwnerHighlight < 0) return;
+    coOwnerOptionRefs.current[coOwnerHighlight]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [coOwnerHighlight]);
+
+  useEffect(() => {
+    if (locationHighlight < 0) return;
+    locationOptionRefs.current[locationHighlight]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [locationHighlight]);
 
   const handleBackdropMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
@@ -2372,22 +2639,17 @@ export function NewEventDialog({
               }
               className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
             />
-            <select
+            <DropdownSelect
               value={quickCreateDraft.affiliation}
-              onChange={(e) =>
+              onChange={(value) =>
                 setQuickCreateDraft((prev) => ({
                   ...prev,
-                  affiliation: e.target.value as (typeof profileAffiliationOptions)[number]["value"],
+                  affiliation:
+                    value as (typeof profileAffiliationOptions)[number]["value"],
                 }))
               }
-              className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
-            >
-              {profileAffiliationOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={profileAffiliationOptions}
+            />
             <input
               placeholder="Phone (optional)"
               value={quickCreateDraft.phoneNumber}
@@ -2873,29 +3135,26 @@ export function NewEventDialog({
                     </div>
                   )}
                 </div>
-                <select
+                <DropdownSelect
                   value=""
-                  onChange={(e) => {
-                    const nextId = Number(e.target.value);
+                  placeholder="Add calendar"
+                  onChange={(value) => {
+                    const nextId = Number(value);
                     if (!Number.isFinite(nextId)) return;
                     setSelectedCalendarIds((prev) =>
                       prev.includes(nextId) ? prev : [...prev, nextId],
                     );
                     setSelectedCalendarId(nextId);
                   }}
-                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint mt-2 w-full rounded-md border px-3 py-2 text-sm outline-none"
-                >
-                  <option value="">Add calendar</option>
-                  {calendarOptions
+                  options={calendarOptions
                     .filter(
                       (option) => !selectedCalendarIds.includes(option.id),
                     )
-                    .map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                </select>
+                    .map((option) => ({
+                      value: String(option.id),
+                      label: option.name,
+                    }))}
+                />
                 <p className="text-ink-subtle mt-1 text-xs">
                   {selectedCalendarIds.length} selected
                 </p>
@@ -3046,31 +3305,52 @@ export function NewEventDialog({
                 placeholder="Search by name, email, or phone"
                 value={attendeeSearch}
                 onChange={(e) => setAttendeeSearch(e.target.value)}
+                onFocus={() => {
+                  if (attendeeMatches.length > 0) {
+                    setAttendeeHighlight((prev) => (prev >= 0 ? prev : 0));
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setAttendeeHighlight((prev) =>
-                      Math.min(prev + 1, attendeeMatches.length - 1),
+                      getNextHighlightedIndex(prev, attendeeMatches.length, 1),
                     );
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    setAttendeeHighlight((prev) => Math.max(prev - 1, 0));
+                    setAttendeeHighlight((prev) =>
+                      getNextHighlightedIndex(prev, attendeeMatches.length, -1),
+                    );
                   } else if (e.key === "Enter") {
                     e.preventDefault();
-                    if (attendeeMatches.length === 1) {
-                      handleAddAttendee(attendeeMatches[0]!);
-                    } else if (
-                      attendeeHighlight >= 0 &&
-                      attendeeHighlight < attendeeMatches.length
-                    ) {
-                      handleAddAttendee(attendeeMatches[attendeeHighlight]!);
+                    const highlightedMatch = getHighlightedItem(
+                      attendeeMatches,
+                      attendeeHighlight,
+                    );
+                    if (highlightedMatch) {
+                      handleAddAttendee(highlightedMatch);
                     }
+                  } else if (e.key === "Escape") {
+                    setAttendeeHighlight(-1);
                   }
                 }}
-                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={shouldShowAttendeeResults}
+                aria-controls={attendeeListboxId}
+                aria-activedescendant={
+                  attendeeHighlight >= 0
+                    ? `${attendeeListboxId}-${attendeeHighlight}`
+                    : undefined
+                }
+                className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none ${FOCUSABLE_FIELD_CLASS}`}
               />
               {shouldShowAttendeeResults && (
-                <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
+                <div
+                  id={attendeeListboxId}
+                  role="listbox"
+                  className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                >
                   {attendeeResults.isFetching ? (
                     <div className="text-ink-muted px-3 py-2 text-sm">
                       Searching...
@@ -3083,6 +3363,13 @@ export function NewEventDialog({
                           <button
                             key={match.profileId}
                             type="button"
+                            id={`${attendeeListboxId}-${index}`}
+                            role="option"
+                            aria-selected={isActive}
+                            tabIndex={-1}
+                            ref={(node) => {
+                              attendeeOptionRefs.current[index] = node;
+                            }}
                             className={
                               "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
                               (isActive
@@ -3090,6 +3377,7 @@ export function NewEventDialog({
                                 : "hover:bg-surface-muted")
                             }
                             onClick={() => handleAddAttendee(match)}
+                            onMouseDown={(event) => event.preventDefault()}
                             onMouseEnter={() => setAttendeeHighlight(index)}
                           >
                             <span className="font-medium">
@@ -3168,33 +3456,52 @@ export function NewEventDialog({
                   }
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
+                  onFocus={() => {
+                    if (assigneeMatches.length > 0) {
+                      setAssigneeHighlight((prev) => (prev >= 0 ? prev : 0));
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
                       setAssigneeHighlight((prev) =>
-                        Math.min(prev + 1, assigneeMatches.length - 1),
+                        getNextHighlightedIndex(prev, assigneeMatches.length, 1),
                       );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
-                      setAssigneeHighlight((prev) => Math.max(prev - 1, 0));
+                      setAssigneeHighlight((prev) =>
+                        getNextHighlightedIndex(prev, assigneeMatches.length, -1),
+                      );
                     } else if (e.key === "Enter") {
                       e.preventDefault();
-                      if (assigneeMatches.length === 1) {
-                        handleSelectAssignee(assigneeMatches[0]!);
-                      } else if (
-                        assigneeHighlight >= 0 &&
-                        assigneeHighlight < assigneeMatches.length
-                      ) {
-                        handleSelectAssignee(
-                          assigneeMatches[assigneeHighlight]!,
-                        );
+                      const highlightedMatch = getHighlightedItem(
+                        assigneeMatches,
+                        assigneeHighlight,
+                      );
+                      if (highlightedMatch) {
+                        handleSelectAssignee(highlightedMatch);
                       }
+                    } else if (e.key === "Escape") {
+                      setAssigneeHighlight(-1);
                     }
                   }}
-                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={shouldShowAssigneeResults}
+                  aria-controls={assigneeListboxId}
+                  aria-activedescendant={
+                    assigneeHighlight >= 0
+                      ? `${assigneeListboxId}-${assigneeHighlight}`
+                      : undefined
+                  }
+                  className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none ${FOCUSABLE_FIELD_CLASS}`}
                 />
                 {shouldShowAssigneeResults && (
-                  <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
+                  <div
+                    id={assigneeListboxId}
+                    role="listbox"
+                    className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                  >
                     {assigneeResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
                         Searching...
@@ -3207,6 +3514,13 @@ export function NewEventDialog({
                             <button
                               key={match.profileId}
                               type="button"
+                              id={`${assigneeListboxId}-${index}`}
+                              role="option"
+                              aria-selected={isActive}
+                              tabIndex={-1}
+                              ref={(node) => {
+                                assigneeOptionRefs.current[index] = node;
+                              }}
                               className={
                                 "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
                                 (isActive
@@ -3214,6 +3528,7 @@ export function NewEventDialog({
                                   : "hover:bg-surface-muted")
                               }
                               onClick={() => handleSelectAssignee(match)}
+                              onMouseDown={(event) => event.preventDefault()}
                               onMouseEnter={() => setAssigneeHighlight(index)}
                             >
                               <span className="font-medium">
@@ -3293,31 +3608,52 @@ export function NewEventDialog({
                   placeholder="Search by name, email, or phone"
                   value={coOwnerSearch}
                   onChange={(e) => setCoOwnerSearch(e.target.value)}
+                  onFocus={() => {
+                    if (coOwnerMatches.length > 0) {
+                      setCoOwnerHighlight((prev) => (prev >= 0 ? prev : 0));
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
                       setCoOwnerHighlight((prev) =>
-                        Math.min(prev + 1, coOwnerMatches.length - 1),
+                        getNextHighlightedIndex(prev, coOwnerMatches.length, 1),
                       );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
-                      setCoOwnerHighlight((prev) => Math.max(prev - 1, 0));
+                      setCoOwnerHighlight((prev) =>
+                        getNextHighlightedIndex(prev, coOwnerMatches.length, -1),
+                      );
                     } else if (e.key === "Enter") {
                       e.preventDefault();
-                      if (coOwnerMatches.length === 1) {
-                        handleAddCoOwner(coOwnerMatches[0]!);
-                      } else if (
-                        coOwnerHighlight >= 0 &&
-                        coOwnerHighlight < coOwnerMatches.length
-                      ) {
-                        handleAddCoOwner(coOwnerMatches[coOwnerHighlight]!);
+                      const highlightedMatch = getHighlightedItem(
+                        coOwnerMatches,
+                        coOwnerHighlight,
+                      );
+                      if (highlightedMatch) {
+                        handleAddCoOwner(highlightedMatch);
                       }
+                    } else if (e.key === "Escape") {
+                      setCoOwnerHighlight(-1);
                     }
                   }}
-                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={shouldShowCoOwnerResults}
+                  aria-controls={coOwnerListboxId}
+                  aria-activedescendant={
+                    coOwnerHighlight >= 0
+                      ? `${coOwnerListboxId}-${coOwnerHighlight}`
+                      : undefined
+                  }
+                  className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none ${FOCUSABLE_FIELD_CLASS}`}
                 />
                 {shouldShowCoOwnerResults && (
-                  <div className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl">
+                  <div
+                    id={coOwnerListboxId}
+                    role="listbox"
+                    className="border-outline-muted bg-surface-overlay absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-md border shadow-xl"
+                  >
                     {coOwnerResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
                         Searching...
@@ -3330,6 +3666,13 @@ export function NewEventDialog({
                             <button
                               key={match.profileId}
                               type="button"
+                              id={`${coOwnerListboxId}-${index}`}
+                              role="option"
+                              aria-selected={isActive}
+                              tabIndex={-1}
+                              ref={(node) => {
+                                coOwnerOptionRefs.current[index] = node;
+                              }}
                               className={
                                 "border-outline-muted text-ink-primary flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
                                 (isActive
@@ -3337,6 +3680,7 @@ export function NewEventDialog({
                                   : "hover:bg-surface-muted")
                               }
                               onClick={() => handleAddCoOwner(match)}
+                              onMouseDown={(event) => event.preventDefault()}
                               onMouseEnter={() => setCoOwnerHighlight(index)}
                             >
                               <span className="font-medium">
@@ -3414,38 +3758,31 @@ export function NewEventDialog({
                 <label className="text-ink-muted mb-1 block text-xs">
                   Technician needed?
                 </label>
-                <select
-                  className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 outline-none"
+                <DropdownSelect
                   value={technicianNeeded ? "yes" : "no"}
-                  onChange={(e) =>
-                    setTechnicianNeeded(e.target.value === "yes")
-                  }
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
+                  onChange={(value) => setTechnicianNeeded(value === "yes")}
+                  options={[
+                    { value: "no", label: "No" },
+                    { value: "yes", label: "Yes" },
+                  ]}
+                />
               </div>
             </div>
             <div>
               <label className="text-ink-muted mb-1 block text-xs">
                 Request category
               </label>
-              <select
-                className="border-outline-muted bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 outline-none"
+              <DropdownSelect
                 value={requestCategory}
-                onChange={(e) =>
-                  setRequestCategory(
-                    e.target.value as RequestCategoryValue | "",
-                  )
+                placeholder="Select a category"
+                onChange={(value) =>
+                  setRequestCategory(value as RequestCategoryValue | "")
                 }
-              >
-                <option value="">Select a category</option>
-                {REQUEST_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Select a category" },
+                  ...REQUEST_CATEGORY_OPTIONS,
+                ]}
+              />
             </div>
             <div>
               <label className="text-ink-muted mb-1 block text-xs">
@@ -3464,6 +3801,11 @@ export function NewEventDialog({
                             type="checkbox"
                             checked={selectedEquipmentNeeded.includes(option)}
                             onChange={() => toggleEquipmentNeeded(option)}
+                            onKeyDown={(event) =>
+                              handleCheckboxEnterKey(event, () =>
+                                toggleEquipmentNeeded(option),
+                              )
+                            }
                             className="accent-accent-strong h-4 w-4"
                           />
                           {option}
@@ -3505,6 +3847,11 @@ export function NewEventDialog({
                             type="checkbox"
                             checked={selectedEventTypes.includes(option)}
                             onChange={() => toggleEventType(option)}
+                            onKeyDown={(event) =>
+                              handleCheckboxEnterKey(event, () =>
+                                toggleEventType(option),
+                              )
+                            }
                             className="accent-accent-strong h-4 w-4"
                           />
                           {option}
@@ -3767,6 +4114,11 @@ export function NewEventDialog({
                 type="checkbox"
                 checked={isVirtual}
                 onChange={(event) => setIsVirtual(event.target.checked)}
+                onKeyDown={(event) =>
+                  handleCheckboxEnterKey(event, () =>
+                    setIsVirtual((prev) => !prev),
+                  )
+                }
                 className="accent-accent-strong h-4 w-4"
               />
               Virtual location
@@ -3786,10 +4138,11 @@ export function NewEventDialog({
                   Building {!isVirtual ? <span className="text-status-danger">*</span> : null}
                 </div>
                 <div className="relative">
-                  <select
+                  <DropdownSelect
                     value={selectedBuildingAcronym}
-                    onChange={(e) => {
-                      const acr = e.target.value;
+                    placeholder="Select building"
+                    invalid={showBuildingError}
+                    onChange={(acr) => {
                       setSelectedBuildingAcronym(acr);
                       const b =
                         (buildingList.data ?? []).find(
@@ -3797,18 +4150,14 @@ export function NewEventDialog({
                         ) ?? null;
                       setSelectedBuildingId(b ? b.id : null);
                     }}
-                    className={
-                      "bg-surface-muted text-ink-primary w-full rounded-md border px-3 py-2 text-sm outline-none " +
-                      (showBuildingError ? "border-status-danger" : "border-outline-muted")
-                    }
-                  >
-                    <option value="">Select building</option>
-                    {(buildingList.data ?? []).map((b) => (
-                      <option key={b.id} value={b.acronym}>
-                        {b.acronym} — {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "Select building" },
+                      ...(buildingList.data ?? []).map((b) => ({
+                        value: b.acronym,
+                        label: `${b.acronym} - ${b.name}`,
+                      })),
+                    ]}
+                  />
                 </div>
                 {showBuildingError ? (
                   <div className="mt-2 text-xs text-status-danger">
@@ -3828,38 +4177,59 @@ export function NewEventDialog({
                     setLocationHighlight(-1);
                   }}
                   onFocus={() => {
-                    if (roomNumber.trim().length > 0)
+                    if (roomNumber.trim().length > 0) {
                       setActiveLocationSearch("selected-building");
+                      if (locationMatches.length > 0) {
+                        setLocationHighlight((prev) => (prev >= 0 ? prev : 0));
+                      }
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
                       setLocationHighlight((prev) =>
-                        Math.min(
-                          prev + 1,
-                          Math.max(0, locationMatches.length - 1),
-                        ),
+                        getNextHighlightedIndex(prev, locationMatches.length, 1),
                       );
                     } else if (e.key === "ArrowUp") {
                       e.preventDefault();
-                      setLocationHighlight((prev) => Math.max(prev - 1, 0));
+                      setLocationHighlight((prev) =>
+                        getNextHighlightedIndex(prev, locationMatches.length, -1),
+                      );
                     } else if (e.key === "Enter") {
-                      if (
-                        locationMatches.length > 0 &&
-                        locationHighlight >= 0
-                      ) {
+                      const highlightedMatch = getHighlightedItem(
+                        locationMatches,
+                        locationHighlight,
+                      );
+                      if (highlightedMatch) {
                         e.preventDefault();
-                        const match = locationMatches[locationHighlight]!;
-                        handleLocationSelect(match);
+                        handleLocationSelect(highlightedMatch);
                       }
+                    } else if (e.key === "Escape") {
+                      setLocationHighlight(-1);
                     }
                   }}
-                  className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={
+                    activeLocationSearch === "selected-building" &&
+                    locationQuery.length > 0
+                  }
+                  aria-controls={specificLocationListboxId}
+                  aria-activedescendant={
+                    locationHighlight >= 0
+                      ? `${specificLocationListboxId}-${locationHighlight}`
+                      : undefined
+                  }
+                  className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none ${FOCUSABLE_FIELD_CLASS}`}
                 />
                 {activeLocationSearch === "selected-building" &&
                   locationQuery.length > 0 && (
                     <div className="relative">
-                      <div className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl">
+                      <div
+                        id={specificLocationListboxId}
+                        role="listbox"
+                        className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl"
+                      >
                         {locationResults.isFetching ? (
                           <div className="text-ink-muted px-3 py-2 text-sm">
                             Searching...
@@ -3872,12 +4242,20 @@ export function NewEventDialog({
                                 <button
                                   key={`${match.acronym}:${match.roomNumber}:${match.buildingId}:specific`}
                                   type="button"
+                                  id={`${specificLocationListboxId}-${index}`}
+                                  role="option"
+                                  aria-selected={isActive}
+                                  tabIndex={-1}
+                                  ref={(node) => {
+                                    locationOptionRefs.current[index] = node;
+                                  }}
                                   className={
                                     "border-outline-muted text-ink-primary flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
                                     (isActive
                                       ? "bg-accent-muted"
                                       : "hover:bg-surface-muted")
                                   }
+                                  onMouseDown={(event) => event.preventDefault()}
                                   onMouseEnter={() =>
                                     setLocationHighlight(index)
                                   }
@@ -3974,34 +4352,57 @@ export function NewEventDialog({
                   setActiveLocationSearch("all");
                 }}
                 onFocus={() => {
-                  if (generalLocationSearch.trim().length > 0)
+                  if (generalLocationSearch.trim().length > 0) {
                     setActiveLocationSearch("all");
+                    if (locationMatches.length > 0) {
+                      setLocationHighlight((prev) => (prev >= 0 ? prev : 0));
+                    }
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setLocationHighlight((prev) =>
-                      Math.min(
-                        prev + 1,
-                        Math.max(0, locationMatches.length - 1),
-                      ),
+                      getNextHighlightedIndex(prev, locationMatches.length, 1),
                     );
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    setLocationHighlight((prev) => Math.max(prev - 1, 0));
+                    setLocationHighlight((prev) =>
+                      getNextHighlightedIndex(prev, locationMatches.length, -1),
+                    );
                   } else if (e.key === "Enter") {
-                    if (locationMatches.length > 0 && locationHighlight >= 0) {
+                    const highlightedMatch = getHighlightedItem(
+                      locationMatches,
+                      locationHighlight,
+                    );
+                    if (highlightedMatch) {
                       e.preventDefault();
-                      const match = locationMatches[locationHighlight]!;
-                      handleLocationSelect(match);
+                      handleLocationSelect(highlightedMatch);
                     }
+                  } else if (e.key === "Escape") {
+                    setLocationHighlight(-1);
                   }
                 }}
-                className="border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={
+                  activeLocationSearch === "all" && locationQuery.length > 0
+                }
+                aria-controls={generalLocationListboxId}
+                aria-activedescendant={
+                  locationHighlight >= 0
+                    ? `${generalLocationListboxId}-${locationHighlight}`
+                    : undefined
+                }
+                className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 outline-none ${FOCUSABLE_FIELD_CLASS}`}
               />
               {activeLocationSearch === "all" && locationQuery.length > 0 && (
                 <div className="relative">
-                  <div className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl">
+                  <div
+                    id={generalLocationListboxId}
+                    role="listbox"
+                    className="border-outline-muted bg-surface-overlay absolute right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-md border shadow-xl"
+                  >
                     {locationResults.isFetching ? (
                       <div className="text-ink-muted px-3 py-2 text-sm">
                         Searching...
@@ -4014,12 +4415,20 @@ export function NewEventDialog({
                             <button
                               key={`${match.acronym}:${match.roomNumber}:${match.buildingId}`}
                               type="button"
+                              id={`${generalLocationListboxId}-${index}`}
+                              role="option"
+                              aria-selected={isActive}
+                              tabIndex={-1}
+                              ref={(node) => {
+                                locationOptionRefs.current[index] = node;
+                              }}
                               className={
                                 "border-outline-muted text-ink-primary flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 " +
                                 (isActive
                                   ? "bg-accent-muted"
                                   : "hover:bg-surface-muted")
                               }
+                              onMouseDown={(event) => event.preventDefault()}
                               onMouseEnter={() => setLocationHighlight(index)}
                               onClick={() => handleLocationSelect(match)}
                             >
@@ -4093,3 +4502,4 @@ export function NewEventDialog({
     </div>
   );
 }
+
