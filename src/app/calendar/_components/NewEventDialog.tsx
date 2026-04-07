@@ -36,6 +36,9 @@ const EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v2";
 const LEGACY_EDIT_DRAFT_STORAGE_PREFIX = "eaglevents:edit-event-draft:v1";
 const FOCUSABLE_FIELD_CLASS =
   "transition focus-visible:border-outline-strong focus-visible:ring-accent-strong focus-visible:ring-2";
+const DATE_FIELD_CLASS =
+  "border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2";
+const INLINE_TIME_FIELD_ROW_CLASS = "flex flex-wrap items-center gap-2";
 
 type Segment = {
   id: string;
@@ -187,53 +190,90 @@ function normalizeTimeInput(value: string) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function sanitizeTimeInputDraft(raw: string) {
-  const cleaned = raw.replace(/\./g, ":").replace(/[^0-9apm:\s]/gi, "");
-  const meridiemMatch = /\s*([ap](m?)?)\s*$/i.exec(cleaned);
-  const meridiem = meridiemMatch?.[1] ? meridiemMatch[1].toUpperCase() : "";
-  const numericPart = (
-    meridiemMatch ? cleaned.slice(0, meridiemMatch.index) : cleaned
-  ).replace(/[^\d:\s]/g, "");
-  const compactNumeric = numericPart.replace(/\s+/g, "");
+type TimeSegmentDraft = {
+  hour: string;
+  minute: string;
+  meridiem: "AM" | "PM" | "";
+};
 
-  let timePart = compactNumeric;
-  if (!compactNumeric.includes(":")) {
-    timePart = compactNumeric.slice(0, 4);
-  } else {
-    const [rawHours = "", rawMinutes = ""] = compactNumeric.split(":", 2);
-    timePart = `${rawHours.slice(0, 2)}:${rawMinutes.slice(0, 2)}`;
-    if (compactNumeric.endsWith(":")) timePart = `${rawHours.slice(0, 2)}:`;
+function getTimeSegmentDraft(value: string): TimeSegmentDraft {
+  const normalized = normalizeTimeInput(value);
+  if (!normalized) {
+    return { hour: "", minute: "", meridiem: "" };
   }
-
-  return [timePart, meridiem].filter(Boolean).join(" ").trim();
-}
-
-function formatCompletedTimeDraft(raw: string, meridiem: "AM" | "PM") {
-  const sanitized = sanitizeTimeInputDraft(raw);
-  const withoutMeridiem = sanitized.replace(/\s*(AM|PM|A|P)\s*$/i, "").trim();
-  const compactDigits = withoutMeridiem.replace(/\D/g, "").slice(0, 4);
-
-  let timePart = withoutMeridiem;
-  if (!withoutMeridiem.includes(":")) {
-    if (compactDigits.length === 3)
-      timePart = `${compactDigits[0]}:${compactDigits.slice(1)}`;
-    else if (compactDigits.length === 4)
-      timePart = `${compactDigits.slice(0, 2)}:${compactDigits.slice(2, 4)}`;
-    else timePart = compactDigits;
+  const [hoursPart, minutesPart] = normalized.split(":");
+  const hoursValue = hoursPart ? Number(hoursPart) : Number.NaN;
+  const minutesValue = minutesPart ? Number(minutesPart) : Number.NaN;
+  if (Number.isNaN(hoursValue) || Number.isNaN(minutesValue)) {
+    return { hour: "", minute: "", meridiem: "" };
   }
-
-  return [timePart, meridiem].filter(Boolean).join(" ").trim();
+  const meridiem = hoursValue >= 12 ? "PM" : "AM";
+  const normalizedHour = hoursValue % 12 || 12;
+  return {
+    hour: String(normalizedHour),
+    minute: String(minutesValue).padStart(2, "0"),
+    meridiem,
+  };
 }
 
-function formatTimeFieldValue(value: string) {
-  return value ? formatTimeLabel(value).toUpperCase() : "";
+function normalizeSegmentedTimeInput(draft: TimeSegmentDraft) {
+  const hourValue = draft.hour.trim();
+  const minuteValue = draft.minute.trim();
+  const meridiemValue = draft.meridiem.trim().toUpperCase();
+  if (!hourValue && !minuteValue && !meridiemValue) return "";
+  if (!/^\d{1,2}$/.test(hourValue) || !/^\d{2}$/.test(minuteValue)) {
+    return null;
+  }
+  if (meridiemValue !== "AM" && meridiemValue !== "PM") {
+    return null;
+  }
+  const hours = Number(hourValue);
+  const minutes = Number(minuteValue);
+  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  let normalizedHours = hours % 12;
+  if (meridiemValue === "PM") normalizedHours += 12;
+  return `${String(normalizedHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function isPossiblyValidTimeDraft(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return true;
-  if (normalizeTimeInput(trimmed)) return true;
-  return /^(\d{1,2}(:\d{0,2})?)\s*([ap](m?)?)?$/i.test(trimmed);
+function cycleTimeSegmentValue(
+  draft: TimeSegmentDraft,
+  segment: keyof TimeSegmentDraft,
+  direction: 1 | -1,
+): TimeSegmentDraft {
+  if (segment === "hour") {
+    const currentValue = Number(draft.hour || "12");
+    const normalizedValue =
+      Number.isNaN(currentValue) || currentValue < 1 || currentValue > 12
+        ? 12
+        : currentValue;
+    const nextValue =
+      direction === 1
+        ? normalizedValue === 12
+          ? 1
+          : normalizedValue + 1
+        : normalizedValue === 1
+          ? 12
+          : normalizedValue - 1;
+    return { ...draft, hour: String(nextValue) };
+  }
+  if (segment === "minute") {
+    const currentValue = Number(draft.minute || "00");
+    const normalizedValue =
+      Number.isNaN(currentValue) || currentValue < 0 || currentValue > 59
+        ? 0
+        : currentValue;
+    const nextValue =
+      direction === 1
+        ? (normalizedValue + 1) % 60
+        : (normalizedValue + 59) % 60;
+    return { ...draft, minute: String(nextValue).padStart(2, "0") };
+  }
+  return {
+    ...draft,
+    meridiem: draft.meridiem === "PM" ? "AM" : "PM",
+  };
 }
 
 function parseLocationInput(raw: string) {
@@ -500,17 +540,15 @@ function TimeSelect({
   allowEmpty = false,
 }: TimeSelectProps) {
   const [open, setOpen] = useState(false);
-  const [draftValue, setDraftValue] = useState(() =>
-    formatTimeFieldValue(value),
+  const [draft, setDraft] = useState<TimeSegmentDraft>(() =>
+    getTimeSegmentDraft(value),
   );
-  const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [pendingConfirmedValue, setPendingConfirmedValue] = useState<
-    string | null
-  >(null);
   const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRefs = useRef<
+    Partial<Record<keyof TimeSegmentDraft, HTMLInputElement | null>>
+  >({});
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const listboxId = useId();
 
@@ -520,8 +558,7 @@ function TimeSelect({
       if (!containerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setEditError(null);
-        setIsEditing(false);
-        setDraftValue(formatTimeFieldValue(value));
+        setDraft(getTimeSegmentDraft(value));
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -529,17 +566,8 @@ function TimeSelect({
   }, [value]);
 
   useEffect(() => {
-    if (pendingConfirmedValue !== null) {
-      if (value === pendingConfirmedValue) {
-        setPendingConfirmedValue(null);
-      } else if (!isEditing) {
-        setDraftValue(formatTimeFieldValue(pendingConfirmedValue));
-      }
-      return;
-    }
-    if (isEditing) return;
-    setDraftValue(formatTimeFieldValue(value));
-  }, [isEditing, pendingConfirmedValue, value]);
+    setDraft(getTimeSegmentDraft(value));
+  }, [value]);
 
   const optionLabel = value
     ? (options.find((opt) => opt.value === value)?.label ?? null)
@@ -578,149 +606,159 @@ function TimeSelect({
 
   const commitSelection = (nextValue: string) => {
     onChange(nextValue);
-    setPendingConfirmedValue(nextValue);
-    setDraftValue(formatTimeFieldValue(nextValue));
+    setDraft(getTimeSegmentDraft(nextValue));
     setEditError(null);
     setOpen(false);
-    setIsEditing(false);
   };
 
-  const commitDraft = () => {
-    const trimmed = draftValue.trim();
-    if (!trimmed) {
+  const focusSegment = (segment: keyof TimeSegmentDraft) => {
+    const nextInput = inputRefs.current[segment];
+    nextInput?.focus();
+    nextInput?.select();
+  };
+
+  const commitDraft = (nextDraft: TimeSegmentDraft) => {
+    const normalized = normalizeSegmentedTimeInput(nextDraft);
+    if (normalized === "") {
       if (allowEmpty) {
         onChange("");
-        setDraftValue("");
-        setPendingConfirmedValue("");
+        setDraft({ hour: "", minute: "", meridiem: "" });
         setEditError(null);
         setOpen(false);
-        setIsEditing(false);
         return;
       }
-      setEditError("Enter time as h:mm AM/PM.");
+      setEditError("Enter time as HH:MM A/P.");
       return;
     }
-
-    const normalized = normalizeTimeInput(trimmed);
     if (!normalized) {
-      setEditError("Enter time as h:mm AM/PM.");
+      setEditError("Enter time as HH:MM A/P.");
       return;
     }
-
     onChange(normalized);
-    setPendingConfirmedValue(normalized);
-    setDraftValue(formatTimeFieldValue(normalized));
+    setDraft(getTimeSegmentDraft(normalized));
     setEditError(null);
-    setOpen(false);
-    setIsEditing(false);
   };
 
-  const commitDraftOnBlur = () => {
-    const trimmed = draftValue.trim();
-    if (!trimmed) {
+  const resetDraft = () => {
+    setDraft(getTimeSegmentDraft(value));
+    setEditError(null);
+    setOpen(false);
+  };
+
+  const commitDraftOnExit = () => {
+    const normalized = normalizeSegmentedTimeInput(draft);
+    if (normalized === "") {
       if (allowEmpty) {
         onChange("");
-        setPendingConfirmedValue("");
+        setDraft({ hour: "", minute: "", meridiem: "" });
+      } else {
+        setDraft(getTimeSegmentDraft(value));
       }
-      setDraftValue(allowEmpty ? "" : formatTimeFieldValue(value));
       setEditError(null);
       setOpen(false);
-      setIsEditing(false);
       return;
     }
-
-    const normalized = normalizeTimeInput(trimmed);
     if (!normalized) {
-      setDraftValue(formatTimeFieldValue(value));
-      setEditError(null);
-      setOpen(false);
-      setIsEditing(false);
+      resetDraft();
       return;
     }
-
     onChange(normalized);
-    setPendingConfirmedValue(normalized);
-    setDraftValue(formatTimeFieldValue(normalized));
+    setDraft(getTimeSegmentDraft(normalized));
     setEditError(null);
     setOpen(false);
-    setIsEditing(false);
   };
 
-  const applyMeridiemShortcut = (nextMeridiem: "AM" | "PM") => {
-    const baseValue = draftValue.trim() || formatTimeFieldValue(value);
-    if (!baseValue) return;
-    setDraftValue(formatCompletedTimeDraft(baseValue, nextMeridiem));
+  const updateDraftSegment = (
+    segment: keyof TimeSegmentDraft,
+    nextRawValue: string,
+  ) => {
+    const sanitizedValue =
+      segment === "meridiem"
+        ? nextRawValue
+            .replace(/[^ap]/gi, "")
+            .slice(-1)
+            .toUpperCase()
+            .replace("A", "AM")
+            .replace("P", "PM")
+        : nextRawValue.replace(/\D/g, "").slice(0, 2);
+    const nextDraft: TimeSegmentDraft = {
+      ...draft,
+      [segment]: sanitizedValue,
+    };
+    setDraft(nextDraft);
     setEditError(null);
     setOpen(true);
-    setIsEditing(true);
+
+    if (segment === "hour" && sanitizedValue.length === 2) {
+      focusSegment("minute");
+    }
+    if (segment === "minute" && sanitizedValue.length === 2) {
+      focusSegment("meridiem");
+    }
+
+    const normalized = normalizeSegmentedTimeInput(nextDraft);
+    if (normalized) {
+      onChange(normalized);
+      setDraft(getTimeSegmentDraft(normalized));
+    }
+  };
+
+  const nudgeSegment = (segment: keyof TimeSegmentDraft, direction: 1 | -1) => {
+    const nextDraft = cycleTimeSegmentValue(draft, segment, direction);
+    setDraft(nextDraft);
+    setEditError(null);
+    setOpen(true);
+    const normalized = normalizeSegmentedTimeInput(nextDraft);
+    if (normalized) {
+      onChange(normalized);
+      setDraft(getTimeSegmentDraft(normalized));
+    }
   };
 
   return (
-    <div className="relative w-[8.5rem] min-w-0" ref={containerRef}>
+    <div className="relative inline-flex min-w-0" ref={containerRef}>
       <div
         className={
-          "border-outline-muted bg-surface-muted text-ink-primary hover:border-outline-strong focus-within:ring-accent-strong flex w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition focus-within:ring-2 " +
+          "border-outline-muted bg-surface-muted text-ink-primary hover:border-outline-strong focus-within:ring-accent-strong inline-flex min-h-[2.5rem] items-center gap-0.5 rounded-md border px-1.5 py-1 text-sm transition focus-within:ring-2 " +
           (invalid ? "border-status-danger text-status-danger" : "")
         }
+        onFocusCapture={() => setOpen(true)}
+        onBlurCapture={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (
+            nextTarget instanceof Node &&
+            containerRef.current?.contains(nextTarget)
+          ) {
+            return;
+          }
+          commitDraftOnExit();
+        }}
       >
         <input
-          ref={inputRef}
+          ref={(node) => {
+            inputRefs.current.hour = node;
+          }}
           type="text"
-          inputMode="text"
-          placeholder={placeholder}
-          value={draftValue}
+          inputMode="numeric"
+          placeholder="HH"
+          value={draft.hour}
           onFocus={(event) => {
-            setOpen(true);
-            setIsEditing(true);
             event.currentTarget.select();
           }}
-          onChange={(event) => {
-            const nextDraft = sanitizeTimeInputDraft(event.target.value);
-            setDraftValue(nextDraft);
-            setEditError(
-              isPossiblyValidTimeDraft(nextDraft)
-                ? null
-                : "Enter time as h:mm AM/PM.",
-            );
-            setOpen(true);
-            setIsEditing(true);
-          }}
-          onBlur={() => {
-            commitDraftOnBlur();
-          }}
+          onChange={(event) => updateDraftSegment("hour", event.target.value)}
           onKeyDown={(event) => {
             if (
-              !event.altKey &&
-              !event.ctrlKey &&
-              !event.metaKey &&
-              (event.key === "a" || event.key === "A") &&
-              !/\s*[ap]m?$/i.test(draftValue)
+              event.key === "ArrowRight" &&
+              event.currentTarget.selectionStart ===
+                event.currentTarget.value.length
             ) {
               event.preventDefault();
-              applyMeridiemShortcut("AM");
-            } else if (
-              !event.altKey &&
-              !event.ctrlKey &&
-              !event.metaKey &&
-              (event.key === "p" || event.key === "P") &&
-              !/\s*[ap]m?$/i.test(draftValue)
-            ) {
+              focusSegment("minute");
+            } else if (event.key === "Backspace" && !draft.hour) {
               event.preventDefault();
-              applyMeridiemShortcut("PM");
             } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
-              setOpen(true);
-              setIsEditing(true);
-              const direction = event.key === "ArrowDown" ? 1 : -1;
-              const currentIndex = selectableOptions.findIndex(
-                (option) => option.value === highlightedValue,
-              );
-              const nextIndex = getNextHighlightedIndex(
-                currentIndex,
-                selectableOptions.length,
-                direction,
-              );
-              setHighlightedValue(selectableOptions[nextIndex]?.value ?? null);
+              nudgeSegment("hour", event.key === "ArrowUp" ? 1 : -1);
             } else if (event.key === "Enter") {
               event.preventDefault();
               const highlightedOption = selectableOptions.find(
@@ -730,25 +768,113 @@ function TimeSelect({
                 commitSelection(highlightedOption.value);
                 return;
               }
-              commitDraft();
+              commitDraft(draft);
             } else if (event.key === "Escape") {
               event.preventDefault();
-              setDraftValue(formatTimeFieldValue(value));
-              setEditError(null);
-              setOpen(false);
-              setIsEditing(false);
-              setHighlightedValue(null);
-              inputRef.current?.blur();
+              resetDraft();
+              event.currentTarget.blur();
             }
           }}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-activedescendant={
-            highlightedValue ? `${listboxId}-${highlightedValue}` : undefined
+          aria-label={`${placeholder} hour`}
+          className="focus-visible:bg-accent-muted/70 text-ink-primary placeholder:text-ink-muted w-4 rounded px-0 py-1.5 text-center leading-tight tabular-nums outline-none"
+        />
+        <span className="text-ink-subtle shrink-0">:</span>
+        <input
+          ref={(node) => {
+            inputRefs.current.minute = node;
+          }}
+          type="text"
+          inputMode="numeric"
+          placeholder="MM"
+          value={draft.minute}
+          onFocus={(event) => {
+            event.currentTarget.select();
+          }}
+          onChange={(event) => updateDraftSegment("minute", event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "ArrowLeft" &&
+              event.currentTarget.selectionStart === 0
+            ) {
+              event.preventDefault();
+              focusSegment("hour");
+            } else if (
+              event.key === "ArrowRight" &&
+              event.currentTarget.selectionStart ===
+                event.currentTarget.value.length
+            ) {
+              event.preventDefault();
+              focusSegment("meridiem");
+            } else if (event.key === "Backspace" && !draft.minute) {
+              event.preventDefault();
+              focusSegment("hour");
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              nudgeSegment("minute", event.key === "ArrowUp" ? 1 : -1);
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              const highlightedOption = selectableOptions.find(
+                (option) => option.value === highlightedValue,
+              );
+              if (open && highlightedOption) {
+                commitSelection(highlightedOption.value);
+                return;
+              }
+              commitDraft(draft);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              resetDraft();
+              event.currentTarget.blur();
+            }
+          }}
+          aria-label={`${placeholder} minute`}
+          className="focus-visible:bg-accent-muted/70 text-ink-primary placeholder:text-ink-muted w-5 rounded px-0 py-1.5 text-center leading-tight tabular-nums outline-none"
+        />
+        <input
+          ref={(node) => {
+            inputRefs.current.meridiem = node;
+          }}
+          type="text"
+          inputMode="text"
+          placeholder="AM"
+          value={draft.meridiem}
+          onFocus={(event) => {
+            event.currentTarget.select();
+          }}
+          onChange={(event) =>
+            updateDraftSegment("meridiem", event.target.value)
           }
-          className="text-ink-primary placeholder:text-ink-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
+          onKeyDown={(event) => {
+            if (
+              event.key === "ArrowLeft" &&
+              event.currentTarget.selectionStart === 0
+            ) {
+              event.preventDefault();
+              focusSegment("minute");
+            } else if (event.key === "Backspace" && !draft.meridiem) {
+              event.preventDefault();
+              focusSegment("minute");
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              nudgeSegment("meridiem", event.key === "ArrowUp" ? 1 : -1);
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              const highlightedOption = selectableOptions.find(
+                (option) => option.value === highlightedValue,
+              );
+              if (open && highlightedOption) {
+                commitSelection(highlightedOption.value);
+                return;
+              }
+              commitDraft(draft);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              resetDraft();
+              event.currentTarget.blur();
+            }
+          }}
+          aria-label={`${placeholder} meridiem`}
+          className="focus-visible:bg-accent-muted/70 text-ink-primary placeholder:text-ink-muted w-6.5 rounded px-0 py-1.5 text-center leading-tight font-medium outline-none"
         />
         <button
           type="button"
@@ -756,20 +882,13 @@ function TimeSelect({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
             if (open) {
-              setOpen(false);
-              setIsEditing(false);
-              setEditError(null);
-              setHighlightedValue(null);
-              setDraftValue(formatTimeFieldValue(value));
-              inputRef.current?.blur();
+              resetDraft();
               return;
             }
             setOpen(true);
-            setIsEditing(true);
-            inputRef.current?.focus();
-            inputRef.current?.select();
+            focusSegment("hour");
           }}
-          aria-label="Toggle time options"
+          aria-label={`Toggle ${placeholder} time options`}
         >
           <ChevronDownIcon className="h-3.5 w-3.5" />
         </button>
@@ -781,7 +900,7 @@ function TimeSelect({
         <div
           id={listboxId}
           role="listbox"
-          className="border-outline-strong bg-surface-overlay/95 scrollbar-hidden absolute right-0 left-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
+          className="border-outline-strong bg-surface-overlay/95 scrollbar-hidden absolute top-full left-0 z-40 mt-1 max-h-60 min-w-full overflow-y-auto rounded-lg border shadow-2xl shadow-[var(--shadow-pane)] backdrop-blur-2xl backdrop-saturate-200"
         >
           {selectableOptions.map((option) => {
             const active = option.value === value;
@@ -3377,14 +3496,14 @@ export function NewEventDialog({
                       </button>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className={INLINE_TIME_FIELD_ROW_CLASS}>
                     <input
                       type="date"
                       value={formatDateInputValue(segment.start)}
                       onChange={(e) =>
                         handleDateChange(segment.id, e.target.value)
                       }
-                      className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
+                      className={DATE_FIELD_CLASS}
                     />
                     {allDay ? (
                       <span className="border-outline-muted text-ink-subtle rounded-md border px-3 py-2 text-sm">
@@ -4119,7 +4238,7 @@ export function NewEventDialog({
                 <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
                   Event start
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className={INLINE_TIME_FIELD_ROW_CLASS}>
                   <input
                     type="date"
                     value={
@@ -4130,7 +4249,7 @@ export function NewEventDialog({
                     onChange={(e) =>
                       handleInfoDateChange("eventStart", e.target.value)
                     }
-                    className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
+                    className={DATE_FIELD_CLASS}
                   />
                   <TimeSelect
                     value={fallbackEventInfoStartValue}
@@ -4147,7 +4266,7 @@ export function NewEventDialog({
                 <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
                   Event end
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className={INLINE_TIME_FIELD_ROW_CLASS}>
                   <input
                     type="date"
                     value={
@@ -4158,7 +4277,7 @@ export function NewEventDialog({
                     onChange={(e) =>
                       handleInfoDateChange("eventEnd", e.target.value)
                     }
-                    className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
+                    className={DATE_FIELD_CLASS}
                   />
                   <TimeSelect
                     value={fallbackEventInfoEndValue}
@@ -4174,7 +4293,7 @@ export function NewEventDialog({
               <div className="text-ink-subtle mb-2 text-xs font-semibold tracking-wide uppercase">
                 Setup time
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className={INLINE_TIME_FIELD_ROW_CLASS}>
                 <input
                   type="date"
                   value={
@@ -4185,7 +4304,7 @@ export function NewEventDialog({
                   onChange={(e) =>
                     handleInfoDateChange("setup", e.target.value)
                   }
-                  className="border-outline-muted bg-surface-muted text-ink-primary focus-visible:ring-accent-strong rounded-md border px-3 py-2 text-sm transition outline-none focus-visible:ring-2"
+                  className={DATE_FIELD_CLASS}
                 />
                 <TimeSelect
                   value={fallbackSetupInfoValue}
@@ -4245,32 +4364,28 @@ export function NewEventDialog({
                           #{index + 1}
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1">
-                              <TimeSelect
-                                value={formatHourLogTime(log.start)}
-                                onChange={(value) =>
-                                  handleHourLogChange(log.id, "start", value)
-                                }
-                                placeholder="Start"
-                                options={timeOptions}
-                                invalid={invalid}
-                                allowEmpty
-                              />
-                            </div>
-                            <span className="text-ink-subtle text-xs">to</span>
-                            <div className="flex items-center gap-1">
-                              <TimeSelect
-                                value={formatHourLogTime(log.end)}
-                                onChange={(value) =>
-                                  handleHourLogChange(log.id, "end", value)
-                                }
-                                placeholder="End"
-                                options={timeOptions}
-                                invalid={invalid}
-                                allowEmpty
-                              />
-                            </div>
+                          <div className={INLINE_TIME_FIELD_ROW_CLASS}>
+                            <TimeSelect
+                              value={formatHourLogTime(log.start)}
+                              onChange={(value) =>
+                                handleHourLogChange(log.id, "start", value)
+                              }
+                              placeholder="Start"
+                              options={timeOptions}
+                              invalid={invalid}
+                              allowEmpty
+                            />
+                            <span className="text-ink-subtle text-sm">to</span>
+                            <TimeSelect
+                              value={formatHourLogTime(log.end)}
+                              onChange={(value) =>
+                                handleHourLogChange(log.id, "end", value)
+                              }
+                              placeholder="End"
+                              options={timeOptions}
+                              invalid={invalid}
+                              allowEmpty
+                            />
                             <span
                               className={
                                 "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold " +

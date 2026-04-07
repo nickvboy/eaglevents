@@ -26,15 +26,12 @@ REM === VERIFY TOOLS EXIST ===
 where node >> "%LOGFILE%" 2>&1 || exit /b 3
 where pnpm >> "%LOGFILE%" 2>&1 || exit /b 3
 
-REM === BUILD FRESH PRODUCTION ARTIFACTS ===
+REM === REUSE EXISTING PRODUCTION ARTIFACTS ===
 if exist ".next" (
-    echo Removing stale .next build output >> "%LOGFILE%"
-    rmdir /s /q ".next" >> "%LOGFILE%" 2>&1
+    echo Using existing .next build output >> "%LOGFILE%"
+) else (
+    echo Missing .next build output; start-prod.bat will not create a new build >> "%LOGFILE%"
 )
-
-echo Running production build >> "%LOGFILE%"
-pnpm build >> "%LOGFILE%" 2>&1
-if errorlevel 1 exit /b %ERRORLEVEL%
 
 REM === START APPLICATION ===
 echo Starting production server >> "%LOGFILE%"
