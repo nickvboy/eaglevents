@@ -258,6 +258,11 @@ export function EventDetailDrawer({ event, calendar, open, onClose, onEdit }: Ev
               <div>{timeLabel}</div>
               {event.location && <div className="mt-1 text-ink-muted">{event.location}</div>}
               <div className="mt-1 text-[11px] uppercase tracking-wide text-ink-faint">Event ID #{eventCode}</div>
+              {event.zendeskTicketNumber ? (
+                <div className="mt-1 text-[11px] uppercase tracking-wide text-ink-faint">
+                  Zendesk Ticket #{event.zendeskTicketNumber}
+                </div>
+              ) : null}
               {calendar && (
                 <div className="mt-2 inline-flex items-center gap-2 text-xs uppercase tracking-wide text-ink-subtle">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: calendar.color }} />

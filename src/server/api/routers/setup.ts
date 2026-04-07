@@ -16,8 +16,11 @@ import {
   themePalettes,
   themeProfiles,
 } from "~/server/db/schema";
+import { refreshHourLogExport } from "~/server/services/hour-log-export";
+import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { getSetupStatus } from "~/server/services/setup";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
+import { restoreSnapshot, snapshotSchema, writeSnapshotImportAuditLog } from "~/server/services/snapshot-import";
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const profileAffiliationValues = ["staff", "faculty", "student"] as const;
@@ -83,6 +86,43 @@ export const setupRouter = createTRPCRouter({
   status: publicProcedure.query(async ({ ctx }) => {
     return getSetupStatus(ctx.db);
   }),
+
+  importSnapshot: publicProcedure
+    .input(snapshotSchema)
+    .mutation(async ({ ctx, input }) => {
+      const status = await getSetupStatus(ctx.db);
+      requireActiveSetup(status);
+
+      try {
+        const result = await restoreSnapshot(ctx.db, input);
+
+        await writeSnapshotImportAuditLog({
+          db: ctx.db,
+          businessId: result.businessId,
+          actorUserId: null,
+          action: "snapshot.import.setup",
+          metadata: {
+            source: "setup",
+          },
+        });
+
+        void refreshJoinTableExport(ctx.db, true).catch((error) => {
+          console.error("[join-table-export] setup importSnapshot refresh failed", error);
+        });
+        void refreshHourLogExport(ctx.db, true).catch((error) => {
+          console.error("[hour-log-export] setup importSnapshot refresh failed", error);
+        });
+
+        return {
+          success: true,
+          counts: result.counts,
+          status: await getSetupStatus(ctx.db),
+        };
+      } catch (error) {
+        console.error("[setup-snapshot-import] restore failed", error);
+        throw error;
+      }
+    }),
 
   createBusiness: publicProcedure
     .input(z.object({ name: z.string().min(2).max(255), type: z.enum(businessTypeValues) }))
