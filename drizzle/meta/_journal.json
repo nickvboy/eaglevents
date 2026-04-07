@@ -211,6 +211,13 @@
       "when": 1775102400000,
       "tag": "0030_profile_affiliation",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1775563200000,
+      "tag": "0031_event_date_time_dimension",
+      "breakpoints": true
     }
   ]
 }

@@ -19,8 +19,8 @@ type SnapshotSummary = {
   counts: Array<{ label: string; count: number }>;
 };
 
-const CURRENT_SNAPSHOT_VERSION = 3;
-const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
+const CURRENT_SNAPSHOT_VERSION = 4;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4] as const;
 const SNAPSHOT_FORMAT_LABEL = `Version ${CURRENT_SNAPSHOT_VERSION} (JSON)`;
 
 const snapshotDataSections = [
@@ -36,6 +36,7 @@ const snapshotDataSections = [
   { key: "themePalettes", label: "Theme palettes" },
   { key: "themeProfiles", label: "Theme profiles" },
   { key: "calendars", label: "Calendars" },
+  { key: "dateTimes", label: "Date times" },
   { key: "events", label: "Events" },
   { key: "eventRooms", label: "Event rooms" },
   { key: "eventCoOwners", label: "Event co-owners" },

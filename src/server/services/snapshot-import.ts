@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -10,6 +10,7 @@ import {
   buildings,
   businesses,
   calendars,
+  dateTimes,
   departments,
   eventAttendees,
   eventCoOwners,
@@ -27,12 +28,20 @@ import {
   users,
   visibilityGrants,
 } from "~/server/db/schema";
+import {
+  DEFAULT_TIME_ZONE,
+  assertValidTimeZone,
+  buildDateTimeDimensionValue,
+  getDateTimeId,
+  normalizeDateFormatConfig,
+  resolveDateTimeIds,
+} from "~/server/services/date-time";
 
 type DbClient = typeof dbClient;
 type DbExecutor = Pick<DbClient, "execute">;
 type DbInserter = Pick<DbClient, "insert">;
 
-export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3] as const;
+export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4] as const;
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
@@ -51,6 +60,21 @@ const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableTimestampSchema = timestampSchema.nullable();
 const nullableDateOnlySchema = dateOnlySchema.nullable();
 const SNAPSHOT_IMPORT_BATCH_SIZE = 200;
+
+const dateFormatConfigSchema = z
+  .object({
+    dateKeyPattern: z.string().min(1).optional(),
+    isoDatePattern: z.string().min(1).optional(),
+    usDatePattern: z.string().min(1).optional(),
+    longDatePattern: z.string().min(1).optional(),
+    monthYearPattern: z.string().min(1).optional(),
+    yearMonthLabelPattern: z.string().min(1).optional(),
+    yearQuarterLabelPattern: z.string().min(1).optional(),
+    quarterYearLabelPattern: z.string().min(1).optional(),
+    isoDateTimePattern: z.string().min(1).optional(),
+    usDateTimePattern: z.string().min(1).optional(),
+  })
+  .partial();
 
 function normalizeLegacySnapshotRequestDetails(value: unknown) {
   if (!value || typeof value !== "object") return value;
@@ -74,10 +98,70 @@ const snapshotRequestDetailsSchema = z.preprocess(
   eventRequestDetailsSchema.nullable().optional(),
 );
 
+const dateTimeImportSchema = z.object({
+  id: z.number().int().positive(),
+  instantUtc: timestampSchema,
+  timeZone: z.string().min(1).optional(),
+  dateKey: z.string().min(1).optional(),
+  fullDate: dateOnlySchema.optional(),
+  calendarDate: dateOnlySchema.optional(),
+  dayOfWeekNumber: z.number().int().optional(),
+  dayOfWeekName: z.string().min(1).optional(),
+  year: z.number().int().optional(),
+  quarter: z.number().int().optional(),
+  month: z.number().int().optional(),
+  monthLabel: z.string().min(1).optional(),
+  monthName: z.string().min(1).optional(),
+  monthShortName: z.string().min(1).optional(),
+  isoWeekYear: z.number().int().optional(),
+  isoWeek: z.number().int().optional(),
+  isoWeekLabel: z.string().min(1).optional(),
+  dayOfMonth: z.number().int().optional(),
+  dayOfYear: z.number().int().optional(),
+  weekOfYear: z.number().int().optional(),
+  dayOfWeekIso: z.number().int().optional(),
+  dayLabel: z.string().min(1).optional(),
+  monthNumber: z.number().int().optional(),
+  quarterNumber: z.number().int().optional(),
+  yearMonthKey: z.string().min(1).optional(),
+  yearMonthLabel: z.string().min(1).optional(),
+  yearQuarterLabel: z.string().min(1).optional(),
+  weekStartDate: dateOnlySchema.optional(),
+  weekEndDate: dateOnlySchema.optional(),
+  monthStartDate: dateOnlySchema.optional(),
+  monthEndDate: dateOnlySchema.optional(),
+  quarterStartDate: dateOnlySchema.optional(),
+  quarterEndDate: dateOnlySchema.optional(),
+  yearStartDate: dateOnlySchema.optional(),
+  yearEndDate: dateOnlySchema.optional(),
+  isWeekday: z.boolean().optional(),
+  isWeekend: z.boolean().optional(),
+  isBusinessDay: z.boolean().optional(),
+  isMonthStart: z.boolean().optional(),
+  isMonthEnd: z.boolean().optional(),
+  isQuarterStart: z.boolean().optional(),
+  isQuarterEnd: z.boolean().optional(),
+  isYearStart: z.boolean().optional(),
+  isYearEnd: z.boolean().optional(),
+  hour24: z.number().int().optional(),
+  minute: z.number().int().optional(),
+  second: z.number().int().optional(),
+  isoDate: z.string().min(1).optional(),
+  isoDateTime: z.string().min(1).optional(),
+  usDate: z.string().min(1).optional(),
+  usDateTime: z.string().min(1).optional(),
+  dateIsoFormat: z.string().min(1).optional(),
+  dateUsFormat: z.string().min(1).optional(),
+  dateLongFormat: z.string().min(1).optional(),
+  monthYearText: z.string().min(1).optional(),
+  quarterYearLabel: z.string().min(1).optional(),
+  previousDate: dateOnlySchema.optional(),
+  nextDate: dateOnlySchema.optional(),
+  createdAt: timestampSchema.optional(),
+});
+
 export const snapshotSchema = z.object({
-  version: z.union(
-    SUPPORTED_SNAPSHOT_VERSIONS.map((value) => z.literal(value)) as [z.ZodLiteral<2>, z.ZodLiteral<3>],
-  ),
+  version: z.union([z.literal(2), z.literal(3), z.literal(4)]),
   exportedAt: timestampSchema,
   metadata: z
     .object({
@@ -133,6 +217,8 @@ export const snapshotSchema = z.object({
         id: z.number().int().positive(),
         name: z.string(),
         type: z.enum(businessTypeValues),
+        timeZone: z.string().min(1).optional(),
+        dateFormatConfig: dateFormatConfigSchema.optional(),
         setupCompletedAt: nullableTimestampSchema,
         createdAt: timestampSchema,
         updatedAt: nullableTimestampSchema,
@@ -220,6 +306,7 @@ export const snapshotSchema = z.object({
         updatedAt: nullableTimestampSchema,
       }),
     ),
+    dateTimes: z.array(dateTimeImportSchema).default([]),
     events: z.array(
       z.object({
         id: z.number().int().positive(),
@@ -235,17 +322,22 @@ export const snapshotSchema = z.object({
         location: z.string().nullable(),
         isVirtual: z.boolean().optional().default(false),
         isAllDay: z.boolean(),
-        startDatetime: timestampSchema,
-        endDatetime: timestampSchema,
+        startDateTimeId: z.number().int().positive().optional(),
+        endDateTimeId: z.number().int().positive().optional(),
+        eventStartDateTimeId: z.number().int().positive().nullable().optional(),
+        eventEndDateTimeId: z.number().int().positive().nullable().optional(),
+        setupDateTimeId: z.number().int().positive().nullable().optional(),
+        startDatetime: timestampSchema.optional(),
+        endDatetime: timestampSchema.optional(),
         recurrenceRule: z.string().nullable(),
         participantCount: z.number().int().nullable(),
         technicianNeeded: z.boolean(),
         requestCategory: z.enum(eventRequestCategoryValues).nullable(),
         equipmentNeeded: z.string().nullable(),
         requestDetails: snapshotRequestDetailsSchema,
-        eventStartTime: nullableTimestampSchema,
-        eventEndTime: nullableTimestampSchema,
-        setupTime: nullableTimestampSchema,
+        eventStartTime: nullableTimestampSchema.optional(),
+        eventEndTime: nullableTimestampSchema.optional(),
+        setupTime: nullableTimestampSchema.optional(),
         zendeskTicketNumber: z.string().nullable(),
         isArchived: z.boolean().optional().default(false),
         createdAt: timestampSchema,
@@ -336,7 +428,10 @@ export const snapshotSchema = z.object({
 
 export type SnapshotImportInput = z.infer<typeof snapshotSchema>;
 
-function parseTimestamp(value: string | null) {
+type SnapshotEventRow = SnapshotImportInput["data"]["events"][number];
+type SnapshotDateTimeRow = SnapshotImportInput["data"]["dateTimes"][number];
+
+function parseTimestamp(value: string | null | undefined) {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -348,7 +443,7 @@ function parseTimestamp(value: string | null) {
   return parsed;
 }
 
-function parseRequiredTimestamp(value: string) {
+function parseRequiredTimestamp(value: string | null | undefined) {
   const parsed = parseTimestamp(value);
   if (!parsed) {
     throw new TRPCError({
@@ -359,7 +454,7 @@ function parseRequiredTimestamp(value: string) {
   return parsed;
 }
 
-function parseDateOnly(value: string | Date | null) {
+function parseDateOnly(value: string | Date | null | undefined) {
   if (!value) return null;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
@@ -371,6 +466,16 @@ function parseDateOnly(value: string | Date | null) {
     return value.toISOString().slice(0, 10);
   }
   return value;
+}
+
+async function resetIdentitySequence(db: DbExecutor, tableName: string) {
+  const prefixedTableName = withDbTablePrefix(tableName);
+  const quoted = `"${prefixedTableName}"`;
+  await db.execute(
+    sql.raw(
+      `SELECT setval(pg_get_serial_sequence('${quoted}', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM ${quoted}`,
+    ),
+  );
 }
 
 async function resetIdentitySequences(db: DbExecutor) {
@@ -386,6 +491,7 @@ async function resetIdentitySequences(db: DbExecutor) {
     "theme_profile",
     "organization_role",
     "calendar",
+    "date_time",
     "event",
     "event_room",
     "event_co_owner",
@@ -395,15 +501,10 @@ async function resetIdentitySequences(db: DbExecutor) {
     "event_zendesk_confirmation",
     "visibility_grant",
     "audit_log",
-  ].map(withDbTablePrefix);
+  ];
 
   for (const tableName of tableNames) {
-    const quoted = `"${tableName}"`;
-    await db.execute(
-      sql.raw(
-        `SELECT setval(pg_get_serial_sequence('${quoted}', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM ${quoted}`,
-      ),
-    );
+    await resetIdentitySequence(db, tableName);
   }
 }
 
@@ -416,6 +517,7 @@ async function truncateSnapshotTables(db: DbExecutor) {
     "event_co_owner",
     "event_room",
     "event",
+    "date_time",
     "calendar",
     "organization_role",
     "visibility_grant",
@@ -446,6 +548,104 @@ async function insertRowsInBatches<T>(
   for (let index = 0; index < rows.length; index += chunkSize) {
     await db.insert(table).values(rows.slice(index, index + chunkSize));
   }
+}
+
+function requireDateTimeId(id: number | null | undefined, label: string) {
+  if (typeof id === "number" && Number.isFinite(id)) {
+    return id;
+  }
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: `Snapshot event ${label} reference is missing.`,
+  });
+}
+
+function buildImportedDateTimeRow(
+  row: SnapshotDateTimeRow,
+  fallbackSettings: {
+    timeZone: string;
+    formatConfig: ReturnType<typeof normalizeDateFormatConfig>;
+  },
+) {
+  const instantUtc = parseRequiredTimestamp(row.instantUtc);
+  const timeZone = assertValidTimeZone(row.timeZone ?? fallbackSettings.timeZone);
+  const derived = buildDateTimeDimensionValue(instantUtc, {
+    timeZone,
+    formatConfig: fallbackSettings.formatConfig,
+  });
+
+  return {
+    id: row.id,
+    instantUtc,
+    timeZone,
+    dateKey: row.dateKey ?? derived.dateKey,
+    fullDate: parseDateOnly(row.fullDate) ?? derived.fullDate,
+    calendarDate: parseDateOnly(row.calendarDate) ?? derived.calendarDate,
+    dayOfWeekNumber: row.dayOfWeekNumber ?? derived.dayOfWeekNumber,
+    dayOfWeekName: row.dayOfWeekName ?? derived.dayOfWeekName,
+    year: row.year ?? derived.year,
+    quarter: row.quarter ?? derived.quarter,
+    month: row.month ?? derived.month,
+    monthLabel: row.monthLabel ?? derived.monthLabel,
+    monthName: row.monthName ?? derived.monthName,
+    monthShortName: row.monthShortName ?? derived.monthShortName,
+    isoWeekYear: row.isoWeekYear ?? derived.isoWeekYear,
+    isoWeek: row.isoWeek ?? derived.isoWeek,
+    isoWeekLabel: row.isoWeekLabel ?? derived.isoWeekLabel,
+    dayOfMonth: row.dayOfMonth ?? derived.dayOfMonth,
+    dayOfYear: row.dayOfYear ?? derived.dayOfYear,
+    weekOfYear: row.weekOfYear ?? derived.weekOfYear,
+    dayOfWeekIso: row.dayOfWeekIso ?? derived.dayOfWeekIso,
+    dayLabel: row.dayLabel ?? derived.dayLabel,
+    monthNumber: row.monthNumber ?? derived.monthNumber,
+    quarterNumber: row.quarterNumber ?? derived.quarterNumber,
+    yearMonthKey: row.yearMonthKey ?? derived.yearMonthKey,
+    yearMonthLabel: row.yearMonthLabel ?? derived.yearMonthLabel,
+    yearQuarterLabel: row.yearQuarterLabel ?? derived.yearQuarterLabel,
+    weekStartDate: parseDateOnly(row.weekStartDate) ?? derived.weekStartDate,
+    weekEndDate: parseDateOnly(row.weekEndDate) ?? derived.weekEndDate,
+    monthStartDate: parseDateOnly(row.monthStartDate) ?? derived.monthStartDate,
+    monthEndDate: parseDateOnly(row.monthEndDate) ?? derived.monthEndDate,
+    quarterStartDate: parseDateOnly(row.quarterStartDate) ?? derived.quarterStartDate,
+    quarterEndDate: parseDateOnly(row.quarterEndDate) ?? derived.quarterEndDate,
+    yearStartDate: parseDateOnly(row.yearStartDate) ?? derived.yearStartDate,
+    yearEndDate: parseDateOnly(row.yearEndDate) ?? derived.yearEndDate,
+    isWeekday: row.isWeekday ?? derived.isWeekday,
+    isWeekend: row.isWeekend ?? derived.isWeekend,
+    isBusinessDay: row.isBusinessDay ?? derived.isBusinessDay,
+    isMonthStart: row.isMonthStart ?? derived.isMonthStart,
+    isMonthEnd: row.isMonthEnd ?? derived.isMonthEnd,
+    isQuarterStart: row.isQuarterStart ?? derived.isQuarterStart,
+    isQuarterEnd: row.isQuarterEnd ?? derived.isQuarterEnd,
+    isYearStart: row.isYearStart ?? derived.isYearStart,
+    isYearEnd: row.isYearEnd ?? derived.isYearEnd,
+    hour24: row.hour24 ?? derived.hour24,
+    minute: row.minute ?? derived.minute,
+    second: row.second ?? derived.second,
+    isoDate: row.isoDate ?? derived.isoDate,
+    isoDateTime: row.isoDateTime ?? derived.isoDateTime,
+    usDate: row.usDate ?? derived.usDate,
+    usDateTime: row.usDateTime ?? derived.usDateTime,
+    dateIsoFormat: row.dateIsoFormat ?? derived.dateIsoFormat,
+    dateUsFormat: row.dateUsFormat ?? derived.dateUsFormat,
+    dateLongFormat: row.dateLongFormat ?? derived.dateLongFormat,
+    monthYearText: row.monthYearText ?? derived.monthYearText,
+    quarterYearLabel: row.quarterYearLabel ?? derived.quarterYearLabel,
+    previousDate: parseDateOnly(row.previousDate) ?? derived.previousDate,
+    nextDate: parseDateOnly(row.nextDate) ?? derived.nextDate,
+    createdAt: row.createdAt ? parseRequiredTimestamp(row.createdAt) : new Date(),
+  };
+}
+
+function buildParsedEventRows(rows: SnapshotEventRow[]) {
+  return rows.map((row) => ({
+    row,
+    startDatetime: parseTimestamp(row.startDatetime ?? null),
+    endDatetime: parseTimestamp(row.endDatetime ?? null),
+    eventStartTime: parseTimestamp(row.eventStartTime ?? null),
+    eventEndTime: parseTimestamp(row.eventEndTime ?? null),
+    setupTime: parseTimestamp(row.setupTime ?? null),
+  }));
 }
 
 export async function findBusinessId(db: Pick<DbClient, "select">): Promise<number | null> {
@@ -520,20 +720,25 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
       );
     }
 
-    if (data.businesses.length > 0) {
-      await insertRowsInBatches(
-        tx,
-        businesses,
-        data.businesses.map((row) => ({
-          id: row.id,
-          name: row.name,
-          type: row.type,
-          setupCompletedAt: parseTimestamp(row.setupCompletedAt),
-          createdAt: parseRequiredTimestamp(row.createdAt),
-          updatedAt: parseTimestamp(row.updatedAt),
-        })),
-      );
+    const businessRows = data.businesses.map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      timeZone: assertValidTimeZone(row.timeZone ?? DEFAULT_TIME_ZONE),
+      dateFormatConfig: normalizeDateFormatConfig(row.dateFormatConfig),
+      setupCompletedAt: parseTimestamp(row.setupCompletedAt),
+      createdAt: parseRequiredTimestamp(row.createdAt),
+      updatedAt: parseTimestamp(row.updatedAt),
+    }));
+
+    if (businessRows.length > 0) {
+      await insertRowsInBatches(tx, businesses, businessRows);
     }
+
+    const businessDateSettings = {
+      timeZone: businessRows[0]?.timeZone ?? DEFAULT_TIME_ZONE,
+      formatConfig: businessRows[0]?.dateFormatConfig ?? normalizeDateFormatConfig(undefined),
+    };
 
     if (data.buildings.length > 0) {
       await insertRowsInBatches(
@@ -661,40 +866,92 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
       );
     }
 
+    if (data.dateTimes.length > 0) {
+      await insertRowsInBatches(
+        tx,
+        dateTimes,
+        data.dateTimes.map((row) => buildImportedDateTimeRow(row, businessDateSettings)),
+      );
+      await resetIdentitySequence(tx, "date_time");
+    }
+
+    const importedDateTimeIds = new Set(data.dateTimes.map((row) => row.id));
+    const parsedEventRows = buildParsedEventRows(data.events);
+    const resolvedEventDateTimes = await resolveDateTimeIds(
+      tx,
+      businessDateSettings,
+      parsedEventRows.flatMap((row) => [
+        row.startDatetime,
+        row.endDatetime,
+        row.eventStartTime,
+        row.eventEndTime,
+        row.setupTime,
+      ]),
+    );
+
     if (data.events.length > 0) {
       await insertRowsInBatches(
         tx,
         events,
-        data.events.map((row) => ({
-          id: row.id,
-          calendarId: row.calendarId,
-          buildingId: row.buildingId ?? null,
-          assigneeProfileId: row.assigneeProfileId ?? null,
-          ownerProfileId: row.ownerProfileId ?? null,
-          scopeType: row.scopeType,
-          scopeId: row.scopeId,
-          eventCode: row.eventCode,
-          title: row.title,
-          description: row.description ?? null,
-          location: row.location ?? null,
-          isVirtual: row.isVirtual ?? false,
-          isAllDay: row.isAllDay,
-          startDatetime: parseRequiredTimestamp(row.startDatetime),
-          endDatetime: parseRequiredTimestamp(row.endDatetime),
-          recurrenceRule: row.recurrenceRule ?? null,
-          participantCount: row.participantCount ?? null,
-          technicianNeeded: row.technicianNeeded,
-          requestCategory: row.requestCategory ?? null,
-          equipmentNeeded: row.equipmentNeeded ?? null,
-          requestDetails: row.requestDetails ?? null,
-          eventStartTime: parseTimestamp(row.eventStartTime),
-          eventEndTime: parseTimestamp(row.eventEndTime),
-          setupTime: parseTimestamp(row.setupTime),
-          zendeskTicketNumber: row.zendeskTicketNumber ?? null,
-          isArchived: row.isArchived ?? false,
-          createdAt: parseRequiredTimestamp(row.createdAt),
-          updatedAt: parseTimestamp(row.updatedAt),
-        })),
+        parsedEventRows.map(({ row, startDatetime, endDatetime, eventStartTime, eventEndTime, setupTime }) => {
+          const importedStartId =
+            typeof row.startDateTimeId === "number" && importedDateTimeIds.has(row.startDateTimeId)
+              ? row.startDateTimeId
+              : null;
+          const importedEndId =
+            typeof row.endDateTimeId === "number" && importedDateTimeIds.has(row.endDateTimeId)
+              ? row.endDateTimeId
+              : null;
+          const importedEventStartId =
+            typeof row.eventStartDateTimeId === "number" && importedDateTimeIds.has(row.eventStartDateTimeId)
+              ? row.eventStartDateTimeId
+              : null;
+          const importedEventEndId =
+            typeof row.eventEndDateTimeId === "number" && importedDateTimeIds.has(row.eventEndDateTimeId)
+              ? row.eventEndDateTimeId
+              : null;
+          const importedSetupId =
+            typeof row.setupDateTimeId === "number" && importedDateTimeIds.has(row.setupDateTimeId)
+              ? row.setupDateTimeId
+              : null;
+
+          return {
+            id: row.id,
+            calendarId: row.calendarId,
+            buildingId: row.buildingId ?? null,
+            assigneeProfileId: row.assigneeProfileId ?? null,
+            ownerProfileId: row.ownerProfileId ?? null,
+            scopeType: row.scopeType,
+            scopeId: row.scopeId,
+            eventCode: row.eventCode,
+            title: row.title,
+            description: row.description ?? null,
+            location: row.location ?? null,
+            isVirtual: row.isVirtual ?? false,
+            isAllDay: row.isAllDay,
+            startDateTimeId: requireDateTimeId(
+              importedStartId ?? getDateTimeId(resolvedEventDateTimes, startDatetime),
+              "start time",
+            ),
+            endDateTimeId: requireDateTimeId(
+              importedEndId ?? getDateTimeId(resolvedEventDateTimes, endDatetime),
+              "end time",
+            ),
+            recurrenceRule: row.recurrenceRule ?? null,
+            participantCount: row.participantCount ?? null,
+            technicianNeeded: row.technicianNeeded,
+            requestCategory: row.requestCategory ?? null,
+            equipmentNeeded: row.equipmentNeeded ?? null,
+            requestDetails: row.requestDetails ?? null,
+            eventStartDateTimeId: importedEventStartId ?? getDateTimeId(resolvedEventDateTimes, eventStartTime),
+            eventEndDateTimeId: importedEventEndId ?? getDateTimeId(resolvedEventDateTimes, eventEndTime),
+            setupDateTimeId: importedSetupId ?? getDateTimeId(resolvedEventDateTimes, setupTime),
+            zendeskTicketNumber: row.zendeskTicketNumber ?? null,
+            isArchived: row.isArchived ?? false,
+            createdAt: parseRequiredTimestamp(row.createdAt),
+            updatedAt: parseTimestamp(row.updatedAt),
+          };
+        }),
       );
     }
 
@@ -834,6 +1091,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
       themeProfiles: data.themeProfiles.length,
       organizationRoles: data.organizationRoles.length,
       calendars: data.calendars.length,
+      dateTimes: data.dateTimes.length,
       events: data.events.length,
       eventRooms: data.eventRooms.length,
       eventCoOwners: data.eventCoOwners.length,

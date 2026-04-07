@@ -87,7 +87,7 @@ export default async function RootLayout({
   const paletteCSS = generatePaletteCSS(resolvedPalette.tokens);
 
   return (
-    <html lang="en" className={`${geist.variable} h-full`}>
+    <html lang="en" className={`${geist.variable} h-full`} suppressHydrationWarning>
       <head>
         {/* Blocking script to set theme mode before first paint */}
         <script
@@ -107,7 +107,11 @@ export default async function RootLayout({
         {/* Inline custom palette variables to prevent flash */}
         <style dangerouslySetInnerHTML={{ __html: paletteCSS }} />
       </head>
-      <body data-theme="dark" className="h-full bg-surface-canvas text-ink-primary antialiased">
+      <body
+        data-theme="dark"
+        className="h-full bg-surface-canvas text-ink-primary antialiased"
+        suppressHydrationWarning
+      >
         <Providers palette={resolvedPalette} session={session}>
           <AppShell user={session?.user ?? null} profileFirstName={profileFirstName}>
             {children}

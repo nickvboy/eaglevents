@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
+import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
 
 type CompanyOverview = RouterOutputs["admin"]["companyOverview"];
 type DepartmentNode = CompanyOverview["departments"]["roots"][number];
@@ -117,7 +118,29 @@ export function CompanyView() {
 
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>("university");
+  const [businessTimeZone, setBusinessTimeZone] = useState("UTC");
+  const [businessDateFormatConfigText, setBusinessDateFormatConfigText] = useState(
+    JSON.stringify(DEFAULT_DATE_FORMAT_CONFIG, null, 2),
+  );
   const [businessFeedback, setBusinessFeedback] = useState<string | null>(null);
+  const timeZoneOptions = useMemo(() => {
+    const supportedValuesOf = (
+      Intl as typeof Intl & {
+        supportedValuesOf?: (key: string) => string[];
+      }
+    ).supportedValuesOf;
+    if (typeof supportedValuesOf === "function") {
+      try {
+        const values = supportedValuesOf("timeZone");
+        if (Array.isArray(values) && values.length > 0) {
+          return values;
+        }
+      } catch {
+        // Fall through.
+      }
+    }
+    return ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
+  }, []);
 
   const [buildingForms, setBuildingForms] = useState<Record<number, BuildingFormState>>({});
   const [roomForms, setRoomForms] = useState<Record<number, string>>({});
@@ -207,6 +230,10 @@ export function CompanyView() {
     if (data?.business) {
       setBusinessName(data.business.name);
       setBusinessType(data.business.type as BusinessType);
+      setBusinessTimeZone(data.business.timeZone ?? "UTC");
+      setBusinessDateFormatConfigText(
+        JSON.stringify(data.business.dateFormatConfig ?? DEFAULT_DATE_FORMAT_CONFIG, null, 2),
+      );
     }
   }, [data?.business]);
 
@@ -768,12 +795,18 @@ export function CompanyView() {
           <p className="text-sm text-ink-muted">Update the company name and organization type.</p>
         </header>
         <form
-          className="mt-6 grid gap-4 md:grid-cols-[2fr_1fr_auto]"
+          className="mt-6 grid gap-4 md:grid-cols-2"
           onSubmit={async (event) => {
             event.preventDefault();
             setBusinessFeedback(null);
             try {
-              await updateBusiness.mutateAsync({ name: businessName.trim(), type: businessType });
+              const parsedDateFormatConfig = JSON.parse(businessDateFormatConfigText) as typeof DEFAULT_DATE_FORMAT_CONFIG;
+              await updateBusiness.mutateAsync({
+                name: businessName.trim(),
+                type: businessType,
+                timeZone: businessTimeZone,
+                dateFormatConfig: parsedDateFormatConfig,
+              });
               setBusinessFeedback("Organization updated.");
             } catch (error) {
               setBusinessFeedback((error as Error).message ?? "Failed to update organization.");
@@ -803,7 +836,30 @@ export function CompanyView() {
               ))}
             </select>
           </label>
-          <div className="flex items-end">
+          <label className="flex flex-col gap-2 text-sm text-ink-primary">
+            <span>Time zone</span>
+            <select
+              value={businessTimeZone}
+              onChange={(event) => setBusinessTimeZone(event.target.value)}
+              className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+            >
+              {timeZoneOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-ink-primary md:col-span-2">
+            <span>Date format config</span>
+            <textarea
+              value={businessDateFormatConfigText}
+              onChange={(event) => setBusinessDateFormatConfigText(event.target.value)}
+              rows={8}
+              className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 font-mono text-xs text-ink-primary focus:border-outline-accent focus:outline-none"
+            />
+          </label>
+          <div className="flex items-end md:col-span-2">
             <button
               type="submit"
               disabled={updateBusiness.isPending}

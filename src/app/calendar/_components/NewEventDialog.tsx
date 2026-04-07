@@ -563,10 +563,10 @@ function TimeSelect({
   useEffect(() => {
     if (!open) return;
     const defaultHighlightedValue =
-      value ||
+      value ??
       selectableOptions.find((option) => option.value === DEFAULT_TIME_VALUE)
-        ?.value ||
-      selectableOptions[0]?.value ||
+        ?.value ??
+      selectableOptions[0]?.value ??
       null;
     setHighlightedValue(defaultHighlightedValue);
   }, [open, selectableOptions, value]);

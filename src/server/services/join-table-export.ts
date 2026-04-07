@@ -8,6 +8,7 @@ import {
   businesses,
   buildings,
   calendars,
+  dateTimes,
   eventAttendees,
   eventHourLogs,
   eventRooms,
@@ -19,6 +20,7 @@ import {
   users,
 } from "~/server/db/schema";
 import { db } from "~/server/db";
+import { loadDateTimesByIds } from "~/server/services/date-time";
 
 type DbClient = typeof db;
 
@@ -47,6 +49,11 @@ type JoinTableExportResult = {
   filePath: string;
   backupPath: string | null;
   rowCount: number;
+};
+
+type JoinTableExportData = {
+  rows: JoinTableRow[];
+  dateTimeRows: Array<Record<string, unknown>>;
 };
 
 type JoinTableExportStatus = {
@@ -157,9 +164,45 @@ function buildMatrix(rows: JoinTableRow[]) {
   return [headers, ...dataRows];
 }
 
-async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
+function buildRecordMatrix(rows: Array<Record<string, unknown>>) {
+  const keys = Array.from(
+    rows.reduce((set, row) => {
+      for (const key of Object.keys(row)) {
+        set.add(key);
+      }
+      return set;
+    }, new Set<string>()),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const dataRows = rows.map((row) => keys.map((key) => formatCellValue(row[key])));
+  return [keys, ...dataRows];
+}
+
+async function loadJoinTableData(database: DbClient): Promise<JoinTableExportData> {
   const eventRows = await database.select().from(events).orderBy(events.id);
-  if (eventRows.length === 0) return [];
+  const allDateTimeRows = await database.select().from(dateTimes).orderBy(dateTimes.id);
+  if (eventRows.length === 0) {
+    return {
+      rows: [],
+      dateTimeRows: allDateTimeRows.map((row) => ({ ...row })),
+    };
+  }
+
+  const eventDateTimeIds = Array.from(
+    new Set(
+      eventRows.flatMap((row) =>
+        [
+          row.startDateTimeId,
+          row.endDateTimeId,
+          row.eventStartDateTimeId,
+          row.eventEndDateTimeId,
+          row.setupDateTimeId,
+        ].filter((value): value is number => typeof value === "number"),
+      ),
+    ),
+  );
+  const eventDateTimeRows = eventDateTimeIds.length > 0 ? await loadDateTimesByIds(database, eventDateTimeIds) : [];
+  const eventDateTimeMap = new Map(eventDateTimeRows.map((row) => [row.id, row]));
 
   const calendarIds = Array.from(new Set(eventRows.map((row) => row.calendarId)));
   const buildingIds = Array.from(
@@ -255,14 +298,21 @@ async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
     roomsByEvent.set(room.eventId, list);
   }
 
-  return eventRows.map((event) => {
+  const rows = eventRows.map((event) => {
     const calendar = calendarMap.get(event.calendarId) ?? null;
     const calendarUser = calendar ? userMap.get(calendar.userId) ?? null : null;
     const building = event.buildingId ? buildingMap.get(event.buildingId) ?? null : null;
     const business = building ? businessMap.get(building.businessId) ?? null : null;
     const assigneeProfile = event.assigneeProfileId ? profileMap.get(event.assigneeProfileId) ?? null : null;
     return {
-      event,
+      event: {
+        ...event,
+        startDatetime: eventDateTimeMap.get(event.startDateTimeId)?.instantUtc ?? null,
+        endDatetime: eventDateTimeMap.get(event.endDateTimeId)?.instantUtc ?? null,
+        eventStartTime: event.eventStartDateTimeId ? (eventDateTimeMap.get(event.eventStartDateTimeId)?.instantUtc ?? null) : null,
+        eventEndTime: event.eventEndDateTimeId ? (eventDateTimeMap.get(event.eventEndDateTimeId)?.instantUtc ?? null) : null,
+        setupTime: event.setupDateTimeId ? (eventDateTimeMap.get(event.setupDateTimeId)?.instantUtc ?? null) : null,
+      },
       calendar,
       calendarUser,
       building,
@@ -275,6 +325,11 @@ async function loadJoinTableRows(database: DbClient): Promise<JoinTableRow[]> {
       rooms: roomsByEvent.get(event.id) ?? [],
     };
   });
+
+  return {
+    rows,
+    dateTimeRows: allDateTimeRows.map((row) => ({ ...row })),
+  };
 }
 
 async function writeJoinTableExport(database: DbClient): Promise<JoinTableExportResult> {
@@ -296,11 +351,14 @@ async function writeJoinTableExport(database: DbClient): Promise<JoinTableExport
     }
   }
 
-  const rows = await loadJoinTableRows(database);
+  const { rows, dateTimeRows } = await loadJoinTableData(database);
   const matrix = buildMatrix(rows);
+  const dateTimeMatrix = buildRecordMatrix(dateTimeRows);
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.aoa_to_sheet(matrix);
   XLSX.utils.book_append_sheet(workbook, worksheet, "Join Table");
+  const dateTimeWorksheet = XLSX.utils.aoa_to_sheet(dateTimeMatrix);
+  XLSX.utils.book_append_sheet(workbook, dateTimeWorksheet, "Date Times");
   try {
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
     await writeFile(filePath, buffer);

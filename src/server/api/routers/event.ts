@@ -15,6 +15,13 @@ import {
   rooms,
 } from "~/server/db/schema";
 import { ensurePrimaryCalendars, getAccessibleCalendarIds, getCalendarAccess } from "~/server/services/calendar";
+import {
+  createEventDateTimeAliases,
+  getBusinessDateSettings,
+  getDateTimeId,
+  hydrateEventRecord,
+  resolveDateTimeIds,
+} from "~/server/services/date-time";
 import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { refreshHourLogExport } from "~/server/services/hour-log-export";
 import {
@@ -31,12 +38,26 @@ import type { Session } from "next-auth";
 import type { db as dbClient } from "~/server/db";
 import {
   formatLegacyEquipmentNeededText,
-  toEventRequestFormState,
   type EventRequestDetails,
 } from "~/types/event-request";
 
 type DbClient = typeof dbClient;
-type EventRow = typeof events.$inferSelect;
+type StoredEventRow = typeof events.$inferSelect;
+type EventRow = StoredEventRow & {
+  startDatetime: Date;
+  endDatetime: Date;
+  eventStartTime: Date | null;
+  eventEndTime: Date | null;
+  setupTime: Date | null;
+};
+type HydratedEventSelectRow = {
+  event: StoredEventRow;
+  startDateTime: { instantUtc: Date };
+  endDateTime: { instantUtc: Date };
+  eventStartDateTime: { instantUtc: Date } | null;
+  eventEndDateTime: { instantUtc: Date } | null;
+  setupDateTime: { instantUtc: Date } | null;
+};
 type ProfileSummary = {
   id: number;
   firstName: string;
@@ -376,6 +397,70 @@ async function buildEventResponses(db: DbClient, rows: EventRow[]): Promise<Even
   return attachLocations(db, withAttendees);
 }
 
+function requireResolvedDateTimeId(
+  resolved: Awaited<ReturnType<typeof resolveDateTimeIds>>,
+  value: Date,
+  fieldName: string,
+) {
+  const id = getDateTimeId(resolved, value);
+  if (!id) {
+    throw new Error(`Failed to resolve ${fieldName} date-time.`);
+  }
+  return id;
+}
+
+async function selectHydratedEventsByCondition(
+  db: DbClient,
+  condition?: SQL<unknown>,
+  options?: {
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const aliases = createEventDateTimeAliases("event_lookup");
+  const baseQuery = db
+    .select({
+      event: events,
+      startDateTime: {
+        instantUtc: aliases.start.instantUtc,
+      },
+      endDateTime: {
+        instantUtc: aliases.end.instantUtc,
+      },
+      eventStartDateTime: {
+        instantUtc: aliases.eventStart.instantUtc,
+      },
+      eventEndDateTime: {
+        instantUtc: aliases.eventEnd.instantUtc,
+      },
+      setupDateTime: {
+        instantUtc: aliases.setup.instantUtc,
+      },
+    })
+    .from(events)
+    .innerJoin(aliases.start, eq(events.startDateTimeId, aliases.start.id))
+    .innerJoin(aliases.end, eq(events.endDateTimeId, aliases.end.id))
+    .leftJoin(aliases.eventStart, eq(events.eventStartDateTimeId, aliases.eventStart.id))
+    .leftJoin(aliases.eventEnd, eq(events.eventEndDateTimeId, aliases.eventEnd.id))
+    .leftJoin(aliases.setup, eq(events.setupDateTimeId, aliases.setup.id));
+
+  const filteredQuery = condition ? baseQuery.where(condition) : baseQuery;
+  const orderedQuery = filteredQuery.orderBy(desc(events.updatedAt), desc(events.id));
+  const limitedQuery = typeof options?.limit === "number" ? orderedQuery.limit(options.limit) : orderedQuery;
+  const pagedQuery =
+    typeof options?.offset === "number" && options.offset > 0 ? limitedQuery.offset(options.offset) : limitedQuery;
+
+  const rows = (await pagedQuery) as HydratedEventSelectRow[];
+  return rows.map((row) => hydrateEventRecord(row));
+}
+
+async function selectHydratedEventById(db: DbClient, id: number) {
+  const rows = await selectHydratedEventsByCondition(db, eq(events.id, id), {
+    limit: 1,
+  });
+  return rows[0] ?? null;
+}
+
 function normalizeHourLogs(
   logs: Array<{ id?: number; startTime: Date; endTime: Date }> | undefined,
 ): Array<{ id?: number; startTime: Date; endTime: Date; durationMinutes: number }> | undefined {
@@ -553,7 +638,11 @@ function isScopeVisible(
   return false;
 }
 
-async function canEditEvent(dbClient: DbClient, session: Session | null, eventRow: EventRow) {
+async function canEditEvent(
+  dbClient: DbClient,
+  session: Session | null,
+  eventRow: Pick<StoredEventRow, "id" | "calendarId" | "ownerProfileId" | "assigneeProfileId" | "scopeType" | "scopeId">,
+) {
   const context = await getOptionalPermissionContext(dbClient, session);
   if (!context) return false;
   const calendarAccess = await getCalendarAccess(dbClient, context.userId, eventRow.calendarId);
@@ -579,50 +668,52 @@ export const eventRouter = createTRPCRouter({
     .input(z.object({ identifier: z.string().trim().min(1).max(64) }))
     .query(async ({ ctx, input }) => {
       const trimmed = input.identifier.trim();
-      const possibilities: Array<Promise<EventRow | undefined>> = [];
+      const possibilities: Array<Promise<number | undefined>> = [];
       const numericId = Number(trimmed);
       if (Number.isInteger(numericId) && numericId > 0) {
         possibilities.push(
           ctx.db
-            .select()
+            .select({ id: events.id })
             .from(events)
             .where(and(eq(events.id, numericId), eq(events.isArchived, false)))
             .limit(1)
-            .then((rows) => rows[0]),
+            .then((rows) => rows[0]?.id),
         );
       }
 
       possibilities.push(
         ctx.db
-          .select()
+          .select({ id: events.id })
           .from(events)
           .where(and(eq(events.eventCode, trimmed), eq(events.isArchived, false)))
           .limit(1)
-          .then((rows) => rows[0]),
+          .then((rows) => rows[0]?.id),
       );
 
       const zendesk = cleanZendeskTicketNumber(trimmed);
       if (zendesk) {
         possibilities.push(
           ctx.db
-            .select()
+            .select({ id: events.id })
             .from(events)
             .where(and(eq(events.zendeskTicketNumber, zendesk), eq(events.isArchived, false)))
             .limit(1)
-            .then((rows) => rows[0]),
+            .then((rows) => rows[0]?.id),
         );
       }
 
-      let resolved: EventRow | undefined;
+      let resolvedId: number | undefined;
       for (const attempt of possibilities) {
         const candidate = await attempt;
         if (candidate) {
-          resolved = candidate;
+          resolvedId = candidate;
           break;
         }
       }
 
-      if (!resolved) return null;
+      if (!resolvedId) return null;
+      const resolved = await selectHydratedEventById(ctx.db, resolvedId);
+      if (!resolved || resolved.isArchived) return null;
       const context = await getOptionalPermissionContext(ctx.db, ctx.session);
       if (!context) return null;
       const calendarAccess = await getCalendarAccess(ctx.db, context.userId, resolved.calendarId);
@@ -691,12 +782,11 @@ export const eventRouter = createTRPCRouter({
         }
       }
 
-      const baseQuery = ctx.db.select().from(events);
       const whereCond = conditions.length > 0 ? and(...conditions) : null;
-      const rows = await (whereCond ? baseQuery.where(whereCond) : baseQuery)
-        .orderBy(desc(events.updatedAt), desc(events.id))
-        .limit(limit)
-        .offset(offset);
+      const rows = await selectHydratedEventsByCondition(ctx.db, whereCond ?? undefined, {
+        limit,
+        offset,
+      });
       return buildEventResponses(ctx.db, rows);
     }),
   zendeskQueue: protectedProcedure.query(async ({ ctx }) => {
@@ -731,19 +821,10 @@ export const eventRouter = createTRPCRouter({
       condition = or(condition, inArray(events.id, hourEventIds)) ?? condition;
     }
 
-    const eventRows = await ctx.db
-      .select({
-        id: events.id,
-        title: events.title,
-        startDatetime: events.startDatetime,
-        endDatetime: events.endDatetime,
-        zendeskTicketNumber: events.zendeskTicketNumber,
-        assigneeProfileId: events.assigneeProfileId,
-        eventCode: events.eventCode,
-      })
-      .from(events)
-      .where(and(condition, eq(events.isArchived, false)))
-      .orderBy(desc(events.startDatetime));
+    const eventRows = await selectHydratedEventsByCondition(
+      ctx.db,
+      and(condition, eq(events.isArchived, false)),
+    );
 
     const confirmationRows = await ctx.db
       .select({
@@ -856,28 +937,55 @@ export const eventRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
-      let condition = and(lt(events.startDatetime, input.end), gt(events.endDatetime, input.start));
-      condition = and(condition, eq(events.isArchived, false));
       const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, userId);
       if (accessibleCalendarIds.length === 0) return [];
       const visibleCalendarIds =
         input.calendarIds && input.calendarIds.length > 0
           ? input.calendarIds.filter((id) => accessibleCalendarIds.includes(id))
           : accessibleCalendarIds;
-      condition = and(condition, inArray(events.calendarId, visibleCalendarIds));
+      const aliases = createEventDateTimeAliases("event_list");
+      let queryCondition: SQL<unknown> | undefined = and(
+        lt(aliases.start.instantUtc, input.end),
+        gt(aliases.end.instantUtc, input.start),
+        eq(events.isArchived, false),
+        inArray(events.calendarId, visibleCalendarIds),
+      );
 
       const context = await getOptionalPermissionContext(ctx.db, ctx.session);
       if (!context) return [];
       const visible = await getVisibleScopes(ctx.db, context.userId);
       const scopeCondition = buildScopeCondition(visible);
       if (scopeCondition) {
-        condition = and(condition, scopeCondition);
+        queryCondition = and(queryCondition, scopeCondition) ?? queryCondition;
       }
-      const list = await ctx.db
-        .select()
+      const listRows = await ctx.db
+        .select({
+          event: events,
+          startDateTime: {
+            instantUtc: aliases.start.instantUtc,
+          },
+          endDateTime: {
+            instantUtc: aliases.end.instantUtc,
+          },
+          eventStartDateTime: {
+            instantUtc: aliases.eventStart.instantUtc,
+          },
+          eventEndDateTime: {
+            instantUtc: aliases.eventEnd.instantUtc,
+          },
+          setupDateTime: {
+            instantUtc: aliases.setup.instantUtc,
+          },
+        })
         .from(events)
-        .where(condition)
-        .orderBy(events.startDatetime);
+        .innerJoin(aliases.start, eq(events.startDateTimeId, aliases.start.id))
+        .innerJoin(aliases.end, eq(events.endDateTimeId, aliases.end.id))
+        .leftJoin(aliases.eventStart, eq(events.eventStartDateTimeId, aliases.eventStart.id))
+        .leftJoin(aliases.eventEnd, eq(events.eventEndDateTimeId, aliases.eventEnd.id))
+        .leftJoin(aliases.setup, eq(events.setupDateTimeId, aliases.setup.id))
+        .where(queryCondition)
+        .orderBy(aliases.start.instantUtc);
+      const list = listRows.map(hydrateEventRecord);
       return buildEventResponses(ctx.db, list);
     }),
 
@@ -965,6 +1073,14 @@ export const eventRouter = createTRPCRouter({
       });
 
       const created = await ctx.db.transaction(async (tx) => {
+        const dateSettings = await getBusinessDateSettings(tx, permissionContext?.businessId ?? null);
+        const resolvedDateTimes = await resolveDateTimeIds(tx, dateSettings, [
+          input.startDatetime,
+          input.endDatetime,
+          input.eventStartTime,
+          input.eventEndTime,
+          input.setupTime,
+        ]);
         // Assign to the first user who logs hours (on create),
         // but do not override an explicit assignee provided by the client.
         let assignee: number | null | undefined = input.assigneeProfileId;
@@ -989,19 +1105,19 @@ export const eventRouter = createTRPCRouter({
             buildingId: resolvedBuildingId,
             isVirtual,
             isAllDay: input.isAllDay,
-            startDatetime: input.startDatetime,
-            endDatetime: input.endDatetime,
+            startDateTimeId: requireResolvedDateTimeId(resolvedDateTimes, input.startDatetime, "start"),
+            endDateTimeId: requireResolvedDateTimeId(resolvedDateTimes, input.endDatetime, "end"),
             recurrenceRule: input.recurrenceRule ?? null,
             participantCount: input.participantCount ?? null,
             technicianNeeded: input.technicianNeeded ?? false,
             requestCategory: input.requestCategory ?? null,
             equipmentNeeded: eventRequest.equipmentNeeded,
             requestDetails: eventRequest.requestDetails,
-            eventStartTime: input.eventStartTime ?? null,
-            eventEndTime: input.eventEndTime ?? null,
-            setupTime: input.setupTime ?? null,
+            eventStartDateTimeId: getDateTimeId(resolvedDateTimes, input.eventStartTime ?? null),
+            eventEndDateTimeId: getDateTimeId(resolvedDateTimes, input.eventEndTime ?? null),
+            setupDateTimeId: getDateTimeId(resolvedDateTimes, input.setupTime ?? null),
             zendeskTicketNumber,
-          })
+          } satisfies typeof events.$inferInsert)
           .returning();
         if (!row) throw new Error("Failed to create event");
 
@@ -1080,7 +1196,7 @@ export const eventRouter = createTRPCRouter({
         return row;
       });
 
-      const [result] = await buildEventResponses(ctx.db, [created]);
+      const result = await selectHydratedEventById(ctx.db, created.id);
       if (!result) throw new Error("Failed to load created event");
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] event create refresh failed", error);
@@ -1123,12 +1239,11 @@ export const eventRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = requireSessionUserId(ctx.session);
-      const existing = await ctx.db
-        .select()
-        .from(events)
-        .where(and(eq(events.id, input.id), eq(events.isArchived, false)))
-        .limit(1);
-      const current = existing[0];
+      const current = await selectHydratedEventsByCondition(
+        ctx.db,
+        and(eq(events.id, input.id), eq(events.isArchived, false)),
+        { limit: 1 },
+      ).then((rows) => rows[0] ?? null);
       if (!current) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
@@ -1209,6 +1324,14 @@ export const eventRouter = createTRPCRouter({
       });
 
       const updated = await ctx.db.transaction(async (tx) => {
+        const dateSettings = await getBusinessDateSettings(tx, permissionContext?.businessId ?? null);
+        const resolvedDateTimes = await resolveDateTimeIds(tx, dateSettings, [
+          input.startDatetime,
+          input.endDatetime,
+          nextEventStartTime,
+          nextEventEndTime,
+          nextSetupTime,
+        ]);
         // Determine next assignee
         let nextAssignee: number | null | undefined =
           input.assigneeProfileId === undefined ? current.assigneeProfileId : input.assigneeProfileId;
@@ -1241,17 +1364,17 @@ export const eventRouter = createTRPCRouter({
             buildingId: resolvedBuildingId,
             isVirtual: nextIsVirtual,
             isAllDay: input.isAllDay,
-            startDatetime: input.startDatetime,
-            endDatetime: input.endDatetime,
+            startDateTimeId: requireResolvedDateTimeId(resolvedDateTimes, input.startDatetime, "start"),
+            endDateTimeId: requireResolvedDateTimeId(resolvedDateTimes, input.endDatetime, "end"),
             recurrenceRule: input.recurrenceRule ?? null,
             participantCount: input.participantCount === undefined ? current.participantCount : input.participantCount,
             technicianNeeded: input.technicianNeeded ?? current.technicianNeeded,
             requestCategory: input.requestCategory === undefined ? current.requestCategory : input.requestCategory,
             equipmentNeeded: eventRequest.equipmentNeeded,
             requestDetails: eventRequest.requestDetails,
-            eventStartTime: nextEventStartTime,
-            eventEndTime: nextEventEndTime,
-            setupTime: nextSetupTime,
+            eventStartDateTimeId: getDateTimeId(resolvedDateTimes, nextEventStartTime),
+            eventEndDateTimeId: getDateTimeId(resolvedDateTimes, nextEventEndTime),
+            setupDateTimeId: getDateTimeId(resolvedDateTimes, nextSetupTime),
             zendeskTicketNumber: zendeskTicketNumber,
           })
           .where(eq(events.id, input.id))
@@ -1316,7 +1439,7 @@ export const eventRouter = createTRPCRouter({
         return row;
       });
 
-      const [result] = await buildEventResponses(ctx.db, [updated]);
+      const result = await selectHydratedEventById(ctx.db, updated.id);
       if (!result) throw new Error("Failed to load updated event");
       void refreshJoinTableExport(ctx.db, true).catch((error) => {
         console.error("[join-table-export] event update refresh failed", error);

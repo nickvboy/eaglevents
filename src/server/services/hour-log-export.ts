@@ -5,6 +5,7 @@ import { inArray } from "drizzle-orm";
 import { mkdir, stat, copyFile, writeFile } from "fs/promises";
 
 import { db } from "~/server/db";
+import { loadDateTimesByIds } from "~/server/services/date-time";
 import {
   buildings,
   calendars,
@@ -16,6 +17,10 @@ import {
 import { summarizeEventRequestDetails } from "~/types/event-request";
 
 type DbClient = typeof db;
+type ExportEventRow = (typeof events.$inferSelect) & {
+  startDatetime: Date | null;
+  endDatetime: Date | null;
+};
 
 const EXPORT_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const SCHEDULER_POLL_MS = 60 * 60 * 1000;
@@ -141,11 +146,17 @@ async function loadHourLogData(database: DbClient) {
   const buildingIds = Array.from(
     new Set(eventRows.map((row) => row.buildingId).filter((id): id is number => typeof id === "number")),
   );
+  const dateTimeIds = Array.from(
+    new Set(
+      eventRows.flatMap((row) => [row.startDateTimeId, row.endDateTimeId]).filter((id): id is number => typeof id === "number"),
+    ),
+  );
 
-  const [calendarRows, buildingRows, profileRows] = await Promise.all([
+  const [calendarRows, buildingRows, profileRows, dateTimeRows] = await Promise.all([
     database.select().from(calendars).where(inArray(calendars.id, calendarIds)),
     buildingIds.length > 0 ? database.select().from(buildings).where(inArray(buildings.id, buildingIds)) : [],
     profileIds.length > 0 ? database.select().from(profiles).where(inArray(profiles.id, profileIds)) : [],
+    loadDateTimesByIds(database, dateTimeIds),
   ]);
 
   const userIds = Array.from(
@@ -153,9 +164,16 @@ async function loadHourLogData(database: DbClient) {
   );
   const userRows = userIds.length > 0 ? await database.select().from(users).where(inArray(users.id, userIds)) : [];
 
+  const dateTimeMap = new Map(dateTimeRows.map((row) => [row.id, row]));
+  const hydratedEventRows: ExportEventRow[] = eventRows.map((row) => ({
+    ...row,
+    startDatetime: dateTimeMap.get(row.startDateTimeId)?.instantUtc ?? null,
+    endDatetime: dateTimeMap.get(row.endDateTimeId)?.instantUtc ?? null,
+  }));
+
   return {
     logs,
-    events: eventRows,
+    events: hydratedEventRows,
     calendars: calendarRows,
     buildings: buildingRows,
     profiles: profileRows,
@@ -163,7 +181,28 @@ async function loadHourLogData(database: DbClient) {
   };
 }
 
-function buildWorkbook(data: Awaited<ReturnType<typeof loadHourLogData>>) {
+function buildWorkbook(data: {
+  logs: Array<(typeof eventHourLogs.$inferSelect)>;
+  events: Array<
+    Partial<typeof events.$inferSelect> & {
+      id: number;
+      calendarId: number;
+      title: string;
+      eventCode: string;
+      requestDetails?: unknown;
+      equipmentNeeded?: string | null;
+      zendeskTicketNumber?: string | null;
+      location?: string | null;
+      buildingId?: number | null;
+      startDatetime: Date | null;
+      endDatetime: Date | null;
+    }
+  >;
+  calendars: Array<(typeof calendars.$inferSelect)>;
+  buildings: Array<(typeof buildings.$inferSelect)>;
+  profiles: Array<(typeof profiles.$inferSelect)>;
+  users: Array<(typeof users.$inferSelect)>;
+}) {
   const eventMap = new Map(data.events.map((row) => [row.id, row]));
   const calendarMap = new Map(data.calendars.map((row) => [row.id, row]));
   const buildingMap = new Map(data.buildings.map((row) => [row.id, row]));

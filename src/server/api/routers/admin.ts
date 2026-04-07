@@ -26,7 +26,6 @@ import {
   eventAttendees,
   eventHourLogs,
   eventReminders,
-  eventRooms,
   eventZendeskConfirmations,
   events,
   organizationRoles,
@@ -65,6 +64,17 @@ import {
   refreshSnapshotExport,
 } from "~/server/services/snapshot-export";
 import {
+  eventEndInstantSql,
+  eventStartInstantSql,
+  eventStartMonthSql,
+  eventStartYearSql,
+  getBusinessDateSettings,
+  getDateTimeId,
+  normalizeDateFormatConfig,
+  resolveDateTimeIds,
+  rebuildEventDateTimesForSettings,
+} from "~/server/services/date-time";
+import {
   buildSnapshotPayload,
   getSnapshotExportActor,
 } from "~/server/services/snapshot-payload";
@@ -84,9 +94,25 @@ import {
 } from "~/server/services/permissions";
 import bcrypt from "bcryptjs";
 import type { db as dbClient } from "~/server/db";
+import {
+  DEFAULT_DATE_FORMAT_CONFIG,
+} from "~/types/date-time";
 
 type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
+
+function timestampSql(value: Date) {
+  return sql`${value.toISOString()}::timestamptz`;
+}
+
+function toDateValue(value: Date | string | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 const businessTypeValues = [
   "university",
@@ -108,13 +134,6 @@ const organizationScopeTypeValues = [
   "division",
 ] as const;
 const profileAffiliationValues = ["staff", "faculty", "student"] as const;
-const themeProfileScopeValues = ["business", "department"] as const;
-const eventRequestCategoryValues = [
-  "university_affiliated_request_to_university_business",
-  "university_affiliated_nonrequest_to_university_business",
-  "fgcu_student_affiliated_event",
-  "non_affiliated_or_revenue_generating_event",
-] as const;
 
 const roleAssignmentInputSchema = z.object({
   roleType: z.enum(organizationRoleValues),
@@ -149,6 +168,31 @@ const REQUEST_CATEGORY_LABELS = {
   fgcu_student_affiliated_event: "FGCU student affiliated",
   non_affiliated_or_revenue_generating_event: "External or revenue events",
 } as const;
+
+const businessDateFormatConfigSchema = z.object({
+  dateKeyPattern: z.string().trim().min(1).max(32),
+  isoDatePattern: z.string().trim().min(1).max(64),
+  usDatePattern: z.string().trim().min(1).max(64),
+  longDatePattern: z.string().trim().min(1).max(96),
+  monthYearPattern: z.string().trim().min(1).max(64),
+  yearMonthLabelPattern: z.string().trim().min(1).max(32),
+  yearQuarterLabelPattern: z.string().trim().min(1).max(32),
+  quarterYearLabelPattern: z.string().trim().min(1).max(32),
+  isoDateTimePattern: z.string().trim().min(1).max(64),
+  usDateTimePattern: z.string().trim().min(1).max(96),
+});
+
+function requireResolvedDateTimeId(
+  resolved: Awaited<ReturnType<typeof resolveDateTimeIds>>,
+  value: Date,
+  fieldName: string,
+) {
+  const id = getDateTimeId(resolved, value);
+  if (!id) {
+    throw new Error(`Failed to resolve ${fieldName} date-time.`);
+  }
+  return id;
+}
 
 const EVENT_CODE_MIN = 1000000;
 const EVENT_CODE_RANGE = 9000000;
@@ -342,18 +386,18 @@ function buildDatabaseEventFilters(input?: {
   const conditions: SQL<unknown>[] = [];
   if (input?.start && input?.end) {
     const overlapCondition = and(
-      lt(events.startDatetime, input.end),
-      gt(events.endDatetime, input.start),
+      lt(eventStartInstantSql, timestampSql(input.end)),
+      gt(eventEndInstantSql, timestampSql(input.start)),
     );
     if (overlapCondition) {
       conditions.push(overlapCondition);
     }
   } else {
     if (input?.start) {
-      conditions.push(gte(events.startDatetime, input.start));
+      conditions.push(gte(eventStartInstantSql, timestampSql(input.start)));
     }
     if (input?.end) {
-      conditions.push(lt(events.startDatetime, input.end));
+      conditions.push(lt(eventStartInstantSql, timestampSql(input.end)));
     }
   }
   if (input?.search) {
@@ -534,7 +578,7 @@ async function fetchUsers(
     db
       .select({
         userId: calendars.userId,
-        lastActivity: sql<Date | null>`max(${events.startDatetime})`,
+        lastActivity: sql<Date | null>`max(${eventStartInstantSql})`,
         totalEvents: sql<number>`count(${events.id})::int`,
       })
       .from(events)
@@ -804,9 +848,12 @@ export const adminRouter = createTRPCRouter({
       .where(gte(users.createdAt, trendRangeStart));
 
     const eventRows = await ctx.db
-      .select({ startAt: events.startDatetime })
+      .select({ startAt: eventStartInstantSql })
       .from(events)
-      .where(gte(events.startDatetime, trendRangeStart));
+      .where(gte(eventStartInstantSql, timestampSql(trendRangeStart)));
+    const eventStartRows = eventRows
+      .map((row) => ({ startAt: toDateValue(row.startAt) }))
+      .filter((row): row is { startAt: Date } => row.startAt instanceof Date);
 
     const userTrend = bucketizeByMonth(
       userCreatedRows.map((row) => row.createdAt).filter(Boolean),
@@ -814,7 +861,7 @@ export const adminRouter = createTRPCRouter({
       now,
     );
     const eventTrend = bucketizeByMonth(
-      eventRows.map((row) => row.startAt).filter(Boolean),
+      eventStartRows.map((row) => row.startAt),
       MONTHS_IN_TREND,
       now,
     );
@@ -825,45 +872,59 @@ export const adminRouter = createTRPCRouter({
     const newUsersPrevious = userCreatedRows.filter(
       (row) => row.createdAt < thirtyDaysAgo && row.createdAt >= sixtyDaysAgo,
     ).length;
-    const eventsCurrent = eventRows.filter(
+    const eventsCurrent = eventStartRows.filter(
       (row) => row.startAt >= thirtyDaysAgo,
     ).length;
-    const eventsPrevious = eventRows.filter(
+    const eventsPrevious = eventStartRows.filter(
       (row) => row.startAt < thirtyDaysAgo && row.startAt >= sixtyDaysAgo,
     ).length;
 
     const recentEvents = await ctx.db
       .select({
         userId: calendars.userId,
-        startAt: events.startDatetime,
+        startAt: eventStartInstantSql,
       })
       .from(events)
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(gte(events.startDatetime, thirtyDaysAgo));
+      .where(gte(eventStartInstantSql, timestampSql(thirtyDaysAgo)));
 
     const previousEvents = await ctx.db
       .select({
         userId: calendars.userId,
-        startAt: events.startDatetime,
+        startAt: eventStartInstantSql,
       })
       .from(events)
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .where(
         and(
-          gte(events.startDatetime, sixtyDaysAgo),
-          lt(events.startDatetime, thirtyDaysAgo),
+          gte(eventStartInstantSql, timestampSql(sixtyDaysAgo)),
+          lt(eventStartInstantSql, timestampSql(thirtyDaysAgo)),
         ),
+      );
+    const recentEventRows = recentEvents
+      .map((row) => ({
+        userId: row.userId,
+        startAt: toDateValue(row.startAt),
+      }))
+      .filter(
+        (row): row is { userId: number; startAt: Date } =>
+          typeof row.userId === "number" && row.startAt instanceof Date,
+      );
+    const previousEventRows = previousEvents
+      .map((row) => ({
+        userId: row.userId,
+        startAt: toDateValue(row.startAt),
+      }))
+      .filter(
+        (row): row is { userId: number; startAt: Date } =>
+          typeof row.userId === "number" && row.startAt instanceof Date,
       );
 
     const activeUserIds = new Set(
-      recentEvents
-        .map((row) => row.userId)
-        .filter((id): id is number => typeof id === "number"),
+      recentEventRows.map((row) => row.userId),
     );
     const previousActiveUserIds = new Set(
-      previousEvents
-        .map((row) => row.userId)
-        .filter((id): id is number => typeof id === "number"),
+      previousEventRows.map((row) => row.userId),
     );
 
     const activeUserCount = activeUserIds.size;
@@ -882,17 +943,17 @@ export const adminRouter = createTRPCRouter({
       .select({
         id: events.id,
         title: events.title,
-        start: events.startDatetime,
+        start: eventStartInstantSql,
         assigneeProfileId: events.assigneeProfileId,
       })
       .from(events)
       .where(
         and(
-          gte(events.startDatetime, now),
-          lt(events.startDatetime, fourteenDaysAhead),
+          gte(eventStartInstantSql, timestampSql(now)),
+          lt(eventStartInstantSql, timestampSql(fourteenDaysAhead)),
         ),
       )
-      .orderBy(events.startDatetime)
+      .orderBy(eventStartInstantSql)
       .limit(6);
 
     const assigneeIds = Array.from(
@@ -928,19 +989,32 @@ export const adminRouter = createTRPCRouter({
       });
     }
 
-    const upcomingEvents = upcomingRows.map((row) => {
-      const assignee = row.assigneeProfileId
-        ? assigneeMap.get(row.assigneeProfileId)
-        : null;
-      return {
-        id: row.id,
-        title: row.title,
-        start: row.start,
-        assigneeName: assignee
-          ? `${assignee.firstName} ${assignee.lastName}`
-          : null,
-      };
-    });
+    const upcomingEvents = upcomingRows
+      .map((row) => {
+        const assignee = row.assigneeProfileId
+          ? assigneeMap.get(row.assigneeProfileId)
+          : null;
+        const start = toDateValue(row.start);
+        if (!start) return null;
+        return {
+          id: row.id,
+          title: row.title,
+          start,
+          assigneeName: assignee
+            ? `${assignee.firstName} ${assignee.lastName}`
+            : null,
+        };
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          id: number;
+          title: string;
+          start: Date;
+          assigneeName: string | null;
+        } => row !== null,
+      );
 
     const activeUserRows = await ctx.db
       .select({
@@ -948,13 +1022,13 @@ export const adminRouter = createTRPCRouter({
         displayName: users.displayName,
         email: users.email,
         username: users.username,
-        lastActivity: sql<Date | null>`max(${events.startDatetime})`,
+        lastActivity: sql<Date | null>`max(${eventStartInstantSql})`,
       })
       .from(events)
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .innerJoin(users, eq(calendars.userId, users.id))
       .groupBy(calendars.userId, users.displayName, users.email, users.username)
-      .orderBy(sql`max(${events.startDatetime}) desc`)
+      .orderBy(sql`max(${eventStartInstantSql}) desc`)
       .limit(8);
 
     const activeUsersList =
@@ -963,7 +1037,7 @@ export const adminRouter = createTRPCRouter({
             id: row.userId,
             name: row.displayName || row.username || row.email,
             email: row.email,
-            lastActivity: row.lastActivity,
+            lastActivity: toDateValue(row.lastActivity),
           }))
         : (
             await ctx.db
@@ -1086,8 +1160,8 @@ export const adminRouter = createTRPCRouter({
     );
 
     let scopeCondition = and(
-      gte(events.startDatetime, windowStart),
-      lt(events.startDatetime, now),
+      gte(eventStartInstantSql, timestampSql(windowStart)),
+      lt(eventStartInstantSql, timestampSql(now)),
     );
     const visibleScopes = await getVisibleScopes(ctx.db, context.userId);
     if (!visibleScopes.business) {
@@ -1124,8 +1198,8 @@ export const adminRouter = createTRPCRouter({
       .select({
         id: events.id,
         title: events.title,
-        start: events.startDatetime,
-        end: events.endDatetime,
+        start: eventStartInstantSql,
+        end: eventEndInstantSql,
         buildingId: events.buildingId,
         buildingName: buildings.name,
         buildingAcronym: buildings.acronym,
@@ -1137,7 +1211,7 @@ export const adminRouter = createTRPCRouter({
       .from(events)
       .leftJoin(buildings, eq(events.buildingId, buildings.id))
       .where(scopeCondition)
-      .orderBy(desc(events.startDatetime));
+      .orderBy(desc(eventStartInstantSql));
 
     const eventIds = eventRows.map((row) => row.id);
     const hourRows =
@@ -1341,15 +1415,15 @@ export const adminRouter = createTRPCRouter({
 
     const earliestEventYearRow = await ctx.db
       .select({
-        year: sql<number>`min(extract(year from ${events.startDatetime}))::int`,
+        year: sql<number>`min(${eventStartYearSql})::int`,
       })
       .from(events)
       .limit(1);
     const earliestEventYearValue = earliestEventYearRow[0]?.year ?? null;
     const lookbackStartYear = earliestEventYearValue ?? now.getUTCFullYear();
     const monthRangeStart = new Date(Date.UTC(lookbackStartYear, 0, 1));
-    const eventYearExpr = sql<number>`extract(year from ${events.startDatetime})::int`;
-    const eventMonthExpr = sql<number>`extract(month from ${events.startDatetime})::int`;
+    const eventYearExpr = sql<number>`${eventStartYearSql}::int`;
+    const eventMonthExpr = sql<number>`${eventStartMonthSql}::int`;
     const monthlyRows = await ctx.db
       .select({
         year: eventYearExpr,
@@ -1359,7 +1433,7 @@ export const adminRouter = createTRPCRouter({
       })
       .from(events)
       .leftJoin(eventHourLogs, eq(events.id, eventHourLogs.eventId))
-      .where(gte(events.startDatetime, monthRangeStart))
+      .where(gte(eventStartInstantSql, timestampSql(monthRangeStart)))
       .groupBy(eventYearExpr, eventMonthExpr)
       .orderBy(eventYearExpr, eventMonthExpr);
 
@@ -1421,7 +1495,7 @@ export const adminRouter = createTRPCRouter({
       .select({
         id: events.id,
         title: events.title,
-        start: events.startDatetime,
+        start: eventStartInstantSql,
         buildingName: buildings.name,
         buildingAcronym: buildings.acronym,
         ticket: events.zendeskTicketNumber,
@@ -1436,12 +1510,12 @@ export const adminRouter = createTRPCRouter({
       )
       .where(
         and(
-          gte(events.startDatetime, now),
-          lt(events.startDatetime, futureCutoff),
+          gte(eventStartInstantSql, timestampSql(now)),
+          lt(eventStartInstantSql, timestampSql(futureCutoff)),
           sql`${events.zendeskTicketNumber} IS NOT NULL`,
         ),
       )
-      .orderBy(events.startDatetime)
+      .orderBy(eventStartInstantSql)
       .limit(32);
 
     const queueMap = new Map<
@@ -1807,7 +1881,8 @@ export const adminRouter = createTRPCRouter({
 
       const codes = await generateUniqueEventCodes(ctx.db, input.events.length);
       const now = new Date();
-      const values = input.events.map((event, index) => {
+      const dateSettings = await getBusinessDateSettings(ctx.db, businessId);
+      const normalizedEvents = input.events.map((event) => {
         const start = event.start;
         let end = event.end;
         if (
@@ -1820,19 +1895,39 @@ export const adminRouter = createTRPCRouter({
             : new Date(start.getTime() + 60 * 60 * 1000);
         }
         return {
+          source: event,
+          start,
+          end,
+        };
+      });
+      const resolvedDateTimes = await resolveDateTimeIds(
+        ctx.db,
+        dateSettings,
+        normalizedEvents.flatMap((event) => [event.start, event.end]),
+      );
+      const values = normalizedEvents.map((entry, index) => {
+        return {
           calendarId: input.calendarId,
           ownerProfileId: ownerProfile?.id ?? null,
           scopeType: calendar.scopeType,
           scopeId: calendar.scopeId,
           eventCode: codes[index] ?? generateEventCode(),
-          title: event.title,
-          isAllDay: event.isAllDay,
-          startDatetime: start,
-          endDatetime: end,
-          zendeskTicketNumber: event.zendeskTicketNumber ?? null,
+          title: entry.source.title,
+          isAllDay: entry.source.isAllDay,
+          startDateTimeId: requireResolvedDateTimeId(
+            resolvedDateTimes,
+            entry.start,
+            "start",
+          ),
+          endDateTimeId: requireResolvedDateTimeId(
+            resolvedDateTimes,
+            entry.end,
+            "end",
+          ),
+          zendeskTicketNumber: entry.source.zendeskTicketNumber ?? null,
           createdAt: now,
           updatedAt: now,
-        };
+        } satisfies typeof events.$inferInsert;
       });
 
       await ctx.db.insert(events).values(values);
@@ -2049,8 +2144,8 @@ export const adminRouter = createTRPCRouter({
           id: events.id,
           title: events.title,
           eventCode: events.eventCode,
-          startDatetime: events.startDatetime,
-          endDatetime: events.endDatetime,
+          startDatetime: eventStartInstantSql,
+          endDatetime: eventEndInstantSql,
           calendarId: events.calendarId,
           buildingId: events.buildingId,
           assigneeProfileId: events.assigneeProfileId,
@@ -2061,7 +2156,7 @@ export const adminRouter = createTRPCRouter({
       const eventRows = await (
         whereClause ? baseQuery.where(whereClause) : baseQuery
       )
-        .orderBy(desc(events.startDatetime), desc(events.id))
+        .orderBy(desc(eventStartInstantSql), desc(events.id))
         .limit(limit);
 
       const totalRowsQuery = ctx.db
@@ -2154,8 +2249,8 @@ export const adminRouter = createTRPCRouter({
         .from(events)
         .where(
           and(
-            lt(events.startDatetime, input.end),
-            gt(events.endDatetime, input.start),
+            lt(eventStartInstantSql, timestampSql(input.end)),
+            gt(eventEndInstantSql, timestampSql(input.start)),
           ),
         );
       return { count: row?.count ?? 0 };
@@ -2210,8 +2305,8 @@ export const adminRouter = createTRPCRouter({
         .from(events)
         .where(
           and(
-            lt(events.startDatetime, input.end),
-            gt(events.endDatetime, input.start),
+            lt(eventStartInstantSql, timestampSql(input.end)),
+            gt(eventEndInstantSql, timestampSql(input.start)),
           ),
         );
       const eventIds = eventRows.map((row) => row.id);
@@ -2276,6 +2371,10 @@ export const adminRouter = createTRPCRouter({
       z.object({
         name: z.string().min(2).max(255),
         type: z.enum(businessTypeValues),
+        timeZone: z.string().trim().min(1).max(100),
+        dateFormatConfig: businessDateFormatConfigSchema.default(
+          DEFAULT_DATE_FORMAT_CONFIG,
+        ),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -2288,10 +2387,34 @@ export const adminRouter = createTRPCRouter({
         });
       }
       const name = input.name.trim();
+      const normalizedDateFormatConfig = normalizeDateFormatConfig(
+        input.dateFormatConfig,
+      );
+      const currentSettings = await getBusinessDateSettings(
+        ctx.db,
+        status.business.id,
+      );
+      const nextTimeZone = input.timeZone.trim();
       await ctx.db
         .update(businesses)
-        .set({ name, type: input.type, updatedAt: new Date() })
+        .set({
+          name,
+          type: input.type,
+          timeZone: nextTimeZone,
+          dateFormatConfig: normalizedDateFormatConfig,
+          updatedAt: new Date(),
+        })
         .where(eq(businesses.id, status.business.id));
+      const shouldRebuildDateTimes =
+        currentSettings.timeZone !== nextTimeZone ||
+        JSON.stringify(currentSettings.formatConfig) !==
+          JSON.stringify(normalizedDateFormatConfig);
+      if (shouldRebuildDateTimes) {
+        await rebuildEventDateTimesForSettings(ctx.db, {
+          timeZone: nextTimeZone,
+          formatConfig: normalizedDateFormatConfig,
+        });
+      }
       return { id: status.business.id };
     }),
 

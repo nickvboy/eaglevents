@@ -157,6 +157,7 @@ export async function revertSeededData(dbClient: DbClient, log: (message: string
     await tx.delete(schema.eventAttendees);
     await tx.delete(schema.eventCoOwners);
     await tx.delete(schema.events);
+    await tx.delete(schema.dateTimes);
     await tx.delete(schema.calendars);
     await tx.delete(schema.organizationRoles);
     await tx.delete(schema.visibilityGrants);
@@ -423,7 +424,7 @@ export async function seedEvents({
         getCalendarIdForOwner(spec.owner),
       ]);
 
-      const event = await withRateLimitRetry(
+      const event: Awaited<ReturnType<Caller["event"]["create"]>> = await withRateLimitRetry(
         () =>
           userCaller.event.create({
             ...spec.eventInputBase,

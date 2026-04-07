@@ -3,6 +3,7 @@ import {
   buildings,
   businesses,
   calendars,
+  dateTimes,
   departments,
   eventAttendees,
   eventCoOwners,
@@ -22,10 +23,11 @@ import {
 } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { db as dbClient } from "~/server/db";
+import { loadDateTimesByIds } from "~/server/services/date-time";
 
 type DbClient = typeof dbClient;
 
-export const SNAPSHOT_VERSION = 3;
+export const SNAPSHOT_VERSION = 4;
 
 export type SnapshotExportActor = {
   userId: number | null;
@@ -111,6 +113,7 @@ export async function loadSnapshotData(db: DbClient) {
     themeProfileRows,
     organizationRoleRows,
     calendarRows,
+    dateTimeRows,
     eventRows,
     eventRoomRows,
     eventCoOwnerRows,
@@ -132,6 +135,7 @@ export async function loadSnapshotData(db: DbClient) {
     db.select().from(themeProfiles).orderBy(themeProfiles.id),
     db.select().from(organizationRoles).orderBy(organizationRoles.id),
     db.select().from(calendars).orderBy(calendars.id),
+    db.select().from(dateTimes).orderBy(dateTimes.id),
     db.select().from(events).orderBy(events.id),
     db.select().from(eventRooms).orderBy(eventRooms.id),
     db.select().from(eventCoOwners).orderBy(eventCoOwners.id),
@@ -142,6 +146,22 @@ export async function loadSnapshotData(db: DbClient) {
     db.select().from(visibilityGrants).orderBy(visibilityGrants.id),
     db.select().from(auditLogs).orderBy(auditLogs.id),
   ]);
+
+  const eventDateTimeIds = Array.from(
+    new Set(
+      eventRows.flatMap((row) =>
+        [
+          row.startDateTimeId,
+          row.endDateTimeId,
+          row.eventStartDateTimeId,
+          row.eventEndDateTimeId,
+          row.setupDateTimeId,
+        ].filter((value): value is number => typeof value === "number"),
+      ),
+    ),
+  );
+  const eventDateTimeRows = eventDateTimeIds.length > 0 ? await loadDateTimesByIds(db, eventDateTimeIds) : [];
+  const eventDateTimeMap = new Map(eventDateTimeRows.map((row) => [row.id, row]));
 
   return {
     users: userRows.map((row) => ({
@@ -177,6 +197,8 @@ export async function loadSnapshotData(db: DbClient) {
       id: row.id,
       name: row.name,
       type: row.type,
+      timeZone: row.timeZone,
+      dateFormatConfig: row.dateFormatConfig,
       setupCompletedAt: serializeTimestamp(row.setupCompletedAt),
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
@@ -249,6 +271,67 @@ export async function loadSnapshotData(db: DbClient) {
       createdAt: serializeRequiredTimestamp(row.createdAt),
       updatedAt: serializeTimestamp(row.updatedAt),
     })),
+    dateTimes: dateTimeRows.map((row) => ({
+      id: row.id,
+      instantUtc: serializeRequiredTimestamp(row.instantUtc),
+      timeZone: row.timeZone,
+      dateKey: row.dateKey,
+      fullDate: serializeDateOnly(row.fullDate),
+      calendarDate: serializeDateOnly(row.calendarDate),
+      dayOfWeekNumber: row.dayOfWeekNumber,
+      dayOfWeekName: row.dayOfWeekName,
+      year: row.year,
+      quarter: row.quarter,
+      month: row.month,
+      monthLabel: row.monthLabel,
+      monthName: row.monthName,
+      monthShortName: row.monthShortName,
+      isoWeekYear: row.isoWeekYear,
+      isoWeek: row.isoWeek,
+      isoWeekLabel: row.isoWeekLabel,
+      dayOfMonth: row.dayOfMonth,
+      dayOfYear: row.dayOfYear,
+      weekOfYear: row.weekOfYear,
+      dayOfWeekIso: row.dayOfWeekIso,
+      dayLabel: row.dayLabel,
+      monthNumber: row.monthNumber,
+      quarterNumber: row.quarterNumber,
+      yearMonthKey: row.yearMonthKey,
+      yearMonthLabel: row.yearMonthLabel,
+      yearQuarterLabel: row.yearQuarterLabel,
+      weekStartDate: serializeDateOnly(row.weekStartDate),
+      weekEndDate: serializeDateOnly(row.weekEndDate),
+      monthStartDate: serializeDateOnly(row.monthStartDate),
+      monthEndDate: serializeDateOnly(row.monthEndDate),
+      quarterStartDate: serializeDateOnly(row.quarterStartDate),
+      quarterEndDate: serializeDateOnly(row.quarterEndDate),
+      yearStartDate: serializeDateOnly(row.yearStartDate),
+      yearEndDate: serializeDateOnly(row.yearEndDate),
+      isWeekday: row.isWeekday,
+      isWeekend: row.isWeekend,
+      isBusinessDay: row.isBusinessDay,
+      isMonthStart: row.isMonthStart,
+      isMonthEnd: row.isMonthEnd,
+      isQuarterStart: row.isQuarterStart,
+      isQuarterEnd: row.isQuarterEnd,
+      isYearStart: row.isYearStart,
+      isYearEnd: row.isYearEnd,
+      hour24: row.hour24,
+      minute: row.minute,
+      second: row.second,
+      isoDate: row.isoDate,
+      isoDateTime: row.isoDateTime,
+      usDate: row.usDate,
+      usDateTime: row.usDateTime,
+      dateIsoFormat: row.dateIsoFormat,
+      dateUsFormat: row.dateUsFormat,
+      dateLongFormat: row.dateLongFormat,
+      monthYearText: row.monthYearText,
+      quarterYearLabel: row.quarterYearLabel,
+      previousDate: serializeDateOnly(row.previousDate),
+      nextDate: serializeDateOnly(row.nextDate),
+      createdAt: serializeRequiredTimestamp(row.createdAt),
+    })),
     events: eventRows.map((row) => ({
       id: row.id,
       calendarId: row.calendarId,
@@ -263,17 +346,28 @@ export async function loadSnapshotData(db: DbClient) {
       location: row.location ?? null,
       isVirtual: row.isVirtual,
       isAllDay: row.isAllDay,
-      startDatetime: serializeRequiredTimestamp(row.startDatetime),
-      endDatetime: serializeRequiredTimestamp(row.endDatetime),
+      startDateTimeId: row.startDateTimeId,
+      endDateTimeId: row.endDateTimeId,
+      eventStartDateTimeId: row.eventStartDateTimeId ?? null,
+      eventEndDateTimeId: row.eventEndDateTimeId ?? null,
+      setupDateTimeId: row.setupDateTimeId ?? null,
+      startDatetime: serializeRequiredTimestamp(eventDateTimeMap.get(row.startDateTimeId)?.instantUtc),
+      endDatetime: serializeRequiredTimestamp(eventDateTimeMap.get(row.endDateTimeId)?.instantUtc),
       recurrenceRule: row.recurrenceRule ?? null,
       participantCount: row.participantCount ?? null,
       technicianNeeded: row.technicianNeeded,
       requestCategory: row.requestCategory ?? null,
       equipmentNeeded: row.equipmentNeeded ?? null,
       requestDetails: row.requestDetails ?? null,
-      eventStartTime: serializeTimestamp(row.eventStartTime),
-      eventEndTime: serializeTimestamp(row.eventEndTime),
-      setupTime: serializeTimestamp(row.setupTime),
+      eventStartTime: serializeTimestamp(
+        row.eventStartDateTimeId ? eventDateTimeMap.get(row.eventStartDateTimeId)?.instantUtc : null,
+      ),
+      eventEndTime: serializeTimestamp(
+        row.eventEndDateTimeId ? eventDateTimeMap.get(row.eventEndDateTimeId)?.instantUtc : null,
+      ),
+      setupTime: serializeTimestamp(
+        row.setupDateTimeId ? eventDateTimeMap.get(row.setupDateTimeId)?.instantUtc : null,
+      ),
       zendeskTicketNumber: row.zendeskTicketNumber ?? null,
       isArchived: row.isArchived,
       createdAt: serializeRequiredTimestamp(row.createdAt),

@@ -21,6 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { withDbTablePrefix } from "~/config/app";
 import type { EventRequestDetails } from "~/types/event-request";
+import type { DateFormatConfig } from "~/types/date-time";
 import type { ThemePaletteTokens } from "~/types/theme";
 
 /**
@@ -136,6 +137,13 @@ export const businesses = createTable(
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     name: d.varchar({ length: 255 }).notNull(),
     type: businessTypeEnum().default("other").notNull(),
+    timeZone: d.varchar({ length: 100 }).default("UTC").notNull(),
+    dateFormatConfig: jsonb("dateFormatConfig")
+      .$type<DateFormatConfig>()
+      .default(
+        sql`'{"dateKeyPattern":"YYYYMMDD","isoDatePattern":"YYYY-MM-DD","usDatePattern":"MM/DD/YYYY","longDatePattern":"MMMM D, YYYY","monthYearPattern":"MMMM YYYY","yearMonthLabelPattern":"YYYY-MM","yearQuarterLabelPattern":"YYYY-[Q]Q","quarterYearLabelPattern":"[Q]Q YYYY","isoDateTimePattern":"YYYY-MM-DD[T]HH:mm:ss","usDateTimePattern":"MM/DD/YYYY hh:mm:ss A"}'::jsonb`,
+      )
+      .notNull(),
     setupCompletedAt: d.timestamp({ withTimezone: true }),
     createdAt: d
       .timestamp({ withTimezone: true })
@@ -144,6 +152,80 @@ export const businesses = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [uniqueIndex("business_name_unique").on(t.name)],
+);
+
+export const dateTimes = createTable(
+  "date_time",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    instantUtc: d.timestamp({ withTimezone: true }).notNull(),
+    timeZone: d.varchar({ length: 100 }).notNull(),
+    dateKey: d.varchar({ length: 32 }).notNull(),
+    fullDate: d.date().notNull(),
+    calendarDate: d.date().notNull(),
+    dayOfWeekNumber: d.integer().notNull(),
+    dayOfWeekName: d.varchar({ length: 24 }).notNull(),
+    year: d.integer().notNull(),
+    quarter: d.integer().notNull(),
+    month: d.integer().notNull(),
+    monthLabel: d.varchar({ length: 16 }).notNull(),
+    monthName: d.varchar({ length: 24 }).notNull(),
+    monthShortName: d.varchar({ length: 16 }).notNull(),
+    isoWeekYear: d.integer().notNull(),
+    isoWeek: d.integer().notNull(),
+    isoWeekLabel: d.varchar({ length: 16 }).notNull(),
+    dayOfMonth: d.integer().notNull(),
+    dayOfYear: d.integer().notNull(),
+    weekOfYear: d.integer().notNull(),
+    dayOfWeekIso: d.integer().notNull(),
+    dayLabel: d.varchar({ length: 16 }).notNull(),
+    monthNumber: d.integer().notNull(),
+    quarterNumber: d.integer().notNull(),
+    yearMonthKey: d.varchar({ length: 16 }).notNull(),
+    yearMonthLabel: d.varchar({ length: 24 }).notNull(),
+    yearQuarterLabel: d.varchar({ length: 24 }).notNull(),
+    weekStartDate: d.date().notNull(),
+    weekEndDate: d.date().notNull(),
+    monthStartDate: d.date().notNull(),
+    monthEndDate: d.date().notNull(),
+    quarterStartDate: d.date().notNull(),
+    quarterEndDate: d.date().notNull(),
+    yearStartDate: d.date().notNull(),
+    yearEndDate: d.date().notNull(),
+    isWeekday: d.boolean().notNull(),
+    isWeekend: d.boolean().notNull(),
+    isBusinessDay: d.boolean().notNull(),
+    isMonthStart: d.boolean().notNull(),
+    isMonthEnd: d.boolean().notNull(),
+    isQuarterStart: d.boolean().notNull(),
+    isQuarterEnd: d.boolean().notNull(),
+    isYearStart: d.boolean().notNull(),
+    isYearEnd: d.boolean().notNull(),
+    hour24: d.integer().notNull(),
+    minute: d.integer().notNull(),
+    second: d.integer().notNull(),
+    isoDate: d.varchar({ length: 64 }).notNull(),
+    isoDateTime: d.varchar({ length: 64 }).notNull(),
+    usDate: d.varchar({ length: 64 }).notNull(),
+    usDateTime: d.varchar({ length: 96 }).notNull(),
+    dateIsoFormat: d.varchar({ length: 64 }).notNull(),
+    dateUsFormat: d.varchar({ length: 64 }).notNull(),
+    dateLongFormat: d.varchar({ length: 96 }).notNull(),
+    monthYearText: d.varchar({ length: 64 }).notNull(),
+    quarterYearLabel: d.varchar({ length: 24 }).notNull(),
+    previousDate: d.date().notNull(),
+    nextDate: d.date().notNull(),
+    createdAt: d
+      .timestamp({ withTimezone: true })
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [
+    uniqueIndex("date_time_instant_timezone_unique").on(t.instantUtc, t.timeZone),
+    index("date_time_timezone_instant_idx").on(t.timeZone, t.instantUtc),
+    index("date_time_timezone_calendar_idx").on(t.timeZone, t.year, t.month, t.dayOfMonth),
+    index("date_time_timezone_week_idx").on(t.timeZone, t.isoWeekYear, t.isoWeek),
+  ],
 );
 
 export const buildings = createTable(
@@ -386,17 +468,29 @@ export const events = createTable(
     location: d.varchar({ length: 255 }),
     isVirtual: d.boolean().default(false).notNull(),
     isAllDay: d.boolean().default(false).notNull(),
-    startDatetime: d.timestamp({ withTimezone: true }).notNull(),
-    endDatetime: d.timestamp({ withTimezone: true }).notNull(),
+    startDateTimeId: d
+      .integer()
+      .notNull()
+      .references(() => dateTimes.id, { onDelete: "restrict" }),
+    endDateTimeId: d
+      .integer()
+      .notNull()
+      .references(() => dateTimes.id, { onDelete: "restrict" }),
     recurrenceRule: text(),
     participantCount: d.integer(),
     technicianNeeded: d.boolean().default(false).notNull(),
     requestCategory: eventRequestCategoryEnum(),
     equipmentNeeded: text(),
     requestDetails: jsonb().$type<EventRequestDetails | null>(),
-    eventStartTime: d.timestamp({ withTimezone: true }),
-    eventEndTime: d.timestamp({ withTimezone: true }),
-    setupTime: d.timestamp({ withTimezone: true }),
+    eventStartDateTimeId: d
+      .integer()
+      .references(() => dateTimes.id, { onDelete: "set null" }),
+    eventEndDateTimeId: d
+      .integer()
+      .references(() => dateTimes.id, { onDelete: "set null" }),
+    setupDateTimeId: d
+      .integer()
+      .references(() => dateTimes.id, { onDelete: "set null" }),
     zendeskTicketNumber: d.varchar({ length: 64 }),
     isArchived: d.boolean().default(false).notNull(),
     createdAt: d
@@ -408,7 +502,8 @@ export const events = createTable(
   (t) => [
     index("event_calendar_idx").on(t.calendarId),
     index("event_building_idx").on(t.buildingId),
-    index("event_start_idx").on(t.startDatetime),
+    index("event_start_datetime_fk_idx").on(t.startDateTimeId),
+    index("event_end_datetime_fk_idx").on(t.endDateTimeId),
     index("event_assignee_idx").on(t.assigneeProfileId),
     index("event_scope_idx").on(t.scopeType, t.scopeId),
     index("event_owner_idx").on(t.ownerProfileId),
