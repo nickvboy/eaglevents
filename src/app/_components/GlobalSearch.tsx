@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "~/trpc/react";
 import { SearchIcon } from "./icons";
@@ -19,7 +19,10 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listboxId = useId();
 
   const isExpanded = expanded || value.length > 0;
 
@@ -45,6 +48,16 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
     { search: searchQuery, limit: 6 },
     { enabled: isExpanded && searchQuery.length > 0 },
   );
+  const ticketResults = ticketsQuery.data ?? [];
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [searchQuery, ticketResults.length]);
+
+  useEffect(() => {
+    if (highlightedIndex < 0) return;
+    optionRefs.current[highlightedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
 
   if (!enabled) return null;
 
@@ -123,8 +136,30 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
                   if (error) setError(null);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === "Escape" && !value) {
+                  if (event.key === "ArrowDown") {
+                    if (ticketResults.length === 0) return;
+                    event.preventDefault();
+                    setHighlightedIndex((prev) =>
+                      Math.min(prev + 1, ticketResults.length - 1),
+                    );
+                  } else if (event.key === "ArrowUp") {
+                    if (ticketResults.length === 0) return;
+                    event.preventDefault();
+                    setHighlightedIndex((prev) =>
+                      prev < 0 ? ticketResults.length - 1 : Math.max(prev - 1, 0),
+                    );
+                  } else if (event.key === "Enter") {
+                    if (
+                      highlightedIndex >= 0 &&
+                      highlightedIndex < ticketResults.length
+                    ) {
+                      event.preventDefault();
+                      openTicket(ticketResults[highlightedIndex]!);
+                    }
+                  } else if (event.key === "Escape" && !value) {
                     setExpanded(false);
+                  } else if (event.key === "Escape") {
+                    setHighlightedIndex(-1);
                   }
                 }}
                 onBlur={(event) => {
@@ -134,6 +169,15 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
                     setExpanded(false);
                   }
                 }}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isExpanded && searchQuery.length > 0}
+                aria-controls={listboxId}
+                aria-activedescendant={
+                  highlightedIndex >= 0
+                    ? `${listboxId}-${highlightedIndex}`
+                    : undefined
+                }
                 aria-label="Search tickets"
               />
               <button
@@ -149,18 +193,35 @@ export function GlobalSearch({ enabled }: GlobalSearchProps) {
               </button>
             </div>
             {isExpanded && searchQuery.length > 0 ? (
-              <div className="absolute right-0 z-[999] mt-2 w-[320px] overflow-hidden rounded-lg border border-outline-muted bg-surface-raised shadow-[var(--shadow-pane)] sm:w-[380px]">
+              <div
+                id={listboxId}
+                role="listbox"
+                className="absolute right-0 z-[999] mt-2 w-[320px] overflow-hidden rounded-lg border border-outline-muted bg-surface-raised shadow-[var(--shadow-pane)] sm:w-[380px]"
+              >
                 <div className="max-h-64 overflow-auto bg-surface-raised">
                   {ticketsQuery.isLoading ? (
                     <div className="px-3 py-2 text-sm text-ink-muted">Searching...</div>
-                  ) : ticketsQuery.data && ticketsQuery.data.length > 0 ? (
-                    ticketsQuery.data.map((ticket) => (
+                  ) : ticketResults.length > 0 ? (
+                    ticketResults.map((ticket, index) => (
                       <button
                         key={ticket.id}
                         type="button"
+                        id={`${listboxId}-${index}`}
+                        role="option"
+                        aria-selected={index === highlightedIndex}
                         data-search-submit="true"
+                        ref={(node) => {
+                          optionRefs.current[index] = node;
+                        }}
                         onClick={() => openTicket(ticket)}
-                        className="flex w-full flex-col gap-1 bg-surface-base px-3 py-2 text-left text-sm text-ink-primary transition hover:bg-surface-muted"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        className={
+                          "flex w-full flex-col gap-1 bg-surface-base px-3 py-2 text-left text-sm text-ink-primary transition " +
+                          (index === highlightedIndex
+                            ? "bg-surface-muted"
+                            : "hover:bg-surface-muted")
+                        }
                       >
                         <span className="font-medium">{ticket.title}</span>
                         <span className="text-xs text-ink-subtle">
