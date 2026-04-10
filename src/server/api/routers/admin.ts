@@ -84,6 +84,12 @@ import {
   snapshotSchema,
   writeSnapshotImportAuditLog,
 } from "~/server/services/snapshot-import";
+import {
+  exportEventsWorkbook,
+  importEventsWorkbook,
+  listTransferEvents,
+  writeEventWorkbookImportAuditLog,
+} from "~/server/services/event-transfer";
 import { getDefaultEventCount, runSeed } from "~/server/services/seed";
 import { getSetupStatus } from "~/server/services/setup";
 import {
@@ -1821,6 +1827,68 @@ export const adminRouter = createTRPCRouter({
         });
       }
       return buildSnapshotPayload(ctx.db, { note, actor });
+    }),
+
+  eventTransferEvents: protectedProcedure
+    .input(
+      z
+        .object({
+          search: z.string().trim().min(1).optional(),
+          start: z.coerce.date().optional(),
+          end: z.coerce.date().optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      // Event transfer intentionally ignores per-scope visibility once the
+      // caller has import/export admin capability.
+      return listTransferEvents(ctx.db, input);
+    }),
+
+  exportEventsWorkbook: protectedProcedure
+    .input(
+      z.object({
+        eventIds: z.array(z.number().int().positive()).min(1).max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      return exportEventsWorkbook(ctx.db, input.eventIds);
+    }),
+
+  importEventsWorkbook: protectedProcedure
+    .input(
+      z.object({
+        fileName: z.string().trim().max(255).optional(),
+        contentBase64: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
+      const result = await importEventsWorkbook({
+        db: ctx.db,
+        session: ctx.session,
+        contentBase64: input.contentBase64,
+      });
+
+      if (result.createdCount > 0 || result.updatedCount > 0) {
+        await Promise.allSettled([
+          refreshJoinTableExport(ctx.db, true),
+          refreshHourLogExport(ctx.db, true),
+        ]);
+      }
+
+      await writeEventWorkbookImportAuditLog({
+        db: ctx.db,
+        businessId: await findBusinessId(ctx.db),
+        actorUserId: Number(ctx.session.user.id),
+        fileName: input.fileName,
+        result,
+      });
+
+      return result;
     }),
 
   importIcsEvents: protectedProcedure

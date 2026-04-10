@@ -41,7 +41,7 @@ type DbClient = typeof dbClient;
 type DbExecutor = Pick<DbClient, "execute">;
 type DbInserter = Pick<DbClient, "insert">;
 
-export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4] as const;
+export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
@@ -162,13 +162,47 @@ const dateTimeImportSchema = z.object({
   createdAt: timestampSchema.optional(),
 });
 
-export const snapshotSchema = z.object({
-  version: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+function normalizeLegacySnapshotPayload(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const snapshot = value as Record<string, unknown>;
+  const data =
+    snapshot.data && typeof snapshot.data === "object" && !Array.isArray(snapshot.data)
+      ? { ...(snapshot.data as Record<string, unknown>) }
+      : snapshot.data;
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const normalizedData = data as Record<string, unknown>;
+    if (!("dateTimes" in normalizedData)) {
+      normalizedData.dateTimes = [];
+    }
+  }
+
+  const metadata =
+    snapshot.metadata && typeof snapshot.metadata === "object" && !Array.isArray(snapshot.metadata)
+      ? { ...(snapshot.metadata as Record<string, unknown>) }
+      : snapshot.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const normalizedMetadata = metadata as Record<string, unknown>;
+    if (typeof snapshot.version === "number" && snapshot.version >= 5 && !("formatVersion" in normalizedMetadata)) {
+      normalizedMetadata.formatVersion = 5;
+    }
+  }
+
+  return {
+    ...snapshot,
+    ...(metadata ? { metadata } : {}),
+    ...(data ? { data } : {}),
+  };
+}
+
+export const snapshotSchema = z.preprocess(normalizeLegacySnapshotPayload, z.object({
+  version: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
   exportedAt: timestampSchema,
   metadata: z
     .object({
       app: z.string().min(1),
       note: z.string().max(500).optional(),
+      formatVersion: z.number().int().optional(),
     })
     .optional(),
   exportedBy: z
@@ -426,7 +460,7 @@ export const snapshotSchema = z.object({
       }),
     ),
   }),
-});
+}));
 
 export type SnapshotImportInput = z.infer<typeof snapshotSchema>;
 

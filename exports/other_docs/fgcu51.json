@@ -1,15 +1,14 @@
 {
   "version": 5,
-  "exportedAt": "2026-04-10T10:25:40.369Z",
+  "exportedAt": "2026-04-10T15:06:18.293Z",
   "metadata": {
     "app": "eaglevents",
-    "formatVersion": 5,
-    "note": "Automatic scheduled snapshot export"
+    "formatVersion": 5
   },
   "exportedBy": {
-    "userId": null,
-    "email": null,
-    "displayName": null
+    "userId": 22,
+    "email": "nickvboy@gmail.com",
+    "displayName": "Nicholas Villiers"
   },
   "data": {
     "users": [
@@ -3001,7 +3000,7 @@
         "parentDepartmentId": 1,
         "name": "Administrative Services and Finance",
         "createdAt": "2026-03-27T21:21:56.027Z",
-        "updatedAt": "2026-04-09T21:40:45.759Z"
+        "updatedAt": "2026-04-09T21:01:36.638Z"
       },
       {
         "id": 3,
@@ -3033,7 +3032,7 @@
         "parentDepartmentId": 5,
         "name": "Audio Visual Services",
         "createdAt": "2026-03-27T21:21:56.027Z",
-        "updatedAt": "2026-04-09T21:40:45.760Z"
+        "updatedAt": "2026-04-09T21:01:36.639Z"
       }
     ],
     "themePalettes": [
@@ -54650,7 +54649,20 @@
         "scopeType": "business",
         "scopeId": 1,
         "metadata": null,
-        "createdAt": "2026-04-09T21:40:46.275Z"
+        "createdAt": "2026-04-09T21:01:37.038Z"
+      },
+      {
+        "id": 19,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.export",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": {},
+        "createdAt": "2026-04-10T15:06:18.285Z"
       }
     ]
   }

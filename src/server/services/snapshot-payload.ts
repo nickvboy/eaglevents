@@ -27,7 +27,7 @@ import { loadDateTimesByIds } from "~/server/services/date-time";
 
 type DbClient = typeof dbClient;
 
-export const SNAPSHOT_VERSION = 4;
+export const SNAPSHOT_VERSION = 5;
 
 export type SnapshotExportActor = {
   userId: number | null;
@@ -41,6 +41,7 @@ export type SnapshotPayload = {
   metadata: {
     app: "eaglevents";
     note?: string;
+    formatVersion?: number;
   };
   exportedBy: SnapshotExportActor;
   data: Awaited<ReturnType<typeof loadSnapshotData>>;
@@ -452,6 +453,7 @@ export async function buildSnapshotPayload(
     exportedAt: options?.exportedAt ?? new Date().toISOString(),
     metadata: {
       app: "eaglevents",
+      formatVersion: SNAPSHOT_VERSION,
       ...(note ? { note } : {}),
     },
     exportedBy: {

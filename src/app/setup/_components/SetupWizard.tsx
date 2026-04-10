@@ -18,7 +18,7 @@ import { formatGeneratedCredentials } from "./forms/credentialsExport";
 
 type StepKey = "business" | "buildings" | "departments" | "users" | "theme" | "complete";
 type GeneratedDefaultUser = RouterOutputs["setup"]["createDefaultUsers"]["generatedUsers"][number];
-type ImportSnapshotInput = RouterInputs["setup"]["importSnapshot"];
+type ImportSnapshotInput = RouterOutputs["admin"]["exportSnapshot"];
 type SnapshotSummary = {
   version: number;
   exportedAt: string;
@@ -28,7 +28,7 @@ type SnapshotSummary = {
 };
 
 const orderedSteps: StepKey[] = ["business", "buildings", "departments", "users", "theme", "complete"];
-const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4] as const;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
 const snapshotDataSections = [
   { key: "users", label: "Users" },
   { key: "posts", label: "Posts" },

@@ -5,6 +5,21 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const WINDOWS_SYSTEM_FILE_PATTERN =
+  /(?:^|[\\/])(DumpStack\.log\.tmp|hiberfil\.sys|pagefile\.sys|swapfile\.sys)$/i;
+
+const config = {
+  webpack: (webpackConfig, { dev }) => {
+    if (dev) {
+      webpackConfig.watchOptions = {
+        ...webpackConfig.watchOptions,
+        // Ignore Windows root system files that can throw EINVAL during Watchpack's initial scan.
+        ignored: WINDOWS_SYSTEM_FILE_PATTERN,
+      };
+    }
+
+    return webpackConfig;
+  },
+};
 
 export default config;

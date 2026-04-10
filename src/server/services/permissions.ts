@@ -159,8 +159,8 @@ export function buildAdminCapabilities(roles: RoleAssignment[]): AdminCapability
   const hasBusinessAdmin = roles.some((role) => role.roleType === "admin" && role.scopeType === "business");
   if (hasBusinessAdmin) return ADMIN_CAPABILITIES.slice();
 
-  const hasBusinessCoAdmin = roles.some((role) => role.roleType === "co_admin" && role.scopeType === "business");
-  if (hasBusinessCoAdmin) return CO_ADMIN_CAPABILITIES.slice();
+  const hasAnyCoAdmin = roles.some((role) => role.roleType === "co_admin");
+  if (hasAnyCoAdmin) return CO_ADMIN_CAPABILITIES.slice();
 
   const hasManager = roles.some((role) => role.roleType === "manager");
   if (hasManager) return MANAGER_CAPABILITIES.slice();

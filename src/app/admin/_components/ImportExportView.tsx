@@ -6,10 +6,12 @@ import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 import { parseIcsEvents } from "~/app/calendar/utils/ics";
 
 type ExportSnapshotPayload = RouterOutputs["admin"]["exportSnapshot"];
-type ImportSnapshotInput = RouterInputs["admin"]["importSnapshot"];
+type ImportSnapshotInput = RouterOutputs["admin"]["exportSnapshot"];
 type JoinTableExportStatus = RouterOutputs["admin"]["joinTableExportStatus"];
 type HourLogExportStatus = RouterOutputs["admin"]["hourLogExportStatus"];
 type SnapshotExportStatus = RouterOutputs["admin"]["snapshotExportStatus"];
+type EventTransferQuery = NonNullable<RouterInputs["admin"]["eventTransferEvents"]>;
+type ImportEventsWorkbookResult = RouterOutputs["admin"]["importEventsWorkbook"];
 
 type SnapshotSummary = {
   version: number;
@@ -19,9 +21,10 @@ type SnapshotSummary = {
   counts: Array<{ label: string; count: number }>;
 };
 
-const CURRENT_SNAPSHOT_VERSION = 4;
-const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4] as const;
+const CURRENT_SNAPSHOT_VERSION = 5;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
 const SNAPSHOT_FORMAT_LABEL = `Version ${CURRENT_SNAPSHOT_VERSION} (JSON)`;
+const defaultEventTransferQuery: EventTransferQuery = { limit: 50 };
 
 const snapshotDataSections = [
   { key: "users", label: "Users" },
@@ -126,9 +129,60 @@ function downloadJson(filename: string, payload: ExportSnapshotPayload) {
   URL.revokeObjectURL(url);
 }
 
+function base64ToUint8Array(value: string) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function downloadWorkbook(filename: string, contentBase64: string, mimeType: string) {
+  const blob = new Blob([base64ToUint8Array(contentBase64)], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function toStartOfDay(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toExclusiveEndOfDay(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() + 1);
+  return date;
+}
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Unable to read workbook file."));
+        return;
+      }
+      const [, base64 = ""] = reader.result.split(",", 2);
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to read workbook file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function ImportExportView() {
   const exportMutation = api.admin.exportSnapshot.useMutation();
   const importMutation = api.admin.importSnapshot.useMutation();
+  const eventTransferWorkbookExportMutation = api.admin.exportEventsWorkbook.useMutation();
+  const eventTransferWorkbookImportMutation = api.admin.importEventsWorkbook.useMutation();
   const importIcsMutation = api.admin.importIcsEvents.useMutation();
   const joinTableStatusQuery = api.admin.joinTableExportStatus.useQuery(undefined, {
     refetchInterval: 60000,
@@ -142,6 +196,12 @@ export function ImportExportView() {
     refetchInterval: 60000,
   });
   const snapshotRefreshMutation = api.admin.refreshSnapshotExport.useMutation();
+  const [eventTransferSearch, setEventTransferSearch] = useState("");
+  const [eventTransferStartDate, setEventTransferStartDate] = useState("");
+  const [eventTransferEndDate, setEventTransferEndDate] = useState("");
+  const [eventTransferLimit, setEventTransferLimit] = useState(50);
+  const [eventTransferQuery, setEventTransferQuery] = useState<EventTransferQuery>(defaultEventTransferQuery);
+  const eventTransferQueryResult = api.admin.eventTransferEvents.useQuery(eventTransferQuery);
   const { data: calendars } = api.calendar.listAccessible.useQuery(undefined);
 
   const [exportNote, setExportNote] = useState("");
@@ -163,6 +223,13 @@ export function ImportExportView() {
   const [icsFilterEnd, setIcsFilterEnd] = useState("");
   const [joinTableMessage, setJoinTableMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [hourLogMessage, setHourLogMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [eventTransferMessage, setEventTransferMessage] = useState<{ type: "success" | "error"; text: string } | null>(
+    null,
+  );
+  const [eventTransferImportFile, setEventTransferImportFile] = useState<File | null>(null);
+  const [eventTransferImportFileName, setEventTransferImportFileName] = useState<string | null>(null);
+  const [eventTransferImportResult, setEventTransferImportResult] = useState<ImportEventsWorkbookResult | null>(null);
+  const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [snapshotAutoMessage, setSnapshotAutoMessage] = useState<{ type: "success" | "error"; text: string } | null>(
     null,
   );
@@ -195,6 +262,79 @@ export function ImportExportView() {
       setExportMessage("Snapshot exported and downloaded.");
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : "Failed to export snapshot.");
+    }
+  };
+
+  const handleEventTransferApplyFilters = () => {
+    const nextQuery: EventTransferQuery = { limit: eventTransferLimit };
+    if (eventTransferSearch.trim()) nextQuery.search = eventTransferSearch.trim();
+    const start = eventTransferStartDate ? toStartOfDay(eventTransferStartDate) : null;
+    const end = eventTransferEndDate ? toExclusiveEndOfDay(eventTransferEndDate) : null;
+    if (start) nextQuery.start = start;
+    if (end) nextQuery.end = end;
+    setEventTransferQuery(nextQuery);
+    setSelectedEventIds([]);
+  };
+
+  const handleEventTransferReset = () => {
+    setEventTransferSearch("");
+    setEventTransferStartDate("");
+    setEventTransferEndDate("");
+    setEventTransferLimit(50);
+    setEventTransferQuery(defaultEventTransferQuery);
+    setSelectedEventIds([]);
+  };
+
+  const handleExportSelectedEvents = async () => {
+    setEventTransferMessage(null);
+    try {
+      const payload = await eventTransferWorkbookExportMutation.mutateAsync({
+        eventIds: selectedEventIds,
+      });
+      downloadWorkbook(payload.filename, payload.contentBase64, payload.mimeType);
+      setEventTransferMessage({
+        type: "success",
+        text: `Exported ${payload.rowCount} event${payload.rowCount === 1 ? "" : "s"} as Excel.`,
+      });
+    } catch (error) {
+      setEventTransferMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to export events as Excel.",
+      });
+    }
+  };
+
+  const handleEventTransferImportFile = async (file: File | null) => {
+    setEventTransferMessage(null);
+    setEventTransferImportResult(null);
+    setEventTransferImportFile(file);
+    setEventTransferImportFileName(file?.name ?? null);
+  };
+
+  const handleImportSelectedEventWorkbook = async () => {
+    if (!eventTransferImportFile) return;
+    try {
+      const contentBase64 = await readFileAsBase64(eventTransferImportFile);
+      const result = await eventTransferWorkbookImportMutation.mutateAsync({
+        fileName: eventTransferImportFile.name,
+        contentBase64,
+      });
+      setEventTransferImportResult(result);
+      setEventTransferMessage({
+        type: result.failedCount > 0 ? "error" : "success",
+        text:
+          result.failedCount > 0
+            ? `Imported with partial failures. ${result.createdCount} created, ${result.updatedCount} updated, ${result.failedCount} failed.`
+            : `Import completed. ${result.createdCount} created, ${result.updatedCount} updated.`,
+      });
+      setEventTransferImportFile(null);
+      setEventTransferImportFileName(null);
+      void eventTransferQueryResult.refetch();
+    } catch (error) {
+      setEventTransferMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to import Excel workbook.",
+      });
     }
   };
 
@@ -325,6 +465,8 @@ export function ImportExportView() {
   };
 
   const previewCounts = useMemo(() => snapshotSummary?.counts ?? [], [snapshotSummary]);
+  const eventTransferEvents = eventTransferQueryResult.data ?? [];
+  const selectedEventCount = selectedEventIds.length;
   const filteredIcsEvents = useMemo(() => {
     const startValue = icsFilterStart ? new Date(`${icsFilterStart}T00:00:00`) : null;
     const endValue = icsFilterEnd ? new Date(`${icsFilterEnd}T23:59:59.999`) : null;
@@ -576,6 +718,205 @@ export function ImportExportView() {
             {hourLogMessage.text}
           </div>
         ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-ink-primary">Event Excel transfer</h2>
+          <p className="text-sm text-ink-muted">
+            Export selected events to a one-sheet Excel workbook, edit them in Excel, then import the workbook to apply updates or create new events.
+          </p>
+        </header>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+            Search
+            <input
+              value={eventTransferSearch}
+              onChange={(event) => setEventTransferSearch(event.target.value)}
+              placeholder="Title, event code, Zendesk ticket, or ID"
+              className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
+            />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+              Start date
+              <input
+                type="date"
+                value={eventTransferStartDate}
+                onChange={(event) => setEventTransferStartDate(event.target.value)}
+                className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+              End date
+              <input
+                type="date"
+                value={eventTransferEndDate}
+                onChange={(event) => setEventTransferEndDate(event.target.value)}
+                className="rounded-lg border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:outline-none"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
+            <span>Limit</span>
+            <select
+              value={eventTransferLimit}
+              onChange={(event) => setEventTransferLimit(Number(event.target.value))}
+              className="rounded-lg border border-outline-muted bg-surface-muted px-2 py-1 text-sm text-ink-primary"
+            >
+              {[25, 50, 100, 150, 200].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={handleEventTransferApplyFilters}
+            className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default"
+          >
+            Apply filters
+          </button>
+          <button
+            type="button"
+            onClick={handleEventTransferReset}
+            className="rounded-full border border-outline-muted px-4 py-2 text-sm font-semibold text-ink-primary transition hover:bg-surface-overlay"
+          >
+            Reset
+          </button>
+          <span className="text-xs text-ink-subtle">{selectedEventCount} selected</span>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-outline-muted bg-surface-muted p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-ink-subtle">
+            <button
+              type="button"
+              onClick={() => setSelectedEventIds(eventTransferEvents.map((item) => item.id))}
+              className="rounded-full border border-outline-muted px-3 py-1 font-semibold text-ink-primary transition hover:bg-surface-overlay"
+            >
+              Select shown
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedEventIds([])}
+              className="rounded-full border border-outline-muted px-3 py-1 font-semibold text-ink-primary transition hover:bg-surface-overlay"
+            >
+              Clear shown
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportSelectedEvents()}
+              disabled={selectedEventCount === 0 || eventTransferWorkbookExportMutation.isPending}
+              className="rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {eventTransferWorkbookExportMutation.isPending ? "Exporting..." : "Export selected Excel"}
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-outline-muted bg-surface-raised">
+            {eventTransferQueryResult.isLoading ? (
+              <div className="p-4 text-sm text-ink-muted">Loading events...</div>
+            ) : eventTransferQueryResult.isError ? (
+              <div className="p-4 text-sm text-status-danger">Unable to load events for transfer.</div>
+            ) : eventTransferEvents.length === 0 ? (
+              <div className="p-4 text-sm text-ink-muted">No events found for the selected filters.</div>
+            ) : (
+              <div className="max-h-72 overflow-auto">
+                {eventTransferEvents.map((event) => {
+                  const checked = selectedEventIds.includes(event.id);
+                  return (
+                    <label key={event.id} className="flex items-start gap-3 border-t border-outline-muted px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(checkboxEvent) =>
+                          setSelectedEventIds((prev) =>
+                            checkboxEvent.target.checked
+                              ? [...prev, event.id]
+                              : prev.filter((id) => id !== event.id),
+                          )
+                        }
+                        className="mt-1 h-4 w-4 accent-accent-strong"
+                      />
+                      <span className="flex-1">
+                        <div className="text-sm font-semibold text-ink-primary">{event.title}</div>
+                        <div className="mt-1 text-xs text-ink-muted">
+                          ID {event.id} | Code {event.eventCode} | {formatTimestamp(event.startDatetime.toISOString())}
+                        </div>
+                        <div className="mt-1 text-xs text-ink-subtle">
+                          Calendar {event.calendarId} | Building {event.buildingId ?? "None"} | Zendesk {event.zendeskTicketNumber ?? "None"}
+                        </div>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-xl border border-outline-muted bg-surface-muted p-4">
+          <label className="flex flex-col gap-2 text-sm font-semibold text-ink-primary">
+            Import Excel workbook
+            <input
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                void handleEventTransferImportFile(file);
+                event.currentTarget.value = "";
+              }}
+              className="text-sm text-ink-primary"
+              disabled={eventTransferWorkbookImportMutation.isPending}
+            />
+          </label>
+          {eventTransferImportFileName ? <div className="mt-2 text-xs text-ink-subtle">Selected: {eventTransferImportFileName}</div> : null}
+          <button
+            type="button"
+            onClick={() => void handleImportSelectedEventWorkbook()}
+            disabled={!eventTransferImportFile || eventTransferWorkbookImportMutation.isPending}
+            className="mt-3 rounded-full bg-accent-strong px-4 py-2 text-sm font-semibold text-ink-inverted transition hover:bg-accent-default disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {eventTransferWorkbookImportMutation.isPending ? "Importing..." : "Import events Excel"}
+          </button>
+          {eventTransferMessage ? (
+            <div
+              className={
+                "mt-3 rounded-lg border px-3 py-2 text-sm " +
+                (eventTransferMessage.type === "success"
+                  ? "border-outline-accent bg-accent-muted text-accent-soft"
+                  : "border-status-danger bg-status-danger-surface text-status-danger")
+              }
+            >
+              {eventTransferMessage.text}
+            </div>
+          ) : null}
+          {eventTransferImportResult ? (
+            <div className="mt-3 rounded-lg border border-outline-muted bg-surface-raised p-3">
+              <div className="flex flex-wrap gap-3 text-xs text-ink-subtle">
+                <span>Total rows: {eventTransferImportResult.totalRows}</span>
+                <span>Created: {eventTransferImportResult.createdCount}</span>
+                <span>Updated: {eventTransferImportResult.updatedCount}</span>
+                <span>Failed: {eventTransferImportResult.failedCount}</span>
+              </div>
+              <div className="mt-3 max-h-64 overflow-auto text-xs">
+                {eventTransferImportResult.results.map((result) => (
+                  <div key={`${result.rowNumber}-${result.action}-${result.eventId ?? result.sourceEventId ?? "none"}`} className="border-t border-outline-muted py-2 text-ink-muted">
+                    Row {result.rowNumber}: {result.action}
+                    {result.eventId ? ` event ${result.eventId}` : ""}
+                    {result.title ? ` (${result.title})` : ""}
+                    {result.message ? ` - ${result.message}` : ""}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-2xl border border-outline-muted bg-surface-raised p-6 shadow-[var(--shadow-pane)]">

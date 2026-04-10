@@ -217,11 +217,21 @@ ODBE
 - [ ]  Use year window controls (multi-year report); verify range changes.
 
 ## Admin - Import/Export
-
-- [ ]  Export snapshot; verify JSON downloads and message shows.
-- [ ]  Refresh join table export; verify status updates.
-- [ ]  Verify hour log export status and schedule info.
-- [ ]  Import .ics file; verify preview list appears.
+  
+  - [ ]  Export snapshot; verify JSON downloads and message shows.
+  - [ ]  Verify co-admin access to Import/Export tab from non-business scopes.
+  - [ ]  Filter event transfer list; verify checkbox selection updates.
+  - [ ]  Export selected events as Excel; verify one-sheet workbook downloads with selected rows.
+  - [ ]  Verify workbook shows readable visible columns and hidden machine-key columns.
+  - [ ]  Import exported workbook with updates; verify existing events are updated by ID.
+  - [ ]  Import exported workbook with blank/new IDs; verify new events are created.
+  - [ ]  Import workbook with mixed valid/invalid rows; verify partial success and row-level errors.
+  - [ ]  Clear visible references with hidden keys still present; verify import reports conflict.
+  - [ ]  Verify workbook opens cleanly in Excel desktop and Excel web.
+  - [ ]  Upload snapshot v2/v3/v4/v5; verify preview and restore path still works.
+  - [ ]  Refresh join table export; verify status updates.
+  - [ ]  Verify hour log export status and schedule info.
+  - [ ]  Import .ics file; verify preview list appears.
 - [ ]  Filter .ics events by date; verify list updates.
 - [ ]  Select subset of .ics events; import; verify events created.
 - [ ]  Upload invalid snapshot file; verify error.

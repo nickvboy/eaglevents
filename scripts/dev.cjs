@@ -4,6 +4,9 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+const WINDOWS_WATCHPACK_SCAN_ERROR =
+  /Watchpack Error \(initial scan\): Error: EINVAL: invalid argument, lstat 'C:\\(?:DumpStack\.log\.tmp|hiberfil\.sys|pagefile\.sys|swapfile\.sys)'/i;
+
 function readEnvValue(key, preferProcessEnv = false) {
   // In prod wrapper we prefer process.env (set by scripts/prod.cjs).
   if (preferProcessEnv && process.env[key]) return process.env[key];
@@ -62,10 +65,29 @@ if (port) args.push("-p", String(port));
 
 const cmd = "next"; // resolved from node_modules/.bin via shell
 const child = spawn(cmd, args, {
-  stdio: "inherit",
+  stdio: ["inherit", "pipe", "pipe"],
   shell: true,
   env: port ? { ...process.env, PORT: String(port) } : process.env,
 });
+
+if (child.stdout) {
+  child.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+  });
+}
+
+if (child.stderr) {
+  child.stderr.on("data", (chunk) => {
+    const text = chunk.toString();
+    const filtered = text
+      .split(/\r?\n/)
+      .filter((line) => line.length > 0 && !WINDOWS_WATCHPACK_SCAN_ERROR.test(line));
+
+    if (filtered.length > 0) {
+      process.stderr.write(`${filtered.join("\n")}${text.endsWith("\n") ? "\n" : ""}`);
+    }
+  });
+}
 
 child.on("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal);

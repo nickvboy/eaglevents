@@ -12,11 +12,14 @@ import {
   indexProfile,
   searchProfiles,
 } from "~/server/services/profile-search";
+import {
+  createProfileFromInput,
+  createProfileInputSchema,
+  profileAffiliationValues,
+} from "~/server/services/profile-upsert";
 import { profiles } from "~/server/db/schema";
 
 const DEFAULT_LIMIT = 8;
-const profileAffiliationValues = ["staff", "faculty", "student"] as const;
-
 export const profileRouter = createTRPCRouter({
   me: protectedProcedure.query(async ({ ctx }) => {
     const userId = Number(ctx.session.user.id);
@@ -140,87 +143,12 @@ export const profileRouter = createTRPCRouter({
       }));
     }),
   create: protectedProcedure
-    .input(
-      z
-        .object({
-          firstName: z.string().trim().min(1).max(100),
-          lastName: z.string().trim().min(1).max(100),
-          email: z.string().trim().email().max(255),
-          phoneNumber: z.string().trim().max(32).optional(),
-          affiliation: z.enum(profileAffiliationValues).optional(),
-          ignoreDuplicateContactCheck: z.boolean().optional(),
-        })
-        .transform((value) => ({
-          ...value,
-          firstName: value.firstName.trim(),
-          lastName: value.lastName.trim(),
-          email: value.email.trim().toLowerCase(),
-          phoneNumber: value.phoneNumber?.trim() ?? "",
-          affiliation: value.affiliation ?? null,
-        })),
-    )
+    .input(createProfileInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const phoneDigits = input.phoneNumber.replace(/\D/g, "").slice(0, 32);
-      if (!input.ignoreDuplicateContactCheck) {
-        const conflicts = await findProfileContactConflicts(
-          {
-            email: input.email,
-            phoneNumber: phoneDigits,
-          },
-          ctx.db,
-        );
-        if (conflicts.length > 0) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message:
-              "A profile with the same email or phone number already exists.",
-          });
-        }
-      }
-
-      const [created] = await ctx.db
-        .insert(profiles)
-        .values({
-          userId: null,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          email: input.email,
-          phoneNumber: phoneDigits,
-          affiliation: input.affiliation,
-        })
-        .returning({
-          id: profiles.id,
-          firstName: profiles.firstName,
-          lastName: profiles.lastName,
-          email: profiles.email,
-          phoneNumber: profiles.phoneNumber,
-          affiliation: profiles.affiliation,
-        });
-
-      if (created) {
-        await indexProfile({
-          id: created.id,
-          firstName: created.firstName,
-          lastName: created.lastName,
-          email: created.email,
-          username: null,
-          phoneNumber: created.phoneNumber,
-          affiliation: created.affiliation ?? null,
-        });
-      }
-
-      return {
-        profileId: created?.id ?? null,
-        firstName: created?.firstName ?? input.firstName,
-        lastName: created?.lastName ?? input.lastName,
-        email: created?.email ?? input.email,
-        phoneNumber: created?.phoneNumber ?? phoneDigits,
-        affiliation: created?.affiliation ?? input.affiliation ?? null,
-        username: null,
-        displayName: [input.firstName, input.lastName]
-          .filter(Boolean)
-          .join(" "),
-      };
+      return createProfileFromInput({
+        db: ctx.db,
+        input,
+      });
     }),
   update: protectedProcedure
     .input(
