@@ -45,8 +45,8 @@ export function TicketsShell() {
   const returnParam = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 border-r border-outline-muted bg-surface-sunken/40 px-3 py-4 lg:block">
+    <div className="flex min-h-screen bg-surface-canvas">
+      <aside className="hidden w-64 shrink-0 border-r border-outline-muted bg-surface-muted px-3 py-4 lg:block">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink-primary">
           <ReportIcon className="h-5 w-5 text-accent-soft" />
           Tickets
@@ -58,8 +58,8 @@ export function TicketsShell() {
         </nav>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-outline-muted bg-surface-overlay/60 px-4 py-3">
+      <section className="flex min-w-0 flex-1 flex-col bg-surface-muted">
+        <header className="border-b border-outline-muted bg-surface-muted px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             {/* Desktop title */}
             <div className="hidden items-center gap-2 text-sm font-semibold text-ink-primary md:flex">
@@ -117,7 +117,7 @@ export function TicketsShell() {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          <div className="min-w-0 flex-1 overflow-auto">
+          <div className="min-w-0 flex-1 overflow-auto bg-surface-muted">
             <div className="hidden md:block">
               <TicketTable
                 rows={rows}
@@ -142,7 +142,7 @@ export function TicketsShell() {
               />
             </div>
           </div>
-          <aside className="hidden w-80 shrink-0 border-l border-outline-muted bg-surface-raised/80 backdrop-blur xl:block">
+          <aside className="hidden w-80 shrink-0 border-l border-outline-muted bg-surface-muted xl:block">
             <SidePreview row={selected} />
           </aside>
         </div>
@@ -168,7 +168,7 @@ function NavButton({
       type="button"
       className={
         "flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition " +
-        (active ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted")
+        (active ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-raised")
       }
       onClick={onClick}
     >
@@ -191,7 +191,7 @@ function TicketTable({
 }) {
   return (
     <table className="w-full min-w-full border-collapse text-sm">
-      <thead className="bg-surface-overlay/60 text-ink-subtle">
+      <thead className="bg-surface-muted text-ink-subtle">
         <tr className="border-b border-outline-muted">
           <Th>Ticket status</Th>
           <Th className="hidden md:table-cell">Requested</Th>
@@ -206,11 +206,11 @@ function TicketTable({
           const isSelected = row.id === selectedId;
           const updatedAt = row.updatedAt ?? row.createdAt;
           const ticketCode = row.eventCode ?? String(row.id).padStart(7, "0");
-          const zebra = idx % 2 === 0 ? "bg-surface-sunken/40" : "bg-surface-muted/40";
+          const zebra = idx % 2 === 0 ? "bg-surface-overlay" : "bg-surface-sunken";
           return (
             <tr
               key={row.id}
-              className={`${zebra} cursor-pointer transition hover:bg-surface-muted ${isSelected ? "bg-accent-muted/40" : ""}`}
+              className={`${zebra} cursor-pointer transition hover:bg-surface-raised ${isSelected ? "bg-accent-muted/30" : ""}`}
               onClick={() => onSelect(row.id)}
               onDoubleClick={() => onOpen(row)}
             >
@@ -240,7 +240,7 @@ function StatusPill({ row }: { row: Row }) {
       ? "border-status-success bg-status-success-surface text-status-success"
       : assigned
         ? "border-outline-accent bg-accent-muted text-accent-soft"
-        : "border-outline-muted bg-surface-muted text-ink-subtle";
+        : "border-outline-muted bg-surface-raised text-ink-subtle";
   return <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
 }
 
@@ -257,12 +257,12 @@ function SidePreview({ row }: { row: Row | null }) {
   const ticketCode = row.eventCode ?? String(row.id).padStart(7, "0");
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-outline-muted bg-surface-overlay px-4 py-3">
+      <div className="border-b border-outline-muted bg-surface-muted px-4 py-3">
         <div className="text-[11px] uppercase tracking-wider text-status-success">Preview</div>
         <div className="mt-1 line-clamp-2 text-sm font-semibold text-ink-primary">{row.title}</div>
       </div>
       <div className="space-y-3 p-4 text-sm">
-        <div className="rounded-lg border border-outline-muted bg-surface-muted p-3 text-ink-subtle">
+        <div className="rounded-lg border border-outline-muted bg-surface-raised p-3 text-ink-subtle">
           <div className="text-[11px] uppercase tracking-wide text-ink-faint">Ticket ID #{ticketCode}</div>
           <div>{formatDate(start)}</div>
           <div>{formatTimeRange(start, end)}</div>
@@ -328,13 +328,13 @@ function MobileViewSwitcher({
         <ChevronDownIcon className="h-4 w-4 text-ink-muted" />
       </button>
       {open && (
-        <div className="absolute left-0 right-auto z-40 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-outline-muted bg-surface-overlay shadow-xl backdrop-blur">
+        <div className="absolute left-0 right-auto z-40 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-outline-muted bg-surface-raised shadow-xl">
           {options.map((opt) => (
             <button
               key={opt.value}
               type="button"
               className={`block w-full px-3 py-2 text-left text-sm ${
-                value === opt.value ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-muted"
+                value === opt.value ? "bg-accent-muted text-ink-primary" : "text-ink-subtle hover:bg-surface-raised"
               }`}
               onClick={() => {
                 onChange(opt.value);
@@ -377,7 +377,7 @@ function MobileTicketList({
         return (
           <li
             key={row.id}
-            className={`${idx % 2 === 0 ? "bg-surface-sunken/30" : "bg-surface-muted/20"} px-3 py-3`}
+            className={`${idx % 2 === 0 ? "bg-surface-overlay" : "bg-surface-sunken"} px-3 py-3`}
             onClick={() => onOpen(row.id)}
             onTouchEnd={() => {
               const now = Date.now();
@@ -388,7 +388,7 @@ function MobileTicketList({
             }}
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-ink-subtle">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-surface-raised text-xs font-bold text-ink-subtle">
                 {letter}
               </div>
               <div className="min-w-0 flex-1">

@@ -108,7 +108,7 @@ export function ZendeskModal({ open, onClose }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur">
-      <div className="relative flex h-[80vh] w-[min(1100px,90vw)] flex-col overflow-hidden rounded-2xl border border-outline-muted bg-surface-overlay shadow-2xl">
+      <div className="relative flex h-[80vh] w-[min(1100px,90vw)] flex-col overflow-hidden rounded-2xl border border-outline-muted bg-surface-muted shadow-2xl">
         <header className="flex items-center justify-between border-b border-outline-muted px-6 py-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Zendesk</div>
@@ -129,7 +129,7 @@ export function ZendeskModal({ open, onClose }: Props) {
         </header>
 
         <div className="flex h-full min-h-0 flex-1 overflow-hidden border-t border-outline-muted/60">
-          <aside className="w-72 shrink-0 border-r border-outline-muted bg-surface-sunken/50">
+          <aside className="w-72 shrink-0 border-r border-outline-muted bg-surface-muted">
             <div className="flex gap-2 p-4">
               <TabButton label="Ready to send" count={readyItems.length} active={tab === "ready"} onClick={() => setTab("ready")} />
               <TabButton label="Needs logging" count={needsItems.length} active={tab === "needs"} onClick={() => setTab("needs")} />
@@ -146,10 +146,10 @@ export function ZendeskModal({ open, onClose }: Props) {
             </div>
           </aside>
 
-          <main className="flex min-w-0 flex-1 flex-col bg-surface-muted/40">
-            <div className="flex items-center justify-between border-b border-outline-muted bg-surface-overlay/60 px-6 py-4">
+          <main className="flex min-w-0 flex-1 flex-col bg-surface-muted">
+            <div className="flex items-center justify-between border-b border-outline-muted bg-surface-muted px-6 py-4">
               <div className="flex items-center gap-3 text-sm">
-                <span className="rounded-full bg-surface-muted px-3 py-1 font-semibold text-ink-primary">
+                <span className="rounded-full bg-surface-raised px-3 py-1 font-semibold text-ink-primary">
                   {totalTickets > 0 ? `Ticket ${currentIndex + 1} of ${totalTickets}` : "No tickets"}
                 </span>
                 <span className="text-ink-subtle">
@@ -227,7 +227,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={`flex flex-1 flex-col rounded-lg border px-3 py-2 text-left transition ${
-        active ? "border-outline-accent bg-accent-muted text-ink-primary" : "border-outline-muted bg-surface-muted hover:bg-surface-sunken"
+        active ? "border-outline-accent bg-accent-muted text-ink-primary" : "border-outline-muted bg-surface-raised hover:bg-surface-overlay"
       }`}
     >
       <span className="text-xs uppercase tracking-wide text-ink-subtle">{label}</span>
@@ -285,7 +285,7 @@ function QueueList({
               type="button"
               onClick={() => onSelect(idx)}
               className={`w-full rounded-lg border p-3 text-left transition ${
-                isActive ? "border-outline-accent bg-accent-muted/50 shadow-sm" : "border-outline-muted bg-surface-muted hover:bg-surface-sunken"
+                isActive ? "border-outline-accent bg-accent-muted/50 shadow-sm" : "border-outline-muted bg-surface-raised hover:bg-surface-overlay"
               }`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -342,7 +342,7 @@ function TicketDetail({
 
   return (
     <div className="grid flex-1 grid-cols-1 gap-4 overflow-auto p-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <div className="space-y-4 rounded-2xl border border-outline-muted bg-surface-overlay/70 p-5 shadow-sm">
+      <div className="space-y-4 rounded-2xl border border-outline-muted bg-surface-raised p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Ticket</div>
@@ -375,7 +375,7 @@ function TicketDetail({
           />
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-outline-muted bg-surface-muted px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-outline-muted bg-surface-raised px-4 py-3">
           <div className="space-y-0.5 text-sm">
             <div className="font-semibold text-ink-primary">Info entered</div>
             <div className="text-xs text-ink-muted">
@@ -408,7 +408,7 @@ function TicketDetail({
         </div>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-outline-muted bg-surface-overlay/50 p-4">
+      <div className="space-y-3 rounded-2xl border border-outline-muted bg-surface-raised p-4">
         <div className="flex items-center justify-between text-xs uppercase tracking-wide text-ink-subtle">
           <span>Status</span>
           {needsStatus && (
@@ -453,7 +453,7 @@ function CopyButton({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-outline-muted bg-surface-muted px-4 py-3">
+    <div className="rounded-xl border border-outline-muted bg-surface-raised px-4 py-3">
       <div className="flex items-center justify-between text-xs text-ink-subtle">
         <span>{label}</span>
         {copied && <span className="font-semibold text-accent-soft">Copied</span>}
