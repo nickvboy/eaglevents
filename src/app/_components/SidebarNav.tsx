@@ -65,7 +65,7 @@ export function SidebarNav(props: SidebarNavProps) {
                 className={
                   "h-5 w-5 transition " +
                   (isActive
-                    ? "text-accent-soft drop-shadow-[var(--shadow-accent-glow)]"
+                    ? "text-accent-strong drop-shadow-[var(--shadow-accent-glow)]"
                     : "text-ink-muted group-hover:text-ink-primary")
                 }
               />
