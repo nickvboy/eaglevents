@@ -15,10 +15,12 @@ export const EVENT_TYPE_OPTIONS = [
   "Recording",
   "Stream",
   "Panel",
+  "Projector Setup",
   "Inside Audio PA",
   "Outside Audio PA",
   "Concert",
   "Additional Mics/Soundboard",
+  "Bluetooth Receiver",
   "General Tech Support",
   "Other",
 ] as const;

@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exportedAt": "2026-04-18T14:12:08.489Z",
+  "exportedAt": "2026-04-17T08:19:46.144Z",
   "metadata": {
     "app": "eaglevents",
     "formatVersion": 5,
@@ -50993,67 +50993,6 @@
         "previousDate": "2026-04-15",
         "nextDate": "2026-04-17",
         "createdAt": "2026-04-16T17:51:17.750Z"
-      },
-      {
-        "id": 976,
-        "instantUtc": "2026-04-15T23:00:00.000Z",
-        "timeZone": "UTC",
-        "dateKey": "20260415",
-        "fullDate": "2026-04-15",
-        "calendarDate": "2026-04-15",
-        "dayOfWeekNumber": 3,
-        "dayOfWeekName": "Wednesday",
-        "year": 2026,
-        "quarter": 2,
-        "month": 4,
-        "monthLabel": "Apr",
-        "monthName": "April",
-        "monthShortName": "Apr",
-        "isoWeekYear": 2026,
-        "isoWeek": 16,
-        "isoWeekLabel": "2026-W16",
-        "dayOfMonth": 15,
-        "dayOfYear": 105,
-        "weekOfYear": 16,
-        "dayOfWeekIso": 3,
-        "dayLabel": "Wed",
-        "monthNumber": 4,
-        "quarterNumber": 2,
-        "yearMonthKey": "202604",
-        "yearMonthLabel": "2026-04",
-        "yearQuarterLabel": "2026-Q2",
-        "weekStartDate": "2026-04-13",
-        "weekEndDate": "2026-04-19",
-        "monthStartDate": "2026-04-01",
-        "monthEndDate": "2026-04-30",
-        "quarterStartDate": "2026-04-01",
-        "quarterEndDate": "2026-06-30",
-        "yearStartDate": "2026-01-01",
-        "yearEndDate": "2026-12-31",
-        "isWeekday": true,
-        "isWeekend": false,
-        "isBusinessDay": true,
-        "isMonthStart": false,
-        "isMonthEnd": false,
-        "isQuarterStart": false,
-        "isQuarterEnd": false,
-        "isYearStart": false,
-        "isYearEnd": false,
-        "hour24": 23,
-        "minute": 0,
-        "second": 0,
-        "isoDate": "2026-04-15",
-        "isoDateTime": "2026-04-15T23:00:00",
-        "usDate": "04/15/2026",
-        "usDateTime": "04/15/2026 11:00:00 PM",
-        "dateIsoFormat": "2026-04-15",
-        "dateUsFormat": "04/15/2026",
-        "dateLongFormat": "April 15, 2026",
-        "monthYearText": "April 2026",
-        "quarterYearLabel": "Q2 2026",
-        "previousDate": "2026-04-14",
-        "nextDate": "2026-04-16",
-        "createdAt": "2026-04-17T20:08:03.195Z"
       }
     ],
     "events": [
@@ -63190,13 +63129,13 @@
         "location": "MARIEB MARIEB COURTYARD",
         "isVirtual": false,
         "isAllDay": false,
-        "startDateTimeId": 164,
-        "endDateTimeId": 976,
+        "startDateTimeId": 921,
+        "endDateTimeId": 922,
         "eventStartDateTimeId": 923,
         "eventEndDateTimeId": 922,
         "setupDateTimeId": null,
-        "startDatetime": "2026-04-15T20:00:00.000Z",
-        "endDatetime": "2026-04-15T23:00:00.000Z",
+        "startDatetime": "2026-04-13T20:00:00.000Z",
+        "endDatetime": "2026-04-13T23:00:00.000Z",
         "recurrenceRule": null,
         "participantCount": 70,
         "technicianNeeded": true,
@@ -63221,7 +63160,7 @@
         "zendeskTicketNumber": "482423",
         "isArchived": false,
         "createdAt": "2026-04-15T15:38:52.918Z",
-        "updatedAt": "2026-04-17T20:08:03.207Z"
+        "updatedAt": "2026-04-15T15:38:52.923Z"
       },
       {
         "id": 271,
@@ -65412,6 +65351,12 @@
         "createdAt": "2026-04-15T15:35:36.122Z"
       },
       {
+        "id": 376,
+        "eventId": 270,
+        "roomId": 435,
+        "createdAt": "2026-04-15T15:38:52.918Z"
+      },
+      {
         "id": 377,
         "eventId": 271,
         "roomId": 443,
@@ -65488,12 +65433,6 @@
         "eventId": 282,
         "roomId": 390,
         "createdAt": "2026-04-16T17:51:17.750Z"
-      },
-      {
-        "id": 393,
-        "eventId": 270,
-        "roomId": 435,
-        "createdAt": "2026-04-17T20:08:03.195Z"
       }
     ],
     "eventCoOwners": [],
@@ -67522,6 +67461,13 @@
         "responseStatus": "needsAction"
       },
       {
+        "id": 529,
+        "eventId": 270,
+        "profileId": 134,
+        "email": "kpawloski@fgcu.edu",
+        "responseStatus": "needsAction"
+      },
+      {
         "id": 530,
         "eventId": 271,
         "profileId": 57,
@@ -67610,13 +67556,6 @@
         "eventId": 282,
         "profileId": 38,
         "email": "jkreeder@fgcu.edu",
-        "responseStatus": "needsAction"
-      },
-      {
-        "id": 546,
-        "eventId": 270,
-        "profileId": 134,
-        "email": "kpawloski@fgcu.edu",
         "responseStatus": "needsAction"
       }
     ],

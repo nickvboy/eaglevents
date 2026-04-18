@@ -1,15 +1,14 @@
 {
   "version": 5,
-  "exportedAt": "2026-04-18T14:12:08.489Z",
+  "exportedAt": "2026-04-18T14:12:15.479Z",
   "metadata": {
     "app": "eaglevents",
-    "formatVersion": 5,
-    "note": "Automatic scheduled snapshot export"
+    "formatVersion": 5
   },
   "exportedBy": {
-    "userId": null,
-    "email": null,
-    "displayName": null
+    "userId": 22,
+    "email": "nickvboy@gmail.com",
+    "displayName": "Nicholas Villiers"
   },
   "data": {
     "users": [
@@ -67949,6 +67948,19 @@
           "updatedCount": 4
         },
         "createdAt": "2026-04-10T16:14:06.299Z"
+      },
+      {
+        "id": 22,
+        "businessId": 1,
+        "actorUserId": 22,
+        "actorProfileId": null,
+        "action": "snapshot.export",
+        "targetType": "snapshot",
+        "targetId": null,
+        "scopeType": "business",
+        "scopeId": 1,
+        "metadata": {},
+        "createdAt": "2026-04-18T14:12:15.472Z"
       }
     ]
   }

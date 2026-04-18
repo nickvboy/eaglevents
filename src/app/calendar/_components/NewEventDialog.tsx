@@ -990,6 +990,49 @@ type ProfileDraft = {
   affiliation: (typeof profileAffiliationOptions)[number]["value"];
 };
 
+type HumanReadableEventFormJson = {
+  version: 1;
+  title: string;
+  description: string;
+  allDay: boolean;
+  recurring: boolean;
+  calendars: string[];
+  schedule: Array<{
+    start: string;
+    end: string;
+  }>;
+  location: {
+    mode: "physical" | "virtual";
+    general: string;
+    building: string;
+    rooms: string[];
+  };
+  people: {
+    assignee: string;
+    attendees: string[];
+    coOwners: string[];
+  };
+  request: {
+    participantCount: string;
+    technicianNeeded: boolean;
+    requestCategory: string;
+    equipmentNeeded: EquipmentNeededOption[];
+    equipmentOtherDetails: string;
+    eventTypes: EventTypeOption[];
+    eventTypeOtherDetails: string;
+    zendeskTicket: string;
+    eventInfoStart: string | null;
+    eventInfoEnd: string | null;
+    setupInfoTime: string | null;
+  };
+  hourLogs: Array<{
+    start: string;
+    end: string;
+  }>;
+};
+
+type JsonStatusTone = "neutral" | "success" | "danger";
+
 type NewEventDraft = {
   version: 2;
   title: string;
@@ -1121,6 +1164,130 @@ function parseDraftDate(value: string | null | undefined) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
+}
+
+function formatLocalDateTimeValue(date: Date) {
+  return `${formatDateInputValue(date)}T${formatTimeValue(date)}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+}
+
+function getRequestCategoryLabel(value: RequestCategoryValue | "") {
+  return (
+    REQUEST_CATEGORY_OPTIONS.find((option) => option.value === value)?.label ??
+    ""
+  );
+}
+
+function resolveRequestCategoryValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  const match = REQUEST_CATEGORY_OPTIONS.find(
+    (option) =>
+      option.value === value ||
+      option.label.trim().toLowerCase() === normalized ||
+      option.value.trim().toLowerCase() === normalized,
+  );
+  return match?.value ?? "";
+}
+
+function formatPersonReference(
+  selection: AssigneeSelection | null | undefined,
+) {
+  if (!selection) return "";
+  const name = selection.displayName.trim();
+  const email = selection.email.trim();
+  if (name && email) return `${name} <${email}>`;
+  return email || name;
+}
+
+function extractPersonQuery(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const emailMatch =
+    /<([^>]+)>/.exec(trimmed) ?? /([^\s,;]+@[^\s,;]+)/.exec(trimmed);
+  return (emailMatch?.[1] ?? emailMatch?.[0] ?? trimmed).trim();
+}
+
+function buildHumanReadableTemplate(
+  baseDate: Date,
+): HumanReadableEventFormJson {
+  const sampleSegment = makeSegment(baseDate);
+  return {
+    version: 1,
+    title: "",
+    description: "",
+    allDay: false,
+    recurring: false,
+    calendars: [],
+    schedule: [
+      {
+        start: formatLocalDateTimeValue(sampleSegment.start),
+        end: formatLocalDateTimeValue(sampleSegment.end),
+      },
+    ],
+    location: {
+      mode: "physical",
+      general: "",
+      building: "",
+      rooms: [],
+    },
+    people: {
+      assignee: "",
+      attendees: [],
+      coOwners: [],
+    },
+    request: {
+      participantCount: "",
+      technicianNeeded: false,
+      requestCategory: "",
+      equipmentNeeded: [],
+      equipmentOtherDetails: "",
+      eventTypes: [],
+      eventTypeOtherDetails: "",
+      zendeskTicket: "",
+      eventInfoStart: null,
+      eventInfoEnd: null,
+      setupInfoTime: null,
+    },
+    hourLogs: [],
+  };
+}
+
+function hasMeaningfulHumanJsonContent(value: HumanReadableEventFormJson) {
+  return Boolean(
+    value.title.trim() ||
+      value.description.trim() ||
+      value.allDay ||
+      value.recurring ||
+      value.location.mode === "virtual" ||
+      value.location.general.trim() ||
+      value.location.building.trim() ||
+      value.location.rooms.length > 0 ||
+      value.people.attendees.length > 0 ||
+      value.people.coOwners.length > 0 ||
+      value.request.participantCount.trim() ||
+      value.request.technicianNeeded ||
+      value.request.requestCategory.trim() ||
+      value.request.equipmentNeeded.length > 0 ||
+      value.request.equipmentOtherDetails.trim() ||
+      value.request.eventTypes.length > 0 ||
+      value.request.eventTypeOtherDetails.trim() ||
+      value.request.zendeskTicket.trim() ||
+      (value.request.eventInfoStart ?? "") ||
+      (value.request.eventInfoEnd ?? "") ||
+      (value.request.setupInfoTime ?? "") ||
+      value.hourLogs.length > 0,
+  );
 }
 
 function getWritableCalendarIds(
@@ -1367,6 +1534,13 @@ export function NewEventDialog({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addRoomError, setAddRoomError] = useState<string | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [jsonPanelOpen, setJsonPanelOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState("");
+  const [jsonStatus, setJsonStatus] = useState<{
+    tone: JsonStatusTone;
+    message: string;
+  } | null>(null);
+  const [jsonImporting, setJsonImporting] = useState(false);
   const specificLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const generalLocationWrapRef = useRef<HTMLDivElement | null>(null);
   const attendeeSearchWrapRef = useRef<HTMLDivElement | null>(null);
@@ -1376,6 +1550,7 @@ export function NewEventDialog({
   const deleteConfirmRef = useRef<HTMLDivElement | null>(null);
   const duplicateConfirmRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftPersistRef = useRef(false);
+  const jsonImportSequenceRef = useRef(0);
   const logBaseDate = useMemo(
     () => startOfDay(event ? new Date(event.startDatetime) : defaultDate),
     [event, defaultDate],
@@ -1437,6 +1612,119 @@ export function NewEventDialog({
         return a.isPersonal ? 1 : -1;
       });
   }, [calendars]);
+  const currentFormJson = useMemo<HumanReadableEventFormJson>(() => {
+    const calendarNameById = new Map(
+      calendarOptions.map((calendar) => [calendar.id, calendar.name]),
+    );
+    const orderedCalendarIds =
+      selectedCalendarId !== null &&
+      selectedCalendarIds.includes(selectedCalendarId)
+        ? [
+            selectedCalendarId,
+            ...selectedCalendarIds.filter((id) => id !== selectedCalendarId),
+          ]
+        : selectedCalendarIds;
+    return {
+      version: 1,
+      title,
+      description,
+      allDay,
+      recurring,
+      calendars: orderedCalendarIds
+        .map((id) => calendarNameById.get(id) ?? "")
+        .filter((name) => name.length > 0),
+      schedule: segments.map((segment) => ({
+        start: formatLocalDateTimeValue(segment.start),
+        end: formatLocalDateTimeValue(segment.end),
+      })),
+      location: {
+        mode: isVirtual ? "virtual" : "physical",
+        general: selectedRooms.length > 0 ? "" : location,
+        building: selectedRooms[0]?.acronym ?? selectedBuildingAcronym,
+        rooms: selectedRooms.map(
+          (room) => `${room.acronym} ${room.roomNumber}`,
+        ),
+      },
+      people: {
+        assignee: formatPersonReference(assignee),
+        attendees: selectedAttendees.map((entry) =>
+          formatPersonReference(entry),
+        ),
+        coOwners: selectedCoOwners.map((entry) => formatPersonReference(entry)),
+      },
+      request: {
+        participantCount,
+        technicianNeeded,
+        requestCategory: getRequestCategoryLabel(requestCategory),
+        equipmentNeeded: selectedEquipmentNeeded,
+        equipmentOtherDetails,
+        eventTypes: selectedEventTypes,
+        eventTypeOtherDetails,
+        zendeskTicket,
+        eventInfoStart: eventInfoStart
+          ? formatLocalDateTimeValue(eventInfoStart)
+          : null,
+        eventInfoEnd: eventInfoEnd
+          ? formatLocalDateTimeValue(eventInfoEnd)
+          : null,
+        setupInfoTime: setupInfoTime
+          ? formatLocalDateTimeValue(setupInfoTime)
+          : null,
+      },
+      hourLogs: hourLogs.map((log) => ({
+        start: log.start ? formatLocalDateTimeValue(log.start) : "",
+        end: log.end ? formatLocalDateTimeValue(log.end) : "",
+      })),
+    };
+  }, [
+    allDay,
+    assignee,
+    calendarOptions,
+    description,
+    equipmentOtherDetails,
+    eventInfoEnd,
+    eventInfoStart,
+    eventTypeOtherDetails,
+    hourLogs,
+    isVirtual,
+    location,
+    participantCount,
+    recurring,
+    requestCategory,
+    segments,
+    selectedAttendees,
+    selectedCalendarId,
+    selectedCalendarIds,
+    selectedBuildingAcronym,
+    selectedCoOwners,
+    selectedEquipmentNeeded,
+    selectedEventTypes,
+    selectedRooms,
+    setupInfoTime,
+    technicianNeeded,
+    title,
+    zendeskTicket,
+  ]);
+  const jsonTemplate = useMemo(
+    () => buildHumanReadableTemplate(defaultDate),
+    [defaultDate],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setJsonPanelOpen(false);
+    setJsonInput("");
+    setJsonStatus(null);
+    setJsonImporting(false);
+    jsonImportSequenceRef.current += 1;
+  }, [open, event?.id]);
+
+  useEffect(() => {
+    if (!jsonStatus) return;
+    const handle = window.setTimeout(() => setJsonStatus(null), 2500);
+    return () => window.clearTimeout(handle);
+  }, [jsonStatus]);
+
   useEffect(() => {
     if (selectedCalendarIds.length === 0) {
       if (selectedCalendarId !== null) setSelectedCalendarId(null);
@@ -3024,6 +3312,561 @@ export function NewEventDialog({
     );
   }
 
+  const dedupeSelections = (values: AssigneeSelection[]) => {
+    const seen = new Set<number>();
+    return values.filter((value) => {
+      if (seen.has(value.profileId)) return false;
+      seen.add(value.profileId);
+      return true;
+    });
+  };
+
+  const resolveProfileReference = async (value: string) => {
+    const query = extractPersonQuery(value);
+    if (!query) return null;
+    const results = await utils.profile.search.fetch({
+      query,
+      limit: 10,
+    });
+    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedValue = value.trim().toLowerCase();
+    const exactMatch =
+      results.find(
+        (result) => result.email.trim().toLowerCase() === normalizedQuery,
+      ) ??
+      results.find(
+        (result) =>
+          resolveProfileLabel(result).trim().toLowerCase() === normalizedValue,
+      ) ??
+      results.find(
+        (result) =>
+          resolveProfileLabel(result).trim().toLowerCase() === normalizedQuery,
+      ) ??
+      results.find(
+        (result) =>
+          (result.username ?? "").trim().toLowerCase() === normalizedQuery,
+      );
+    if (exactMatch) return toAssigneeSelection(exactMatch);
+    if (results.length === 1) {
+      const onlyResult = results[0];
+      return onlyResult ? toAssigneeSelection(onlyResult) : null;
+    }
+    return null;
+  };
+
+  const resolveBuildingReference = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    return (
+      (buildingList.data ?? []).find(
+        (building) =>
+          building.acronym.trim().toLowerCase() === normalized ||
+          building.name.trim().toLowerCase() === normalized ||
+          `${building.acronym} - ${building.name}`.trim().toLowerCase() ===
+            normalized,
+      ) ?? null
+    );
+  };
+
+  const resolveRoomReference = async (
+    value: string,
+    buildingId?: number | null,
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const matches = await utils.facility.searchRooms.fetch({
+      query: trimmed,
+      buildingId: buildingId ?? undefined,
+      limit: 10,
+    });
+    const normalized = trimmed.toUpperCase();
+    const exactMatch =
+      matches.find(
+        (match) =>
+          match.roomNumber.toUpperCase() === normalized ||
+          `${match.acronym} ${match.roomNumber}`.toUpperCase() === normalized ||
+          `${match.acronym}-${match.roomNumber}`.toUpperCase() === normalized ||
+          `${match.buildingName} ${match.roomNumber}`.toUpperCase() ===
+            normalized,
+      ) ?? null;
+    if (exactMatch) return exactMatch;
+    if (matches.length === 1) {
+      return matches[0] ?? null;
+    }
+    return null;
+  };
+
+  const deriveQuickCreateTargetFromLabel = (label: string) => {
+    if (label.startsWith('assignee "')) return "assignee" as const;
+    if (label.startsWith('co-owner "')) return "coOwner" as const;
+    return "attendee" as const;
+  };
+
+  const deriveQuickCreateSeedFromLabel = (label: string) => {
+    const match = /^[a-z-]+ "(.+)"$/i.exec(label);
+    return match?.[1] ?? label;
+  };
+
+  const copyFormAsJson = async () => {
+    const shouldCopyCurrent = hasMeaningfulHumanJsonContent(currentFormJson);
+    const payload = shouldCopyCurrent ? currentFormJson : jsonTemplate;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setJsonStatus({
+        tone: "success",
+        message: shouldCopyCurrent
+          ? "Copied current form JSON."
+          : "Copied sample JSON template.",
+      });
+    } catch (error) {
+      console.error("Failed to copy JSON", error);
+      setJsonStatus({
+        tone: "danger",
+        message: "Unable to copy JSON.",
+      });
+    }
+  };
+
+  const importHumanReadableJson = async (raw: string) => {
+    const sequence = ++jsonImportSequenceRef.current;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      setJsonStatus({
+        tone: "danger",
+        message: "Paste valid JSON to import.",
+      });
+      return;
+    }
+    if (!isRecord(parsed)) {
+      setJsonStatus({
+        tone: "danger",
+        message: "JSON must be an object.",
+      });
+      return;
+    }
+    if ("version" in parsed && parsed.version !== 1) {
+      setJsonStatus({
+        tone: "danger",
+        message: "Use JSON format version 1.",
+      });
+      return;
+    }
+
+    setJsonImporting(true);
+    setJsonStatus({
+      tone: "neutral",
+      message: "Applying JSON...",
+    });
+
+    try {
+      const calendarNames = normalizeStringArray(parsed.calendars);
+      const calendarIdByName = new Map(
+        calendarOptions.map((calendar) => [
+          calendar.name.trim().toLowerCase(),
+          calendar.id,
+        ]),
+      );
+      const resolvedCalendarIds = Array.from(
+        new Set(
+          calendarNames
+            .map((name) => calendarIdByName.get(name.toLowerCase()) ?? null)
+            .filter((value): value is number => value !== null),
+        ),
+      );
+      const unmatchedCalendars = calendarNames.filter(
+        (name) => !calendarIdByName.has(name.toLowerCase()),
+      );
+
+      const locationValue = isRecord(parsed.location) ? parsed.location : null;
+      const locationMode =
+        locationValue?.mode === "virtual"
+          ? "virtual"
+          : locationValue?.mode === "physical"
+            ? "physical"
+            : null;
+      const generalLocation =
+        typeof locationValue?.general === "string"
+          ? locationValue.general
+          : null;
+      const buildingLabel =
+        typeof locationValue?.building === "string"
+          ? locationValue.building.trim()
+          : "";
+      const directlyResolvedBuilding =
+        locationMode === "virtual"
+          ? null
+          : resolveBuildingReference(buildingLabel);
+      const roomLabels =
+        locationMode === "virtual"
+          ? []
+          : normalizeStringArray(locationValue?.rooms);
+
+      const peopleValue = isRecord(parsed.people) ? parsed.people : null;
+      const assigneeLabel =
+        typeof peopleValue?.assignee === "string"
+          ? peopleValue.assignee.trim()
+          : null;
+      const attendeeLabels = normalizeStringArray(peopleValue?.attendees);
+      const coOwnerLabels = normalizeStringArray(peopleValue?.coOwners);
+
+      const requestValue = isRecord(parsed.request) ? parsed.request : null;
+      const requestCategoryLabel =
+        typeof requestValue?.requestCategory === "string"
+          ? requestValue.requestCategory
+          : null;
+      const requestParticipantCount =
+        typeof requestValue?.participantCount === "number"
+          ? String(requestValue.participantCount)
+          : typeof requestValue?.participantCount === "string"
+            ? requestValue.participantCount
+            : null;
+      const requestZendeskTicket =
+        typeof requestValue?.zendeskTicket === "number"
+          ? String(requestValue.zendeskTicket)
+          : typeof requestValue?.zendeskTicket === "string"
+            ? requestValue.zendeskTicket
+            : null;
+
+      const assigneePromise =
+        assigneeLabel && assigneeLabel.length > 0
+          ? resolveProfileReference(assigneeLabel)
+          : Promise.resolve(null);
+      const attendeePromises = Promise.all(
+        attendeeLabels.map(async (label) => ({
+          label,
+          selection: await resolveProfileReference(label),
+        })),
+      );
+      const coOwnerPromises = Promise.all(
+        coOwnerLabels.map(async (label) => ({
+          label,
+          selection: await resolveProfileReference(label),
+        })),
+      );
+      const roomPromises = Promise.all(
+        roomLabels.map(async (label) => ({
+          label,
+          room: await resolveRoomReference(
+            label,
+            directlyResolvedBuilding?.id ?? null,
+          ),
+        })),
+      );
+      const buildingFallbackRoomPromise =
+        locationMode === "physical" &&
+        buildingLabel.length > 0 &&
+        directlyResolvedBuilding === null &&
+        roomLabels.length === 0
+          ? resolveRoomReference(buildingLabel)
+          : Promise.resolve(null);
+
+      const [
+        resolvedAssignee,
+        resolvedAttendees,
+        resolvedCoOwners,
+        resolvedRooms,
+        buildingFallbackRoom,
+      ] = await Promise.all([
+        assigneePromise,
+        attendeePromises,
+        coOwnerPromises,
+        roomPromises,
+        buildingFallbackRoomPromise,
+      ]);
+
+      if (sequence !== jsonImportSequenceRef.current) return;
+
+      const unmatchedPeople: string[] = [];
+      if (assigneeLabel && assigneeLabel.length > 0 && !resolvedAssignee) {
+        unmatchedPeople.push(`assignee "${assigneeLabel}"`);
+      }
+
+      const nextAttendees = dedupeSelections(
+        resolvedAttendees
+          .filter(
+            (entry): entry is { label: string; selection: AssigneeSelection } =>
+              Boolean(entry.selection),
+          )
+          .map((entry) => entry.selection),
+      );
+      unmatchedPeople.push(
+        ...resolvedAttendees
+          .filter((entry) => !entry.selection)
+          .map((entry) => `attendee "${entry.label}"`),
+      );
+
+      const nextCoOwners = dedupeSelections(
+        resolvedCoOwners
+          .filter(
+            (entry): entry is { label: string; selection: AssigneeSelection } =>
+              Boolean(entry.selection),
+          )
+          .map((entry) => entry.selection)
+          .filter((entry) => entry.profileId !== resolvedAssignee?.profileId),
+      );
+      unmatchedPeople.push(
+        ...resolvedCoOwners
+          .filter((entry) => !entry.selection)
+          .map((entry) => `co-owner "${entry.label}"`),
+      );
+
+      const nextRooms = Array.from(
+        new Map(
+          resolvedRooms
+            .filter((entry): entry is { label: string; room: LocationMatch } =>
+              Boolean(entry.room),
+            )
+            .map((entry) => [entry.room.roomId, entry.room]),
+        ).values(),
+      );
+      if (buildingFallbackRoom && nextRooms.length === 0) {
+        nextRooms.push(buildingFallbackRoom);
+      }
+      const unmatchedRooms = resolvedRooms
+        .filter((entry) => !entry.room)
+        .map((entry) => `room "${entry.label}"`);
+      const resolvedBuilding =
+        directlyResolvedBuilding ??
+        (buildingFallbackRoom
+          ? {
+              id: buildingFallbackRoom.buildingId,
+              acronym: buildingFallbackRoom.acronym,
+              name: buildingFallbackRoom.buildingName,
+            }
+          : null);
+      const parsedBuildingInput = parseLocationInput(buildingLabel);
+      const fallbackRoomNumber =
+        nextRooms.length > 0
+          ? ""
+          : (parsedBuildingInput.room ??
+            (!resolvedBuilding && buildingLabel.length > 0
+              ? buildingLabel
+              : ""));
+
+      if (typeof parsed.title === "string") {
+        setTitle(parsed.title);
+      }
+      if (typeof parsed.description === "string") {
+        setDescription(parsed.description);
+      }
+      if (typeof parsed.allDay === "boolean") {
+        setAllDay(parsed.allDay);
+      }
+      if (typeof parsed.recurring === "boolean") {
+        setRecurring(parsed.recurring);
+      }
+      if (Array.isArray(parsed.schedule)) {
+        const nextSegments = parsed.schedule
+          .map((entry) => {
+            if (!isRecord(entry)) return null;
+            const start = parseDraftDate(
+              typeof entry.start === "string" ? entry.start : null,
+            );
+            const end = parseDraftDate(
+              typeof entry.end === "string" ? entry.end : null,
+            );
+            if (!start || !end) return null;
+            return { id: randomId(), start, end };
+          })
+          .filter((entry): entry is Segment => Boolean(entry));
+        if (nextSegments.length > 0) {
+          setSegments(nextSegments);
+        }
+      }
+      if (Array.isArray(parsed.calendars)) {
+        setSelectedCalendarIds(resolvedCalendarIds);
+        setSelectedCalendarId(resolvedCalendarIds[0] ?? null);
+      }
+      if (locationValue) {
+        if (locationMode === "virtual") {
+          setIsVirtual(true);
+          setSelectedBuildingId(null);
+          setSelectedBuildingAcronym("");
+          setSelectedRooms([]);
+          setRoomNumber("");
+        } else if (locationMode === "physical") {
+          const roomDerivedBuilding = nextRooms[0] ?? null;
+          setIsVirtual(false);
+          setSelectedBuildingId(
+            resolvedBuilding?.id ?? roomDerivedBuilding?.buildingId ?? null,
+          );
+          setSelectedBuildingAcronym(
+            resolvedBuilding?.acronym ?? roomDerivedBuilding?.acronym ?? "",
+          );
+          setRoomNumber(fallbackRoomNumber);
+          if (Array.isArray(locationValue.rooms)) {
+            setSelectedRooms(nextRooms);
+            if (nextRooms.length > 0) {
+              setLocation("");
+              setGeneralLocationSearch("");
+            }
+          }
+        }
+        if (generalLocation !== null) {
+          setLocation(generalLocation);
+          setGeneralLocationSearch(generalLocation);
+        } else if (Array.isArray(locationValue.rooms) && nextRooms.length > 0) {
+          setLocation("");
+          setGeneralLocationSearch("");
+        }
+      }
+      const quickCreateCandidate = unmatchedPeople[0] ?? null;
+      if (peopleValue) {
+        if (assigneeLabel !== null) {
+          setAssignee(resolvedAssignee);
+          setAutoAssignPending(false);
+        }
+        if (Array.isArray(peopleValue.attendees)) {
+          setSelectedAttendees(nextAttendees);
+        }
+        if (Array.isArray(peopleValue.coOwners)) {
+          setSelectedCoOwners(nextCoOwners);
+        }
+        setAssigneeSearch("");
+        setAssigneeQuery("");
+        setAttendeeSearch("");
+        setAttendeeQuery("");
+        setCoOwnerSearch("");
+        setCoOwnerQuery("");
+      }
+      if (requestValue) {
+        if (requestParticipantCount !== null) {
+          setParticipantCount(requestParticipantCount);
+        }
+        if (typeof requestValue.technicianNeeded === "boolean") {
+          setTechnicianNeeded(requestValue.technicianNeeded);
+        }
+        if (requestCategoryLabel !== null) {
+          setRequestCategory(resolveRequestCategoryValue(requestCategoryLabel));
+        }
+        if (Array.isArray(requestValue.equipmentNeeded)) {
+          setSelectedEquipmentNeeded(
+            requestValue.equipmentNeeded.filter(
+              (option): option is EquipmentNeededOption =>
+                EQUIPMENT_NEEDED_OPTIONS.includes(
+                  option as EquipmentNeededOption,
+                ),
+            ),
+          );
+        }
+        if (typeof requestValue.equipmentOtherDetails === "string") {
+          setEquipmentOtherDetails(requestValue.equipmentOtherDetails);
+        }
+        if (Array.isArray(requestValue.eventTypes)) {
+          setSelectedEventTypes(
+            requestValue.eventTypes.filter(
+              (option): option is EventTypeOption =>
+                EVENT_TYPE_OPTIONS.includes(option as EventTypeOption),
+            ),
+          );
+        }
+        if (typeof requestValue.eventTypeOtherDetails === "string") {
+          setEventTypeOtherDetails(requestValue.eventTypeOtherDetails);
+        }
+        if (requestZendeskTicket !== null) {
+          setZendeskTicket(requestZendeskTicket);
+        }
+        if (
+          requestValue.eventInfoStart === null ||
+          typeof requestValue.eventInfoStart === "string"
+        ) {
+          setEventInfoStart(parseDraftDate(requestValue.eventInfoStart));
+        }
+        if (
+          requestValue.eventInfoEnd === null ||
+          typeof requestValue.eventInfoEnd === "string"
+        ) {
+          setEventInfoEnd(parseDraftDate(requestValue.eventInfoEnd));
+        }
+        if (
+          requestValue.setupInfoTime === null ||
+          typeof requestValue.setupInfoTime === "string"
+        ) {
+          setSetupInfoTime(parseDraftDate(requestValue.setupInfoTime));
+        }
+      }
+      if (Array.isArray(parsed.hourLogs)) {
+        setHourLogs(
+          parsed.hourLogs
+            .map((entry) => {
+              if (!isRecord(entry)) return null;
+              const start = parseDraftDate(
+                typeof entry.start === "string" ? entry.start : null,
+              );
+              const end = parseDraftDate(
+                typeof entry.end === "string" ? entry.end : null,
+              );
+              if (!start && !end) return null;
+              return {
+                id: randomId(),
+                start,
+                end,
+              };
+            })
+            .filter((entry): entry is HourLogDraft => Boolean(entry)),
+        );
+      }
+
+      setSubmitAttempted(false);
+      setError(null);
+      setAddRoomError(null);
+      setLocationQuery("");
+      setActiveLocationSearch(null);
+      setLocationHighlight(-1);
+      setJsonPanelOpen(false);
+      setJsonInput("");
+      if (quickCreateCandidate) {
+        openQuickCreate(
+          deriveQuickCreateTargetFromLabel(quickCreateCandidate),
+          deriveQuickCreateSeedFromLabel(quickCreateCandidate),
+        );
+      }
+
+      const unmatchedMessages = [
+        ...unmatchedCalendars.map((name) => `calendar "${name}"`),
+        ...(!resolvedBuilding && buildingLabel
+          ? [`building "${buildingLabel}"`]
+          : []),
+        ...unmatchedRooms,
+        ...unmatchedPeople,
+      ];
+      const truncatedMessages = unmatchedMessages.slice(0, 2).join(", ");
+      setJsonStatus({
+        tone: unmatchedMessages.length > 0 ? "neutral" : "success",
+        message:
+          unmatchedMessages.length > 0
+            ? `Form updated from JSON. Could not match ${truncatedMessages}${unmatchedMessages.length > 2 ? `, and ${unmatchedMessages.length - 2} more.` : "."}`
+            : "Form updated from JSON.",
+      });
+    } catch (error) {
+      console.error("Failed to import JSON", error);
+      if (sequence !== jsonImportSequenceRef.current) return;
+      setJsonStatus({
+        tone: "danger",
+        message:
+          error instanceof Error ? error.message : "Unable to import JSON.",
+      });
+    } finally {
+      if (sequence === jsonImportSequenceRef.current) {
+        setJsonImporting(false);
+      }
+    }
+  };
+
+  const handleJsonInputChange = (value: string) => {
+    setJsonInput(value);
+    const trimmed = value.trim();
+    if (!trimmed) {
+      jsonImportSequenceRef.current += 1;
+      setJsonImporting(false);
+      setJsonStatus(null);
+      return;
+    }
+    void importHumanReadableJson(trimmed);
+  };
+
   const handleSave = async () => {
     setSubmitAttempted(true);
     setError(null);
@@ -3443,6 +4286,71 @@ export function NewEventDialog({
         </div>
 
         <div className="flex flex-col gap-4">
+          <div className="border-outline-muted bg-surface-muted/60 rounded-xl border px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                className="text-ink-primary hover:text-ink-primary/80 inline-flex items-center gap-2 text-sm font-medium transition"
+                onClick={() => setJsonPanelOpen((open) => !open)}
+                aria-expanded={jsonPanelOpen}
+              >
+                <span className="border-outline-muted text-ink-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.2em] uppercase">
+                  JSON
+                </span>
+                <span>Import or copy</span>
+                <ChevronDownIcon
+                  className={`h-3.5 w-3.5 transition ${jsonPanelOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              <button
+                type="button"
+                className="text-ink-muted hover:text-ink-primary text-xs font-medium transition"
+                onClick={() => void copyFormAsJson()}
+              >
+                Copy Form as JSON
+              </button>
+            </div>
+            {jsonPanelOpen ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-ink-muted text-xs">
+                  Optional. Paste readable JSON using calendar names, emails,
+                  building acronyms, and room labels.
+                </p>
+                <textarea
+                  rows={7}
+                  value={jsonInput}
+                  onChange={(event) =>
+                    handleJsonInputChange(event.target.value)
+                  }
+                  spellCheck={false}
+                  placeholder={`{\n  "title": "Spring showcase",\n  "calendars": ["Main Events"],\n  "location": {\n    "mode": "physical",\n    "building": "LIB",\n    "rooms": ["101"]\n  }\n}`}
+                  className={`border-outline-muted bg-surface-raised text-ink-primary placeholder:text-ink-faint w-full rounded-lg border px-3 py-2 font-mono text-xs outline-none ${FOCUSABLE_FIELD_CLASS}`}
+                />
+              </div>
+            ) : (
+              <p className="text-ink-muted mt-2 text-xs">
+                Optional. Paste readable JSON to prefill the form, or copy a
+                template for later.
+              </p>
+            )}
+            {jsonStatus ? (
+              <p
+                className={
+                  "mt-2 text-xs " +
+                  (jsonStatus.tone === "danger"
+                    ? "text-status-danger"
+                    : jsonStatus.tone === "success"
+                      ? "text-status-success"
+                      : "text-ink-muted")
+                }
+              >
+                {jsonImporting && jsonStatus.tone === "neutral"
+                  ? "Applying JSON..."
+                  : jsonStatus.message}
+              </p>
+            ) : null}
+          </div>
+
           <div>
             <div className="text-ink-muted mb-1 text-xs">
               Title <span className="text-status-danger">*</span>
