@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { MaximizeIcon } from "~/app/_components/icons";
 
 type Props = {
@@ -15,15 +17,44 @@ type Props = {
 };
 
 export function EventCard(p: Props) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [shouldWrapText, setShouldWrapText] = useState(true);
+  const [frozenTextHeight, setFrozenTextHeight] = useState<number | null>(null);
   const timeLabel = `${formatTime(p.start)} - ${formatTime(p.end)}`;
   const baseClasses =
     "group relative h-full w-full cursor-pointer overflow-hidden rounded-md border p-1 text-xs text-ink-inverted shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-soft";
   const stateClasses = p.isSelected
     ? "border-outline-muted/80 ring-2 ring-accent-soft shadow-lg shadow-[var(--shadow-accent-glow)]"
     : "border-outline-accent hover:border-outline-accent hover:bg-accent-default";
+  const textClasses = shouldWrapText
+    ? "whitespace-normal break-words"
+    : "break-normal whitespace-normal overflow-hidden [overflow-wrap:normal] [word-break:normal]";
+
+  useEffect(() => {
+    const card = cardRef.current;
+    const content = contentRef.current;
+    if (!card || !content || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width >= 88) {
+        setShouldWrapText(true);
+        setFrozenTextHeight(null);
+        return;
+      }
+
+      setShouldWrapText(false);
+      setFrozenTextHeight((currentHeight) => currentHeight ?? content.getBoundingClientRect().height);
+    });
+
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
+      ref={cardRef}
       onClick={p.onClick}
       onDoubleClick={p.onDoubleClick}
       className={`${baseClasses} ${stateClasses}`}
@@ -38,9 +69,13 @@ export function EventCard(p: Props) {
         }
       }}
     >
-      <div className="space-y-0.5 pr-5">
-        <div className="truncate font-semibold">{p.title}</div>
-        {p.location && <div className="truncate text-ink-primary">{p.location}</div>}
+      <div
+        ref={contentRef}
+        className="space-y-0.5 overflow-hidden pr-2"
+        style={frozenTextHeight ? { maxHeight: `${frozenTextHeight}px` } : undefined}
+      >
+        <div className={`${textClasses} font-semibold`}>{p.title}</div>
+        {p.location && <div className={`${textClasses} text-ink-primary`}>{p.location}</div>}
         <div className="text-[10px] text-ink-subtle">{timeLabel}</div>
       </div>
       {p.isSelected && (

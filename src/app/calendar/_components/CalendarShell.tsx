@@ -895,10 +895,10 @@ function MonthGrid({
                     className="w-full rounded-md border border-outline-accent bg-accent-muted px-2 py-1 text-left text-[10px] text-ink-primary md:text-[11px]"
                     title={ev.title}
                   >
-                    <div className="truncate font-medium text-ink-primary">
+                    <div className="whitespace-normal break-words font-medium text-ink-primary">
                       {ev.title}
                     </div>
-                    <div className="truncate text-[10px] text-ink-subtle">
+                    <div className="whitespace-normal break-words text-[10px] text-ink-subtle">
                       {ev.isAllDay ? "All day" : formatMonthEventTime(evStart, evEnd)}
                     </div>
                   </div>
