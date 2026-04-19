@@ -4,6 +4,7 @@ import { TRPCClientError } from "@trpc/client";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
+import { PasswordInput } from "~/app/_components/PasswordInput";
 import { SearchIcon, XIcon } from "~/app/_components/icons";
 import type { AppRouter } from "~/server/api/root";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -306,6 +307,7 @@ export function UsersView() {
   const [createFormState, setCreateFormState] = useState<CreateFormState>(
     createDefaultCreateForm,
   );
+  const [showCreatePasswords, setShowCreatePasswords] = useState(false);
   const [profileEditFormState, setProfileEditFormState] =
     useState<ProfileEditFormState>(createDefaultProfileEditForm);
   const [roleAssignmentsDraft, setRoleAssignmentsDraft] = useState<
@@ -731,6 +733,7 @@ export function UsersView() {
       setDirectoryMode("users");
       setIsCreateOpen(false);
       setCreateFormState(createDefaultCreateForm());
+      setShowCreatePasswords(false);
       setCreateRoleAssignmentsDraft([]);
       setIsCreateProfileSearchOpen(false);
       setCreateProfileId(null);
@@ -871,12 +874,14 @@ export function UsersView() {
     setIsCreateProfileSearchOpen(Boolean(initialProfile));
     setCreateProfileId(initialProfile?.id ?? null);
     setCreateProfileSearch("");
+    setShowCreatePasswords(false);
     setIsCreateOpen(true);
   };
 
   const closeCreateModal = () => {
     setIsCreateOpen(false);
     setCreateFormState(createDefaultCreateForm());
+    setShowCreatePasswords(false);
     setCreateRoleAssignmentsDraft([]);
     setIsCreateProfileSearchOpen(false);
     setCreateProfileId(null);
@@ -1983,8 +1988,7 @@ export function UsersView() {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="text-ink-primary flex flex-col gap-2 text-sm">
                   <span>Password</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={createFormState.password}
                     onChange={(event) =>
                       setCreateFormState((prev) => ({
@@ -1997,12 +2001,15 @@ export function UsersView() {
                     autoComplete="new-password"
                     minLength={8}
                     required
+                    visible={showCreatePasswords}
+                    onToggleVisibility={() =>
+                      setShowCreatePasswords((prev) => !prev)
+                    }
                   />
                 </label>
                 <label className="text-ink-primary flex flex-col gap-2 text-sm">
                   <span>Confirm password</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={createFormState.confirmPassword}
                     onChange={(event) =>
                       setCreateFormState((prev) => ({
@@ -2015,6 +2022,10 @@ export function UsersView() {
                     autoComplete="new-password"
                     minLength={8}
                     required
+                    visible={showCreatePasswords}
+                    onToggleVisibility={() =>
+                      setShowCreatePasswords((prev) => !prev)
+                    }
                   />
                 </label>
               </div>

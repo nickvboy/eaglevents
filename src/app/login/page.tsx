@@ -5,6 +5,8 @@ import { getSession, signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
+import { PasswordInput } from "~/app/_components/PasswordInput";
+
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -20,6 +22,7 @@ export default function LoginPage() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,14 +99,15 @@ export default function LoginPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-ink-faint">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-ink-primary outline-none ring-accent-default/40 placeholder:text-ink-faint focus:ring"
                 placeholder="Enter your password"
                 autoComplete="current-password"
                 required
+                visible={showPassword}
+                onToggleVisibility={() => setShowPassword((prev) => !prev)}
               />
             </div>
             {error ? (

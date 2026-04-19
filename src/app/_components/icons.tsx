@@ -202,3 +202,23 @@ export function CopyIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function EyeIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-4 w-4", className)}>
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function EyeOffIcon({ className }: IconProps) {
+  return (
+    <svg {...baseSvgProps} className={cx("h-4 w-4", className)}>
+      <path d="M3 3l18 18" />
+      <path d="M10.6 10.7a3 3 0 0 0 4 4" />
+      <path d="M9.9 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.2" />
+      <path d="M6.7 6.7C4.1 8.5 2 12 2 12a18.8 18.8 0 0 0 5.3 5.3" />
+    </svg>
+  );
+}

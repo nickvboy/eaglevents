@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
+import { PasswordInput } from "~/app/_components/PasswordInput";
+
 export default function SignupPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -22,6 +24,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -114,8 +117,7 @@ export default function SignupPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-ink-faint">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -126,12 +128,13 @@ export default function SignupPage() {
                 autoComplete="new-password"
                 required
                 minLength={8}
+                visible={showPasswords}
+                onToggleVisibility={() => setShowPasswords((prev) => !prev)}
               />
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-ink-faint">Confirm password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);
@@ -142,6 +145,8 @@ export default function SignupPage() {
                 autoComplete="new-password"
                 required
                 minLength={8}
+                visible={showPasswords}
+                onToggleVisibility={() => setShowPasswords((prev) => !prev)}
               />
             </div>
             {error ? (
