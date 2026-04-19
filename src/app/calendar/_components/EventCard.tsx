@@ -36,7 +36,10 @@ export function EventCard(p: Props) {
     const content = contentRef.current;
     if (!card || !content || typeof ResizeObserver === "undefined") return;
 
-    const observer = new ResizeObserver(([entry]) => {
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+
       const width = entry.contentRect.width;
       if (width >= 88) {
         setShouldWrapText(true);
