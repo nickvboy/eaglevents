@@ -100,9 +100,7 @@ import {
 } from "~/server/services/permissions";
 import bcrypt from "bcryptjs";
 import type { db as dbClient } from "~/server/db";
-import {
-  DEFAULT_DATE_FORMAT_CONFIG,
-} from "~/types/date-time";
+import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
 
 type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
@@ -804,7 +802,9 @@ async function fetchProfiles(
 
   return profileRows.map((profile) => {
     const linkedUser =
-      profile.userId !== null ? linkedUserMap.get(profile.userId) ?? null : null;
+      profile.userId !== null
+        ? (linkedUserMap.get(profile.userId) ?? null)
+        : null;
     return {
       id: profile.id,
       firstName: profile.firstName,
@@ -926,9 +926,7 @@ export const adminRouter = createTRPCRouter({
           typeof row.userId === "number" && row.startAt instanceof Date,
       );
 
-    const activeUserIds = new Set(
-      recentEventRows.map((row) => row.userId),
-    );
+    const activeUserIds = new Set(recentEventRows.map((row) => row.userId));
     const previousActiveUserIds = new Set(
       previousEventRows.map((row) => row.userId),
     );
@@ -1812,7 +1810,10 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "import_export:manage");
       const note = input?.note?.trim() ? input.note.trim() : undefined;
-      const actor = await getSnapshotExportActor(ctx.db, ctx.session?.user?.id ?? null);
+      const actor = await getSnapshotExportActor(
+        ctx.db,
+        ctx.session?.user?.id ?? null,
+      );
       const businessId = await findBusinessId(ctx.db);
       if (businessId) {
         await ctx.db.insert(auditLogs).values({
@@ -2029,10 +2030,16 @@ export const adminRouter = createTRPCRouter({
         });
 
         void refreshJoinTableExport(ctx.db, true).catch((error) => {
-          console.error("[join-table-export] importSnapshot refresh failed", error);
+          console.error(
+            "[join-table-export] importSnapshot refresh failed",
+            error,
+          );
         });
         void refreshHourLogExport(ctx.db, true).catch((error) => {
-          console.error("[hour-log-export] importSnapshot refresh failed", error);
+          console.error(
+            "[hour-log-export] importSnapshot refresh failed",
+            error,
+          );
         });
 
         return {
@@ -3272,7 +3279,10 @@ export const adminRouter = createTRPCRouter({
                 lastName: input.profile.lastName,
                 email: input.profile.email,
                 phoneNumber: input.profile.phoneNumber,
-                affiliation: input.profile.affiliation ?? existingProfileRecord?.affiliation ?? null,
+                affiliation:
+                  input.profile.affiliation ??
+                  existingProfileRecord?.affiliation ??
+                  null,
                 dateOfBirth,
               })
               .where(eq(profiles.id, existingProfileRecord.id));
@@ -3373,17 +3383,45 @@ export const adminRouter = createTRPCRouter({
 
   createUser: protectedProcedure
     .input(
-      z.object({
-        username: z.string().min(3).max(50),
-        email: z.string().email().max(255),
-        password: z.string().min(8).max(255),
-        firstName: z.string().min(1).max(100),
-        lastName: z.string().min(1).max(100),
-        phoneNumber: z.string().min(10).max(32),
-        affiliation: z.enum(profileAffiliationValues).optional(),
-        dateOfBirth: z.string().optional(),
-        roleAssignments: z.array(roleAssignmentInputSchema).min(1),
-      }),
+      z
+        .object({
+          username: z.string().min(3).max(50),
+          email: z.string().email().max(255),
+          password: z.string().min(8).max(255),
+          profileId: z.number().int().positive().optional(),
+          firstName: z.string().trim().min(1).max(100).optional(),
+          lastName: z.string().trim().min(1).max(100).optional(),
+          phoneNumber: z.string().min(10).max(32).optional(),
+          affiliation: z.enum(profileAffiliationValues).optional(),
+          dateOfBirth: z.string().optional(),
+          roleAssignments: z.array(roleAssignmentInputSchema).min(1),
+        })
+        .superRefine((value, ctx) => {
+          if (value.profileId) {
+            return;
+          }
+          if (!value.firstName) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["firstName"],
+              message: "First name is required.",
+            });
+          }
+          if (!value.lastName) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["lastName"],
+              message: "Last name is required.",
+            });
+          }
+          if (!value.phoneNumber) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["phoneNumber"],
+              message: "Phone number is required.",
+            });
+          }
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const context = await requireAdminCapability(
@@ -3419,16 +3457,82 @@ export const adminRouter = createTRPCRouter({
 
       const username = input.username.trim();
       const emailLower = input.email.trim().toLowerCase();
-      const phoneDigits = sanitizePhone(input.phoneNumber);
-      if (phoneDigits.length < 10) {
+      const managerVisibleScopes = isManagerOnly
+        ? await getVisibleScopes(ctx.db, context.userId)
+        : null;
+      const normalizedAssignments = await normalizeRequestedRoleAssignments(
+        ctx.db,
+        input.roleAssignments,
+        {
+          businessId,
+          isManagerOnly,
+          visibleScopes: managerVisibleScopes,
+        },
+      );
+
+      const selectedProfile = input.profileId
+        ? await ctx.db.query.profiles.findFirst({
+            where: (profile, { eq }) => eq(profile.id, input.profileId!),
+            columns: {
+              id: true,
+              userId: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phoneNumber: true,
+              affiliation: true,
+              dateOfBirth: true,
+            },
+          })
+        : null;
+      if (input.profileId && !selectedProfile) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Profile not found.",
+        });
+      }
+      if (selectedProfile?.userId !== null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "That profile is already linked to a user.",
+        });
+      }
+      if (
+        selectedProfile &&
+        isManagerOnly &&
+        managerVisibleScopes &&
+        !managerVisibleScopes.business
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "You can only link profiles that are already visible in your scope.",
+        });
+      }
+
+      const fallbackFirstName =
+        selectedProfile?.firstName ?? input.firstName?.trim();
+      const fallbackLastName =
+        selectedProfile?.lastName ?? input.lastName?.trim();
+      if (!fallbackFirstName || !fallbackLastName) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Profile name is required.",
+        });
+      }
+
+      const phoneDigits = selectedProfile
+        ? selectedProfile.phoneNumber
+        : sanitizePhone(input.phoneNumber ?? "");
+      if (!selectedProfile && phoneDigits.length < 10) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Phone number must contain at least 10 digits.",
         });
       }
 
-      let dateOfBirth: string | null = null;
-      if (input.dateOfBirth) {
+      let dateOfBirth: string | null = selectedProfile?.dateOfBirth ?? null;
+      if (!selectedProfile && input.dateOfBirth) {
         const parsed = new Date(input.dateOfBirth);
         if (Number.isNaN(parsed.getTime())) {
           throw new TRPCError({
@@ -3447,19 +3551,6 @@ export const adminRouter = createTRPCRouter({
         dateOfBirth = input.dateOfBirth;
       }
 
-      const managerVisibleScopes = isManagerOnly
-        ? await getVisibleScopes(ctx.db, context.userId)
-        : null;
-      const normalizedAssignments = await normalizeRequestedRoleAssignments(
-        ctx.db,
-        input.roleAssignments,
-        {
-          businessId,
-          isManagerOnly,
-          visibleScopes: managerVisibleScopes,
-        },
-      );
-
       return ctx.db.transaction(async (tx) => {
         const [existingUser] = await tx
           .select({ id: users.id })
@@ -3474,8 +3565,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const passwordHash = await bcrypt.hash(input.password, 10);
-        const displayName =
-          `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+        const displayName = `${fallbackFirstName} ${fallbackLastName}`.trim();
 
         const [insertedUser] = await tx
           .insert(users)
@@ -3493,22 +3583,40 @@ export const adminRouter = createTRPCRouter({
           });
         }
 
-        const [profileRow] = await tx
-          .insert(profiles)
-          .values({
-            userId: insertedUser.id,
-            firstName: input.firstName.trim(),
-            lastName: input.lastName.trim(),
-            email: emailLower,
-            phoneNumber: phoneDigits,
-            affiliation: input.affiliation ?? null,
-            dateOfBirth,
-          })
-          .returning({ id: profiles.id });
+        let profileRow:
+          | {
+              id: number;
+            }
+          | undefined;
+        if (selectedProfile) {
+          [profileRow] = await tx
+            .update(profiles)
+            .set({
+              userId: insertedUser.id,
+              updatedAt: new Date(),
+            })
+            .where(eq(profiles.id, selectedProfile.id))
+            .returning({ id: profiles.id });
+        } else {
+          [profileRow] = await tx
+            .insert(profiles)
+            .values({
+              userId: insertedUser.id,
+              firstName: fallbackFirstName,
+              lastName: fallbackLastName,
+              email: emailLower,
+              phoneNumber: phoneDigits,
+              affiliation: input.affiliation ?? null,
+              dateOfBirth,
+            })
+            .returning({ id: profiles.id });
+        }
         if (!profileRow) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to create profile.",
+            message: selectedProfile
+              ? "Failed to link profile."
+              : "Failed to create profile.",
           });
         }
 
@@ -3531,7 +3639,11 @@ export const adminRouter = createTRPCRouter({
           targetId: insertedUser.id,
           scopeType: auditScope?.scopeType ?? "business",
           scopeId: auditScope?.scopeId ?? businessId,
-          metadata: { roleAssignments: normalizedAssignments },
+          metadata: {
+            roleAssignments: normalizedAssignments,
+            linkedProfileId: profileRow.id,
+            importedProfile: Boolean(selectedProfile),
+          },
         });
 
         await ensurePrimaryCalendars(tx, insertedUser.id);

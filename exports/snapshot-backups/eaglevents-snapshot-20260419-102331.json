@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "exportedAt": "2026-04-19T14:23:31.701Z",
+  "exportedAt": "2026-04-19T02:22:17.934Z",
   "metadata": {
     "app": "eaglevents",
     "formatVersion": 5,
@@ -276,39 +276,6 @@
         "deactivatedAt": null,
         "createdAt": "2026-03-27T21:38:26.332Z",
         "updatedAt": "2026-03-30T13:08:18.779Z"
-      },
-      {
-        "id": 25,
-        "username": "nicknap",
-        "email": "nickvnap@gmail.com",
-        "displayName": "Nicholas Villiers",
-        "passwordHash": "$2b$10$Y6ECMgyYL9sgJTZIkD6DD.hO1p.GbUXyIbnt0lT4rskw3CsgtY7yC",
-        "isActive": true,
-        "deactivatedAt": null,
-        "createdAt": "2026-04-19T13:40:43.088Z",
-        "updatedAt": "2026-04-19T13:40:43.144Z"
-      },
-      {
-        "id": 26,
-        "username": "mquinn",
-        "email": "marta.quinn.bulktest@example.com",
-        "displayName": "Marta Quinn",
-        "passwordHash": "$2b$10$YejoMpg9r4uIBCV4hVdu/OGo98cPTYha4G3QrCpbLXDsDH0pyn242",
-        "isActive": true,
-        "deactivatedAt": null,
-        "createdAt": "2026-04-19T14:02:11.670Z",
-        "updatedAt": "2026-04-19T14:02:11.726Z"
-      },
-      {
-        "id": 27,
-        "username": "gcross",
-        "email": "gavin.cross.bulktest@example.com",
-        "displayName": "Gavin Cross",
-        "passwordHash": "$2b$10$7B39M7ZzKaCAhpIIiyvabe6BYhIo1Drf.z4mEehx2ft38yPj97KHm",
-        "isActive": true,
-        "deactivatedAt": null,
-        "createdAt": "2026-04-19T14:23:31.432Z",
-        "updatedAt": "2026-04-19T14:23:31.489Z"
       }
     ],
     "posts": [],
@@ -988,14 +955,14 @@
       {
         "id": 57,
         "userId": null,
-        "firstName": "lim",
+        "firstName": "Madison",
         "lastName": "Lord",
         "email": "mlord@fgcu.edu",
         "phoneNumber": "",
-        "affiliation": "staff",
+        "affiliation": null,
         "dateOfBirth": null,
         "createdAt": "2026-03-31T16:56:50.207Z",
-        "updatedAt": "2026-04-19T13:36:49.877Z"
+        "updatedAt": "2026-03-31T16:56:50.206Z"
       },
       {
         "id": 58,
@@ -1947,7 +1914,7 @@
       },
       {
         "id": 137,
-        "userId": 27,
+        "userId": null,
         "firstName": "Gavin",
         "lastName": "Cross",
         "email": "gavin.cross.bulktest@example.com",
@@ -1955,11 +1922,11 @@
         "affiliation": null,
         "dateOfBirth": null,
         "createdAt": "2026-04-10T16:17:23.817Z",
-        "updatedAt": "2026-04-19T14:23:31.490Z"
+        "updatedAt": "2026-04-10T16:17:23.816Z"
       },
       {
         "id": 138,
-        "userId": 26,
+        "userId": null,
         "firstName": "Marta",
         "lastName": "Quinn",
         "email": "marta.quinn.bulktest@example.com",
@@ -1967,19 +1934,7 @@
         "affiliation": null,
         "dateOfBirth": null,
         "createdAt": "2026-04-10T16:17:23.827Z",
-        "updatedAt": "2026-04-19T14:02:11.729Z"
-      },
-      {
-        "id": 139,
-        "userId": 25,
-        "firstName": "Nicholas",
-        "lastName": "Villiers",
-        "email": "nickvnap@gmail.com",
-        "phoneNumber": "2369456598",
-        "affiliation": "staff",
-        "dateOfBirth": "2001-11-01",
-        "createdAt": "2026-04-19T13:40:43.088Z",
-        "updatedAt": "2026-04-19T13:40:43.149Z"
+        "updatedAt": "2026-04-10T16:17:23.827Z"
       }
     ],
     "businesses": [
@@ -3632,36 +3587,6 @@
         "scopeId": 1,
         "createdAt": "2026-03-30T13:08:18.779Z",
         "updatedAt": "2026-03-30T13:08:18.781Z"
-      },
-      {
-        "id": 27,
-        "userId": 25,
-        "profileId": 139,
-        "roleType": "co_admin",
-        "scopeType": "business",
-        "scopeId": 1,
-        "createdAt": "2026-04-19T13:40:43.088Z",
-        "updatedAt": "2026-04-19T13:40:43.153Z"
-      },
-      {
-        "id": 28,
-        "userId": 26,
-        "profileId": 138,
-        "roleType": "manager",
-        "scopeType": "department",
-        "scopeId": 1,
-        "createdAt": "2026-04-19T14:02:11.670Z",
-        "updatedAt": "2026-04-19T14:02:11.730Z"
-      },
-      {
-        "id": 29,
-        "userId": 27,
-        "profileId": 137,
-        "roleType": "employee",
-        "scopeType": "division",
-        "scopeId": 6,
-        "createdAt": "2026-04-19T14:23:31.432Z",
-        "updatedAt": "2026-04-19T14:23:31.492Z"
       }
     ],
     "calendars": [
@@ -3716,45 +3641,6 @@
         "scopeId": 6,
         "createdAt": "2026-03-28T12:41:06.682Z",
         "updatedAt": "2026-04-10T21:07:43.195Z"
-      },
-      {
-        "id": 5,
-        "userId": 25,
-        "name": "Nicholas V. Personal Calendar #1",
-        "color": "#22c55e",
-        "isPrimary": true,
-        "isPersonal": true,
-        "isArchived": false,
-        "scopeType": "business",
-        "scopeId": 1,
-        "createdAt": "2026-04-19T13:40:43.088Z",
-        "updatedAt": "2026-04-19T13:40:43.162Z"
-      },
-      {
-        "id": 6,
-        "userId": 26,
-        "name": "Marta Q. Personal Calendar #1",
-        "color": "#22c55e",
-        "isPrimary": true,
-        "isPersonal": true,
-        "isArchived": false,
-        "scopeType": "department",
-        "scopeId": 1,
-        "createdAt": "2026-04-19T14:02:11.670Z",
-        "updatedAt": "2026-04-19T14:02:11.736Z"
-      },
-      {
-        "id": 7,
-        "userId": 27,
-        "name": "Gavin C. Personal Calendar #1",
-        "color": "#22c55e",
-        "isPrimary": true,
-        "isPersonal": true,
-        "isArchived": false,
-        "scopeType": "division",
-        "scopeId": 6,
-        "createdAt": "2026-04-19T14:23:31.432Z",
-        "updatedAt": "2026-04-19T14:23:31.497Z"
       }
     ],
     "dateTimes": [
@@ -59907,73 +59793,6 @@
           "updatedCount": 4
         },
         "createdAt": "2026-04-10T16:17:24.588Z"
-      },
-      {
-        "id": 23,
-        "businessId": 1,
-        "actorUserId": 22,
-        "actorProfileId": null,
-        "action": "user.create",
-        "targetType": "user",
-        "targetId": 25,
-        "scopeType": "business",
-        "scopeId": 1,
-        "metadata": {
-          "roleAssignments": [
-            {
-              "scopeId": 1,
-              "roleType": "co_admin",
-              "scopeType": "business"
-            }
-          ]
-        },
-        "createdAt": "2026-04-19T13:40:43.088Z"
-      },
-      {
-        "id": 24,
-        "businessId": 1,
-        "actorUserId": 22,
-        "actorProfileId": null,
-        "action": "user.create",
-        "targetType": "user",
-        "targetId": 26,
-        "scopeType": "department",
-        "scopeId": 1,
-        "metadata": {
-          "importedProfile": true,
-          "linkedProfileId": 138,
-          "roleAssignments": [
-            {
-              "scopeId": 1,
-              "roleType": "manager",
-              "scopeType": "department"
-            }
-          ]
-        },
-        "createdAt": "2026-04-19T14:02:11.670Z"
-      },
-      {
-        "id": 25,
-        "businessId": 1,
-        "actorUserId": 22,
-        "actorProfileId": null,
-        "action": "user.create",
-        "targetType": "user",
-        "targetId": 27,
-        "scopeType": "division",
-        "scopeId": 6,
-        "metadata": {
-          "importedProfile": true,
-          "linkedProfileId": 137,
-          "roleAssignments": [
-            {
-              "scopeId": 6,
-              "roleType": "employee",
-              "scopeType": "division"
-            }
-          ]
-        },
-        "createdAt": "2026-04-19T14:23:31.432Z"
       }
     ]
   }

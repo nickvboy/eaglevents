@@ -29,6 +29,7 @@ type CreateFormState = {
   username: string;
   email: string;
   password: string;
+  confirmPassword: string;
   firstName: string;
   lastName: string;
   phoneNumber: string;
@@ -71,10 +72,25 @@ function createDefaultCreateForm(): CreateFormState {
     username: "",
     email: "",
     password: "",
+    confirmPassword: "",
     firstName: "",
     lastName: "",
     phoneNumber: "",
     affiliation: "staff",
+    dateOfBirth: "",
+  };
+}
+
+function buildCreateFormFromProfile(profile: AdminProfile): CreateFormState {
+  return {
+    username: "",
+    email: profile.email,
+    password: "",
+    confirmPassword: "",
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    phoneNumber: formatPhoneInput(profile.phoneNumber),
+    affiliation: profile.affiliation ?? "staff",
     dateOfBirth: "",
   };
 }
@@ -255,25 +271,63 @@ function getProfileErrorMessage(error: unknown) {
   return "Failed to save profile.";
 }
 
+function getCreateUserErrorMessage(error: unknown) {
+  if (error instanceof TRPCClientError) {
+    const zodError = (error as TRPCClientError<AppRouter>).data?.zodError;
+    const fieldErrors = zodError?.fieldErrors ?? {};
+    if (fieldErrors.username?.length)
+      return "Username must be at least 3 characters.";
+    if (fieldErrors.email?.length) return "Enter a valid account email.";
+    if (fieldErrors.password?.length)
+      return "Password must be at least 8 characters.";
+    if (fieldErrors.firstName?.length) return "First name is required.";
+    if (fieldErrors.lastName?.length) return "Last name is required.";
+    if (fieldErrors.phoneNumber?.length) return "Phone number is required.";
+    if (fieldErrors.roleAssignments?.length)
+      return fieldErrors.roleAssignments[0] ?? error.message;
+    if (zodError?.formErrors?.length) {
+      return zodError.formErrors[0] ?? error.message;
+    }
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Failed to create user.";
+}
+
 export function UsersView() {
   const { data: session } = useSession();
   const { data: permissions } = api.admin.permissions.useQuery();
   const [directoryMode, setDirectoryMode] = useState<DirectoryMode>("users");
-  const { data, isLoading, isError, refetch } = api.admin.users.useQuery(
-    undefined,
-    {
-      staleTime: 45_000,
-    },
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(
+    null,
   );
-  const {
-    data: profileData,
-    isLoading: isProfilesLoading,
-    isError: isProfilesError,
-    refetch: refetchProfiles,
-  } = api.admin.profiles.useQuery(undefined, {
-    staleTime: 45_000,
-    enabled: directoryMode === "profiles",
-  });
+  const [formState, setFormState] = useState<FormState>(createDefaultForm);
+  const [createFormState, setCreateFormState] = useState<CreateFormState>(
+    createDefaultCreateForm,
+  );
+  const [profileEditFormState, setProfileEditFormState] =
+    useState<ProfileEditFormState>(createDefaultProfileEditForm);
+  const [roleAssignmentsDraft, setRoleAssignmentsDraft] = useState<
+    RoleAssignmentDraft[]
+  >([]);
+  const [createRoleAssignmentsDraft, setCreateRoleAssignmentsDraft] = useState<
+    RoleAssignmentDraft[]
+  >([]);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
+  const [profileEditError, setProfileEditError] = useState<string | null>(null);
+  const [grantScopeKey, setGrantScopeKey] = useState("");
+  const [grantReason, setGrantReason] = useState("");
+  const [isCreateProfileSearchOpen, setIsCreateProfileSearchOpen] =
+    useState(false);
+  const [createProfileSearch, setCreateProfileSearch] = useState("");
+  const [createProfileId, setCreateProfileId] = useState<number | null>(null);
   const canManageUsers =
     permissions?.capabilities.includes("users:manage") ?? false;
   const canGrantVisibility =
@@ -293,6 +347,21 @@ export function UsersView() {
   const canCreateUsers = hasBusinessAdmin || hasBusinessCoAdmin || isManager;
   const canCreateEmployeeOnly =
     isManager && !hasBusinessAdmin && !hasBusinessCoAdmin;
+  const { data, isLoading, isError, refetch } = api.admin.users.useQuery(
+    undefined,
+    {
+      staleTime: 45_000,
+    },
+  );
+  const {
+    data: profileData,
+    isLoading: isProfilesLoading,
+    isError: isProfilesError,
+    refetch: refetchProfiles,
+  } = api.admin.profiles.useQuery(undefined, {
+    staleTime: 45_000,
+    enabled: canManageUsers,
+  });
   const { data: companyOverview } = api.admin.companyOverview.useQuery(
     undefined,
     {
@@ -308,7 +377,10 @@ export function UsersView() {
   });
   const createMutation = api.admin.createUser.useMutation({
     onSuccess: async (created) => {
-      await utils.admin.users.invalidate();
+      await Promise.all([
+        utils.admin.users.invalidate(),
+        utils.admin.profiles.invalidate(),
+      ]);
       if (created?.id) {
         setSelectedUserId(created.id);
       }
@@ -339,39 +411,38 @@ export function UsersView() {
     },
   });
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(
-    null,
-  );
-  const [formState, setFormState] = useState<FormState>(createDefaultForm);
-  const [createFormState, setCreateFormState] = useState<CreateFormState>(
-    createDefaultCreateForm,
-  );
-  const [profileEditFormState, setProfileEditFormState] =
-    useState<ProfileEditFormState>(createDefaultProfileEditForm);
-  const [roleAssignmentsDraft, setRoleAssignmentsDraft] = useState<
-    RoleAssignmentDraft[]
-  >([]);
-  const [createRoleAssignmentsDraft, setCreateRoleAssignmentsDraft] = useState<
-    RoleAssignmentDraft[]
-  >([]);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
-  const [profileEditError, setProfileEditError] = useState<string | null>(null);
-  const [grantScopeKey, setGrantScopeKey] = useState("");
-  const [grantReason, setGrantReason] = useState("");
-
   const users = useMemo(() => data?.users ?? [], [data?.users]);
   const profiles = useMemo(
     () => profileData?.profiles ?? [],
     [profileData?.profiles],
   );
+  const availableCreateProfiles = useMemo(
+    () => profiles.filter((profile) => profile.linkedUser === null),
+    [profiles],
+  );
+  const selectedCreateProfile =
+    availableCreateProfiles.find((profile) => profile.id === createProfileId) ??
+    null;
+  const filteredCreateProfiles = useMemo(() => {
+    const term = createProfileSearch.trim().toLowerCase();
+    if (!term) {
+      return availableCreateProfiles.slice(0, 6);
+    }
+    return availableCreateProfiles
+      .filter((profile) => {
+        const haystack = [
+          profile.firstName,
+          profile.lastName,
+          profile.email,
+          profile.phoneNumber,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(term);
+      })
+      .slice(0, 6);
+  }, [availableCreateProfiles, createProfileSearch]);
   const scopeOptions = useMemo(() => {
     if (!companyOverview) return [];
     const options: RoleScopeOption[] = [];
@@ -502,7 +573,9 @@ export function UsersView() {
       firstName: editingProfileDetails.data.firstName,
       lastName: editingProfileDetails.data.lastName,
       email: editingProfileDetails.data.email,
-      phoneNumber: formatPhoneInput(editingProfileDetails.data.phoneNumber ?? ""),
+      phoneNumber: formatPhoneInput(
+        editingProfileDetails.data.phoneNumber ?? "",
+      ),
       affiliation: editingProfileDetails.data.affiliation ?? "staff",
     });
   }, [editingProfileDetails.data]);
@@ -511,6 +584,15 @@ export function UsersView() {
     setGrantScopeKey("");
     setGrantReason("");
   }, [selectedUserId]);
+
+  useEffect(() => {
+    if (
+      createProfileId !== null &&
+      !availableCreateProfiles.some((profile) => profile.id === createProfileId)
+    ) {
+      setCreateProfileId(null);
+    }
+  }, [availableCreateProfiles, createProfileId]);
 
   const hasValidProfile =
     formState.firstName.trim().length > 0 &&
@@ -622,27 +704,42 @@ export function UsersView() {
         setFeedback({ type: "error", message: createRoleAssignmentsError });
         return;
       }
+      if (createFormState.password !== createFormState.confirmPassword) {
+        setFeedback({
+          type: "error",
+          message: "Password and confirmation must match.",
+        });
+        return;
+      }
       const trimmedDateOfBirth = createFormState.dateOfBirth.trim();
       await createMutation.mutateAsync({
         username: createFormState.username.trim(),
         email: createFormState.email.trim(),
         password: createFormState.password,
-        firstName: createFormState.firstName.trim(),
-        lastName: createFormState.lastName.trim(),
-        phoneNumber: createFormState.phoneNumber.trim(),
+        profileId: selectedCreateProfile?.id,
+        firstName: createFormState.firstName.trim() || undefined,
+        lastName: createFormState.lastName.trim() || undefined,
+        phoneNumber: createFormState.phoneNumber.trim() || undefined,
         affiliation: createFormState.affiliation,
-        dateOfBirth:
-          trimmedDateOfBirth.length > 0 ? trimmedDateOfBirth : undefined,
+        dateOfBirth: selectedCreateProfile
+          ? undefined
+          : trimmedDateOfBirth.length > 0
+            ? trimmedDateOfBirth
+            : undefined,
         roleAssignments: serializeRoleAssignments(createRoleAssignmentsDraft),
       });
+      setDirectoryMode("users");
       setIsCreateOpen(false);
       setCreateFormState(createDefaultCreateForm());
       setCreateRoleAssignmentsDraft([]);
+      setIsCreateProfileSearchOpen(false);
+      setCreateProfileId(null);
+      setCreateProfileSearch("");
       setFeedback({ type: "success", message: "User created" });
     } catch (error) {
       setFeedback({
         type: "error",
-        message: (error as Error).message ?? "Failed to create user",
+        message: getCreateUserErrorMessage(error),
       });
     }
   };
@@ -758,6 +855,59 @@ export function UsersView() {
       setProfileEditError(getProfileErrorMessage(error));
     }
   };
+  const openCreateModal = (profile?: AdminProfile | null) => {
+    const initialProfile = profile?.linkedUser === null ? profile : null;
+    setCreateFormState(
+      initialProfile
+        ? buildCreateFormFromProfile(initialProfile)
+        : createDefaultCreateForm(),
+    );
+    setCreateRoleAssignmentsDraft([
+      createRoleAssignmentDraft(scopeOptions, businessScopeOption, {
+        employeeOnly: canCreateEmployeeOnly,
+        allowAdminRoles: canAssignAdminRoles,
+      }),
+    ]);
+    setIsCreateProfileSearchOpen(Boolean(initialProfile));
+    setCreateProfileId(initialProfile?.id ?? null);
+    setCreateProfileSearch("");
+    setIsCreateOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    setIsCreateOpen(false);
+    setCreateFormState(createDefaultCreateForm());
+    setCreateRoleAssignmentsDraft([]);
+    setIsCreateProfileSearchOpen(false);
+    setCreateProfileId(null);
+    setCreateProfileSearch("");
+  };
+
+  const handleSelectCreateProfile = (profile: AdminProfile) => {
+    setCreateProfileId(profile.id);
+    setIsCreateProfileSearchOpen(true);
+    setCreateProfileSearch("");
+    setCreateFormState((prev) => ({
+      ...buildCreateFormFromProfile(profile),
+      username: prev.username,
+      email: prev.email.trim().length > 0 ? prev.email : profile.email,
+      password: prev.password,
+      confirmPassword: prev.confirmPassword,
+    }));
+  };
+
+  const handleClearCreateProfile = () => {
+    setCreateProfileId(null);
+    setIsCreateProfileSearchOpen(false);
+    setCreateProfileSearch("");
+    setCreateFormState((prev) => ({
+      ...createDefaultCreateForm(),
+      username: prev.username,
+      email: prev.email,
+      password: prev.password,
+      confirmPassword: prev.confirmPassword,
+    }));
+  };
   const isProfilesView = directoryMode === "profiles";
 
   if (isLoading) {
@@ -825,20 +975,7 @@ export function UsersView() {
               {!isProfilesView ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setCreateFormState(createDefaultCreateForm());
-                    setCreateRoleAssignmentsDraft([
-                      createRoleAssignmentDraft(
-                        scopeOptions,
-                        businessScopeOption,
-                        {
-                          employeeOnly: canCreateEmployeeOnly,
-                          allowAdminRoles: canAssignAdminRoles,
-                        },
-                      ),
-                    ]);
-                    setIsCreateOpen(true);
-                  }}
+                  onClick={() => openCreateModal()}
                   disabled={!canCreateUsers}
                   className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -1183,13 +1320,24 @@ export function UsersView() {
                 </div>
               ) : null}
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => openProfileEditor(selectedProfile)}
-                  className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  Edit profile
-                </button>
+                <div className="flex flex-wrap justify-end gap-3">
+                  {selectedProfile.linkedUser === null && canCreateUsers ? (
+                    <button
+                      type="button"
+                      onClick={() => openCreateModal(selectedProfile)}
+                      className="border-outline-muted text-ink-subtle hover:bg-surface-muted focus-visible:outline-accent-strong rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      Create User from Profile
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => openProfileEditor(selectedProfile)}
+                    className="bg-accent-strong text-ink-inverted hover:bg-accent-default focus-visible:outline-accent-strong rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    Edit profile
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -1287,7 +1435,10 @@ export function UsersView() {
                   onChange={(event) =>
                     setFormState((prev) => ({
                       ...prev,
-                      affiliation: event.target.value as "staff" | "faculty" | "student",
+                      affiliation: event.target.value as
+                        | "staff"
+                        | "faculty"
+                        | "student",
                     }))
                   }
                   className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
@@ -1655,38 +1806,142 @@ export function UsersView() {
               Create a new account with explicit role assignments.
             </p>
             <form className="mt-6 grid gap-4" onSubmit={handleCreate}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="text-ink-primary flex flex-col gap-2 text-sm">
-                  <span>First name</span>
-                  <input
-                    value={createFormState.firstName}
-                    onChange={(event) =>
-                      setCreateFormState((prev) => ({
-                        ...prev,
-                        firstName: event.target.value,
-                      }))
-                    }
-                    className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
-                    maxLength={100}
-                    required
-                  />
-                </label>
-                <label className="text-ink-primary flex flex-col gap-2 text-sm">
-                  <span>Last name</span>
-                  <input
-                    value={createFormState.lastName}
-                    onChange={(event) =>
-                      setCreateFormState((prev) => ({
-                        ...prev,
-                        lastName: event.target.value,
-                      }))
-                    }
-                    className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
-                    maxLength={100}
-                    required
-                  />
-                </label>
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-ink-primary text-sm font-semibold">
+                      New user
+                    </div>
+                    <p className="text-ink-muted mt-1 text-xs">
+                      Start from scratch, or import a standalone profile if you
+                      already have one.
+                    </p>
+                  </div>
+                  {selectedCreateProfile ? (
+                    <button
+                      type="button"
+                      onClick={handleClearCreateProfile}
+                      className="border-outline-muted text-ink-subtle hover:bg-surface-muted rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                    >
+                      Remove profile
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsCreateProfileSearchOpen((prev) => !prev)
+                      }
+                      className="border-outline-muted text-ink-subtle hover:bg-surface-muted rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                    >
+                      {isCreateProfileSearchOpen
+                        ? "Hide profile import"
+                        : "Use existing profile"}
+                    </button>
+                  )}
+                </div>
+                {selectedCreateProfile ? (
+                  <div className="border-outline-muted bg-surface-muted rounded-xl border px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-ink-primary truncate font-medium">
+                          {resolveProfileDisplayName(selectedCreateProfile)}
+                        </div>
+                        <div className="text-ink-muted truncate text-xs">
+                          {selectedCreateProfile.email}
+                        </div>
+                      </div>
+                      <div className="text-ink-faint shrink-0 text-xs">
+                        Profile #{selectedCreateProfile.id}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                {isCreateProfileSearchOpen && selectedCreateProfile === null ? (
+                  <div className="border-outline-muted bg-surface-muted rounded-xl border p-3">
+                    <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                      <span>Search standalone profiles</span>
+                      <input
+                        type="search"
+                        value={createProfileSearch}
+                        onChange={(event) =>
+                          setCreateProfileSearch(event.target.value)
+                        }
+                        className="border-outline-muted bg-surface-raised text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+                        placeholder={
+                          availableCreateProfiles.length === 0
+                            ? "No standalone profiles available"
+                            : "Name, email, or phone"
+                        }
+                      />
+                    </label>
+                    {filteredCreateProfiles.length > 0 ? (
+                      <div className="border-outline-muted mt-3 max-h-44 overflow-y-auto rounded-lg border">
+                        {filteredCreateProfiles.map((profile, index) => (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            onClick={() => handleSelectCreateProfile(profile)}
+                            className={
+                              "hover:bg-accent-muted flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition " +
+                              (index > 0 ? "border-outline-muted border-t" : "")
+                            }
+                          >
+                            <div className="min-w-0">
+                              <div className="text-ink-primary truncate text-sm font-medium">
+                                {resolveProfileDisplayName(profile)}
+                              </div>
+                              <div className="text-ink-muted truncate text-xs">
+                                {profile.email}
+                              </div>
+                            </div>
+                            <div className="text-ink-faint shrink-0 text-xs">
+                              #{profile.id}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : createProfileSearch.trim().length > 0 ? (
+                      <div className="text-ink-muted mt-3 text-xs">
+                        No standalone profiles match that search.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
+              {!selectedCreateProfile ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>First name</span>
+                    <input
+                      value={createFormState.firstName}
+                      onChange={(event) =>
+                        setCreateFormState((prev) => ({
+                          ...prev,
+                          firstName: event.target.value,
+                        }))
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+                      maxLength={100}
+                      required
+                    />
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Last name</span>
+                    <input
+                      value={createFormState.lastName}
+                      onChange={(event) =>
+                        setCreateFormState((prev) => ({
+                          ...prev,
+                          lastName: event.target.value,
+                        }))
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+                      maxLength={100}
+                      required
+                    />
+                  </label>
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="text-ink-primary flex flex-col gap-2 text-sm">
                   <span>Username</span>
@@ -1707,7 +1962,7 @@ export function UsersView() {
                   />
                 </label>
                 <label className="text-ink-primary flex flex-col gap-2 text-sm">
-                  <span>Email</span>
+                  <span>Account email</span>
                   <input
                     type="email"
                     value={createFormState.email}
@@ -1745,55 +2000,84 @@ export function UsersView() {
                   />
                 </label>
                 <label className="text-ink-primary flex flex-col gap-2 text-sm">
-                  <span>Phone number</span>
+                  <span>Confirm password</span>
                   <input
-                    value={createFormState.phoneNumber}
+                    type="password"
+                    value={createFormState.confirmPassword}
                     onChange={(event) =>
                       setCreateFormState((prev) => ({
                         ...prev,
-                        phoneNumber: formatPhoneInput(event.target.value),
+                        confirmPassword: event.target.value,
                       }))
                     }
                     className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
-                    placeholder="+1 555 555 0101"
-                    maxLength={32}
+                    placeholder="Re-enter password"
+                    autoComplete="new-password"
+                    minLength={8}
                     required
                   />
                 </label>
               </div>
-              <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
-                <span>Affiliation</span>
-                <select
-                  value={createFormState.affiliation}
-                  onChange={(event) =>
-                    setCreateFormState((prev) => ({
-                      ...prev,
-                      affiliation: event.target.value as "staff" | "faculty" | "student",
-                    }))
-                  }
-                  className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
-                >
-                  {profileAffiliationOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
-                <span>Date of birth</span>
-                <input
-                  type="date"
-                  value={createFormState.dateOfBirth}
-                  onChange={(event) =>
-                    setCreateFormState((prev) => ({
-                      ...prev,
-                      dateOfBirth: event.target.value,
-                    }))
-                  }
-                  className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
-                />
-              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                {!selectedCreateProfile ? (
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm">
+                    <span>Phone number</span>
+                    <input
+                      value={createFormState.phoneNumber}
+                      onChange={(event) =>
+                        setCreateFormState((prev) => ({
+                          ...prev,
+                          phoneNumber: formatPhoneInput(event.target.value),
+                        }))
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary ring-accent-default/40 placeholder:text-ink-faint rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+                      placeholder="+1 555 555 0101"
+                      maxLength={32}
+                      required
+                    />
+                  </label>
+                ) : null}
+              </div>
+              {!selectedCreateProfile ? (
+                <>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
+                    <span>Affiliation</span>
+                    <select
+                      value={createFormState.affiliation}
+                      onChange={(event) =>
+                        setCreateFormState((prev) => ({
+                          ...prev,
+                          affiliation: event.target.value as
+                            | "staff"
+                            | "faculty"
+                            | "student",
+                        }))
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
+                    >
+                      {profileAffiliationOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-ink-primary flex flex-col gap-2 text-sm md:max-w-[220px]">
+                    <span>Date of birth</span>
+                    <input
+                      type="date"
+                      value={createFormState.dateOfBirth}
+                      onChange={(event) =>
+                        setCreateFormState((prev) => ({
+                          ...prev,
+                          dateOfBirth: event.target.value,
+                        }))
+                      }
+                      className="border-outline-muted bg-surface-muted text-ink-primary focus:border-outline-accent rounded-lg border px-3 py-2 text-sm focus:outline-none"
+                    />
+                  </label>
+                </>
+              ) : null}
               <RoleAssignmentsEditor
                 assignments={createRoleAssignmentsDraft}
                 onChange={setCreateRoleAssignmentsDraft}
@@ -1806,11 +2090,7 @@ export function UsersView() {
               <div className="mt-2 flex flex-wrap justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setCreateFormState(createDefaultCreateForm());
-                    setCreateRoleAssignmentsDraft([]);
-                  }}
+                  onClick={closeCreateModal}
                   className="border-outline-muted text-ink-subtle hover:bg-surface-muted focus-visible:outline-accent-strong rounded-full border px-4 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
                   Cancel
