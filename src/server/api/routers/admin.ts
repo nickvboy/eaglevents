@@ -78,6 +78,7 @@ import {
   buildSnapshotPayload,
   getSnapshotExportActor,
 } from "~/server/services/snapshot-payload";
+import { normalizeRoomNumber } from "~/lib/room-number";
 import {
   findBusinessId,
   restoreSnapshot,
@@ -2510,9 +2511,7 @@ export const adminRouter = createTRPCRouter({
           message: "Business not found.",
         });
       }
-      const dedupedRooms = Array.from(
-        new Set(input.rooms.map((room) => room.trim()).filter(Boolean)),
-      );
+      const dedupedRooms = Array.from(new Set(input.rooms.map(normalizeRoomNumber).filter(Boolean)));
       if (dedupedRooms.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -2657,7 +2656,7 @@ export const adminRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
-      const roomNumber = input.roomNumber.trim();
+      const roomNumber = normalizeRoomNumber(input.roomNumber);
       if (!roomNumber) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -2704,7 +2703,7 @@ export const adminRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdminCapability(ctx.db, ctx.session, "company:manage");
-      const roomNumber = input.roomNumber.trim();
+      const roomNumber = normalizeRoomNumber(input.roomNumber);
       if (!roomNumber) {
         throw new TRPCError({
           code: "BAD_REQUEST",

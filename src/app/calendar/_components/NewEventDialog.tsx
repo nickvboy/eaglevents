@@ -23,6 +23,7 @@ import {
   type EventRequestDetails,
   type EventTypeOption,
 } from "~/types/event-request";
+import { normalizeRoomNumber } from "~/lib/room-number";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
@@ -1946,7 +1947,7 @@ export function NewEventDialog({
             : null,
         );
         setSelectedBuildingAcronym(editDraft.selectedBuildingAcronym ?? "");
-        setRoomNumber(editDraft.roomNumber ?? "");
+        setRoomNumber(normalizeRoomNumber(editDraft.roomNumber ?? ""));
         setSelectedRooms(
           Array.isArray(editDraft.locationRooms) ? editDraft.locationRooms : [],
         );
@@ -2025,7 +2026,7 @@ export function NewEventDialog({
       if (!hasLocations) {
         const parsed = parseLocationInput(event.location ?? "");
         if (parsed.acronym) setSelectedBuildingAcronym(parsed.acronym);
-        if (parsed.room) setRoomNumber(parsed.room);
+        if (parsed.room) setRoomNumber(normalizeRoomNumber(parsed.room));
       }
       setDescription(event.description ?? "");
       setRecurring(Boolean(event.recurrenceRule));
@@ -2161,7 +2162,7 @@ export function NewEventDialog({
           : null,
       );
       setSelectedBuildingAcronym(draft.selectedBuildingAcronym ?? "");
-      setRoomNumber(draft.roomNumber ?? "");
+      setRoomNumber(normalizeRoomNumber(draft.roomNumber ?? ""));
       setSelectedRooms(
         Array.isArray(draft.locationRooms) ? draft.locationRooms : [],
       );
@@ -2876,7 +2877,7 @@ export function NewEventDialog({
       setAddRoomError("Select a building to add this room.");
       return;
     }
-    const nextRoom = roomNumber.trim().toUpperCase();
+    const nextRoom = normalizeRoomNumber(roomNumber);
     if (!nextRoom) {
       setAddRoomError("Enter a room number to add.");
       return;
@@ -3796,7 +3797,7 @@ export function NewEventDialog({
           setSelectedBuildingAcronym(
             resolvedBuilding?.acronym ?? roomDerivedBuilding?.acronym ?? "",
           );
-          setRoomNumber(fallbackRoomNumber);
+          setRoomNumber(normalizeRoomNumber(fallbackRoomNumber));
           if (Array.isArray(locationValue.rooms)) {
             setSelectedRooms(nextRooms);
             if (nextRooms.length > 0) {
@@ -5683,7 +5684,7 @@ export function NewEventDialog({
                   placeholder="Search selected building rooms, e.g. 210 or 210A"
                   value={roomNumber}
                   onChange={(e) => {
-                    const next = e.target.value.toUpperCase();
+                    const next = normalizeRoomNumber(e.target.value);
                     setRoomNumber(next);
                     setActiveLocationSearch("selected-building");
                     setLocationHighlight(-1);
@@ -5745,7 +5746,7 @@ export function NewEventDialog({
                       ? `${specificLocationListboxId}-${locationHighlight}`
                       : undefined
                   }
-                  className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm outline-none ${FOCUSABLE_FIELD_CLASS}`}
+                  className={`border-outline-muted bg-surface-muted text-ink-primary placeholder:text-ink-faint w-full rounded-md border px-3 py-2 text-sm uppercase outline-none ${FOCUSABLE_FIELD_CLASS}`}
                 />
                 {activeLocationSearch === "selected-building" &&
                   locationQuery.length > 0 && (
@@ -5815,7 +5816,7 @@ export function NewEventDialog({
                               >
                                 {createRoom.isPending
                                   ? "Adding room..."
-                                  : `Add room ${roomNumber.trim().toUpperCase()}`}
+                                  : `Add room ${normalizeRoomNumber(roomNumber)}`}
                               </button>
                             ) : !isVirtual ? (
                               <div className="text-ink-subtle mt-2 text-xs">

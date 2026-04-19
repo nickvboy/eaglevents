@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
+import { normalizeRoomNumber } from "~/lib/room-number";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
 
@@ -693,7 +694,7 @@ export function CompanyView() {
     if (!draft?.roomField.trim()) return;
     setBuildingFeedbacks((prev) => ({ ...prev, [buildingId]: null }));
     try {
-      await createRoom.mutateAsync({ buildingId, roomNumber: draft.roomField.trim() });
+      await createRoom.mutateAsync({ buildingId, roomNumber: normalizeRoomNumber(draft.roomField) });
       setBuildingForms((prev) => {
         const base = prev[buildingId] ?? { name: "", acronym: "", roomField: "" };
         return {
@@ -712,7 +713,7 @@ export function CompanyView() {
   };
 
   const handleAddNewBuildingRoom = () => {
-    const room = newBuilding.roomField.trim();
+    const room = normalizeRoomNumber(newBuilding.roomField);
     if (!room) return;
     if (newBuilding.rooms.includes(room)) {
       setNewBuilding((prev) => ({ ...prev, roomField: "" }));
@@ -906,13 +907,15 @@ export function CompanyView() {
               <div className="flex flex-wrap gap-2">
                 <input
                   value={newBuilding.roomField}
-                  onChange={(event) => setNewBuilding((prev) => ({ ...prev, roomField: event.target.value }))}
+                  onChange={(event) =>
+                    setNewBuilding((prev) => ({ ...prev, roomField: normalizeRoomNumber(event.target.value) }))
+                  }
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
                     event.preventDefault();
                     handleAddNewBuildingRoom();
                   }}
-                  className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                  className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
                   placeholder="201"
                 />
                 <button
@@ -1068,15 +1071,15 @@ export function CompanyView() {
                           className="inline-flex items-center gap-2 rounded-full border border-outline-muted bg-surface-raised px-3 py-1 text-xs"
                           onDoubleClick={() => {
                             setEditingRoomId(room.id);
-                            setEditingRoomValue(roomForms[room.id] ?? room.roomNumber);
+                            setEditingRoomValue(normalizeRoomNumber(roomForms[room.id] ?? room.roomNumber));
                           }}
                         >
                           {editingRoomId === room.id ? (
                             <input
                               value={editingRoomValue}
-                              onChange={(event) => setEditingRoomValue(event.target.value)}
+                              onChange={(event) => setEditingRoomValue(normalizeRoomNumber(event.target.value))}
                               onBlur={async () => {
-                                const nextValue = editingRoomValue.trim();
+                                const nextValue = normalizeRoomNumber(editingRoomValue);
                                 setEditingRoomId(null);
                                 if (!nextValue || nextValue === room.roomNumber) return;
                                 setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
@@ -1093,7 +1096,7 @@ export function CompanyView() {
                               onKeyDown={async (event) => {
                                 if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
                                 event.preventDefault();
-                                const nextValue = editingRoomValue.trim();
+                                const nextValue = normalizeRoomNumber(editingRoomValue);
                                 setEditingRoomId(null);
                                 if (!nextValue || nextValue === room.roomNumber) return;
                                 setBuildingFeedbacks((prev) => ({ ...prev, [building.id]: null }));
@@ -1107,7 +1110,7 @@ export function CompanyView() {
                                   }));
                                 }
                               }}
-                              className="w-24 rounded-md border border-outline-muted bg-surface-raised px-2 py-1 text-xs text-ink-primary focus:border-outline-accent focus:outline-none"
+                              className="w-24 rounded-md border border-outline-muted bg-surface-raised px-2 py-1 text-xs uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
                               autoFocus
                             />
                           ) : (
@@ -1139,7 +1142,7 @@ export function CompanyView() {
                           const base = prev[building.id] ?? { name: building.name, acronym: building.acronym, roomField: "" };
                           return {
                             ...prev,
-                            [building.id]: { ...base, roomField: event.target.value },
+                            [building.id]: { ...base, roomField: normalizeRoomNumber(event.target.value) },
                           };
                         })
                       }
@@ -1148,7 +1151,7 @@ export function CompanyView() {
                         event.preventDefault();
                         void handleAddNewRoom(building.id);
                       }}
-                      className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
+                      className="w-40 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase text-ink-primary focus:border-outline-accent focus:outline-none"
                       placeholder="Add room"
                     />
                     <button

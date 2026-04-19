@@ -3,6 +3,7 @@ import { and, eq, ilike, or } from "drizzle-orm";
 
 import { TRPCError } from "@trpc/server";
 
+import { normalizeRoomNumber } from "~/lib/room-number";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { buildings, rooms } from "~/server/db/schema";
 import { getPermissionContext } from "~/server/services/permissions";
@@ -40,7 +41,7 @@ export const facilityRouter = createTRPCRouter({
       if (context.businessId && buildingRow.businessId !== context.businessId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Building does not belong to this business." });
       }
-      const roomNumber = input.roomNumber.trim();
+      const roomNumber = normalizeRoomNumber(input.roomNumber);
       const [existing] = await ctx.db
         .select({ id: rooms.id })
         .from(rooms)

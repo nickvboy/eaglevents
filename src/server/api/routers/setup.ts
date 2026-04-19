@@ -21,6 +21,7 @@ import { refreshJoinTableExport } from "~/server/services/join-table-export";
 import { getSetupStatus } from "~/server/services/setup";
 import { ensurePrimaryCalendars } from "~/server/services/calendar";
 import { restoreSnapshot, snapshotSchema, writeSnapshotImportAuditLog } from "~/server/services/snapshot-import";
+import { normalizeRoomNumber } from "~/lib/room-number";
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const profileAffiliationValues = ["staff", "faculty", "student"] as const;
@@ -157,7 +158,7 @@ export const setupRouter = createTRPCRouter({
       const deduped = input.buildings.map((b) => ({
         name: b.name.trim(),
         acronym: b.acronym.trim(),
-        rooms: Array.from(new Set(b.rooms.map((room) => room.trim()).filter((room) => room.length > 0))),
+        rooms: Array.from(new Set(b.rooms.map(normalizeRoomNumber).filter((room) => room.length > 0))),
       }));
 
       await ctx.db.transaction(async (tx) => {
@@ -197,7 +198,7 @@ export const setupRouter = createTRPCRouter({
       const deduped = input.buildings.map((b) => ({
         name: b.name.trim(),
         acronym: b.acronym.trim(),
-        rooms: Array.from(new Set(b.rooms.map((room) => room.trim()).filter((room) => room.length > 0))),
+        rooms: Array.from(new Set(b.rooms.map(normalizeRoomNumber).filter((room) => room.length > 0))),
       }));
 
       await ctx.db.transaction(async (tx) => {

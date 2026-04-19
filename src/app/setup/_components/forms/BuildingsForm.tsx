@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { normalizeRoomNumber } from "~/lib/room-number";
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
 import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
@@ -66,7 +67,7 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
     setDrafts((prev) =>
       prev.map((draft) => {
         if (draft.id !== id) return draft;
-        const room = draft.roomField.trim();
+        const room = normalizeRoomNumber(draft.roomField);
         if (!room) return draft;
         if (draft.rooms.includes(room)) {
           return { ...draft, roomField: "" };
@@ -183,7 +184,9 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                   value={draft.roomField}
                   onChange={(e) => {
                     setDrafts((prev) =>
-                      prev.map((item) => (item.id === draft.id ? { ...item, roomField: e.target.value } : item)),
+                      prev.map((item) =>
+                        item.id === draft.id ? { ...item, roomField: normalizeRoomNumber(e.target.value) } : item,
+                      ),
                     );
                     setHasLocalChanges(true);
                   }}
@@ -193,7 +196,7 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                       addRoom(draft.id);
                     }
                   }}
-                  className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm outline-none ring-accent-default/40 focus:ring"
+                  className="flex-1 rounded-md border border-outline-muted bg-surface-raised px-3 py-2 text-sm uppercase outline-none ring-accent-default/40 focus:ring"
                   placeholder="201"
                 />
                 <button

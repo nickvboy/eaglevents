@@ -25,7 +25,7 @@ export function AppShell({ user, profileFirstName, children }: AppShellProps) {
   return (
     <div className={`flex ${shellHeightClass} ${useShellScroll ? "overflow-hidden" : ""} flex-col md:flex-row`}>
       {!hideShell ? <SidebarNav user={user} profileFirstName={profileFirstName} /> : null}
-      <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
         {!hideShell ? (
           <div className="shrink-0">
             <GlobalSearch enabled={Boolean(user?.id)} />
@@ -33,7 +33,7 @@ export function AppShell({ user, profileFirstName, children }: AppShellProps) {
         ) : null}
         <main
           className={
-            "flex min-h-0 flex-1 flex-col bg-surface-canvas pb-16 md:pb-0 " +
+            "flex min-h-0 min-w-0 flex-1 flex-col bg-surface-canvas pb-16 md:pb-0 " +
             (lockShellScroll ? "overflow-hidden" : useShellScroll ? "overflow-y-auto" : "")
           }
         >
