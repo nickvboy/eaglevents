@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -990,6 +991,20 @@ type ProfileDraft = {
   affiliation: (typeof profileAffiliationOptions)[number]["value"];
 };
 
+type PersistedProfileFlowState =
+  | {
+      mode: "create";
+      target: "assignee" | "attendee" | "coOwner";
+      draft: ProfileDraft;
+      duplicateContactMatches: ContactConflict[];
+      showDuplicateContactConfirm: boolean;
+    }
+  | {
+      mode: "edit";
+      target: ProfileEditTarget;
+      draft: ProfileDraft;
+    };
+
 type HumanReadableEventFormJson = {
   version: 1;
   title: string;
@@ -1063,9 +1078,13 @@ type NewEventDraft = {
   eventInfoEnd: string | null;
   setupInfoTime: string | null;
   assignee: AssigneeSelection | null;
+  assigneeSearch?: string;
   selectedAttendees: AssigneeSelection[];
+  attendeeSearch?: string;
   selectedCoOwners: AssigneeSelection[];
+  coOwnerSearch?: string;
   hourLogs: Array<{ start: string | null; end: string | null }>;
+  profileFlow?: PersistedProfileFlowState | null;
 };
 
 type LegacyNewEventDraft = Omit<NewEventDraft, "version" | "requestDetails"> & {
@@ -1098,6 +1117,48 @@ function deriveProfileDraft(raw: string): ProfileDraft {
     phoneNumber,
     affiliation: "staff",
   };
+}
+
+function normalizeProfileDraft(
+  draft: Partial<ProfileDraft> | null | undefined,
+): ProfileDraft {
+  return {
+    ...emptyProfileDraft,
+    ...draft,
+  };
+}
+
+function buildPersistedProfileFlowState(params: {
+  quickCreateTarget: "assignee" | "attendee" | "coOwner" | null;
+  profileEditTarget: ProfileEditTarget | null;
+  quickCreateDraft: ProfileDraft;
+  duplicateContactMatches: ContactConflict[];
+  showDuplicateContactConfirm: boolean;
+}): PersistedProfileFlowState | null {
+  const {
+    quickCreateTarget,
+    profileEditTarget,
+    quickCreateDraft,
+    duplicateContactMatches,
+    showDuplicateContactConfirm,
+  } = params;
+  if (quickCreateTarget !== null) {
+    return {
+      mode: "create",
+      target: quickCreateTarget,
+      draft: quickCreateDraft,
+      duplicateContactMatches,
+      showDuplicateContactConfirm,
+    };
+  }
+  if (profileEditTarget !== null) {
+    return {
+      mode: "edit",
+      target: profileEditTarget,
+      draft: quickCreateDraft,
+    };
+  }
+  return null;
 }
 
 function resolveProfileLabel(profile: {
@@ -1710,6 +1771,38 @@ export function NewEventDialog({
     [defaultDate],
   );
 
+  const restoreProfileFlow = useCallback(
+    (profileFlow: PersistedProfileFlowState | null | undefined) => {
+      if (profileFlow?.mode === "create") {
+        setProfileEditTarget(null);
+        setQuickCreateTarget(profileFlow.target);
+        setQuickCreateDraft(normalizeProfileDraft(profileFlow.draft));
+        setQuickCreateError(null);
+        setDuplicateContactMatches(profileFlow.duplicateContactMatches ?? []);
+        setShowDuplicateContactConfirm(
+          Boolean(profileFlow.showDuplicateContactConfirm),
+        );
+        return;
+      }
+      if (profileFlow?.mode === "edit") {
+        setQuickCreateTarget(null);
+        setProfileEditTarget(profileFlow.target);
+        setQuickCreateDraft(normalizeProfileDraft(profileFlow.draft));
+        setQuickCreateError(null);
+        setDuplicateContactMatches([]);
+        setShowDuplicateContactConfirm(false);
+        return;
+      }
+      setQuickCreateTarget(null);
+      setProfileEditTarget(null);
+      setQuickCreateDraft(emptyProfileDraft);
+      setQuickCreateError(null);
+      setDuplicateContactMatches([]);
+      setShowDuplicateContactConfirm(false);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!open) return;
     setJsonPanelOpen(false);
@@ -1875,25 +1968,24 @@ export function NewEventDialog({
         setSetupInfoTime(parseDraftDate(editDraft.setupInfoTime));
         setError(null);
         setAssignee(editDraft.assignee ?? null);
-        setAssigneeSearch("");
-        setAssigneeQuery("");
+        setAutoAssignPending(false);
+        setAssigneeSearch(editDraft.assigneeSearch ?? "");
+        setAssigneeQuery((editDraft.assigneeSearch ?? "").trim());
         setSelectedAttendees(
           Array.isArray(editDraft.selectedAttendees)
             ? editDraft.selectedAttendees
             : [],
         );
-        setAttendeeSearch("");
-        setAttendeeQuery("");
+        setAttendeeSearch(editDraft.attendeeSearch ?? "");
+        setAttendeeQuery((editDraft.attendeeSearch ?? "").trim());
         setSelectedCoOwners(
           Array.isArray(editDraft.selectedCoOwners)
             ? editDraft.selectedCoOwners
             : [],
         );
-        setCoOwnerSearch("");
-        setCoOwnerQuery("");
-        setQuickCreateTarget(null);
-        setQuickCreateDraft(emptyProfileDraft);
-        setQuickCreateError(null);
+        setCoOwnerSearch(editDraft.coOwnerSearch ?? "");
+        setCoOwnerQuery((editDraft.coOwnerSearch ?? "").trim());
+        restoreProfileFlow(editDraft.profileFlow);
         setSelectedCalendarId(fallbackCalendarId);
         setSelectedCalendarIds(initialSelections);
         setHourLogs(
@@ -1999,9 +2091,7 @@ export function NewEventDialog({
       setAttendeeQuery("");
       setCoOwnerSearch("");
       setCoOwnerQuery("");
-      setQuickCreateTarget(null);
-      setQuickCreateDraft(emptyProfileDraft);
-      setQuickCreateError(null);
+      restoreProfileFlow(null);
       const eventCalendar = event.calendarId ?? calendarId ?? null;
       setSelectedCalendarId(eventCalendar);
       setSelectedCalendarIds(eventCalendar ? [eventCalendar] : []);
@@ -2094,21 +2184,19 @@ export function NewEventDialog({
       setError(null);
       setAssignee(draft.assignee ?? null);
       setAutoAssignPending(!draft.assignee);
-      setAssigneeSearch("");
-      setAssigneeQuery("");
+      setAssigneeSearch(draft.assigneeSearch ?? "");
+      setAssigneeQuery((draft.assigneeSearch ?? "").trim());
       setSelectedAttendees(
         Array.isArray(draft.selectedAttendees) ? draft.selectedAttendees : [],
       );
-      setAttendeeSearch("");
-      setAttendeeQuery("");
+      setAttendeeSearch(draft.attendeeSearch ?? "");
+      setAttendeeQuery((draft.attendeeSearch ?? "").trim());
       setSelectedCoOwners(
         Array.isArray(draft.selectedCoOwners) ? draft.selectedCoOwners : [],
       );
-      setCoOwnerSearch("");
-      setCoOwnerQuery("");
-      setQuickCreateTarget(null);
-      setQuickCreateDraft(emptyProfileDraft);
-      setQuickCreateError(null);
+      setCoOwnerSearch(draft.coOwnerSearch ?? "");
+      setCoOwnerQuery((draft.coOwnerSearch ?? "").trim());
+      restoreProfileFlow(draft.profileFlow);
       setSelectedCalendarId(initialSelections[0] ?? fallbackCalendarId);
       setSelectedCalendarIds(initialSelections);
       setHourLogs(
@@ -2165,11 +2253,7 @@ export function NewEventDialog({
     setSelectedCoOwners([]);
     setCoOwnerSearch("");
     setCoOwnerQuery("");
-    setQuickCreateTarget(null);
-    setQuickCreateDraft(emptyProfileDraft);
-    setQuickCreateError(null);
-    setDuplicateContactMatches([]);
-    setShowDuplicateContactConfirm(false);
+    restoreProfileFlow(null);
     setSelectedCalendarId(fallbackCalendarId);
     setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
@@ -2182,6 +2266,7 @@ export function NewEventDialog({
     calendars,
     visibleCalendarIds,
     currentProfile.data,
+    restoreProfileFlow,
   ]);
 
   useEffect(() => {
@@ -2229,12 +2314,22 @@ export function NewEventDialog({
       eventInfoEnd: eventInfoEnd ? eventInfoEnd.toISOString() : null,
       setupInfoTime: setupInfoTime ? setupInfoTime.toISOString() : null,
       assignee,
+      assigneeSearch,
       selectedAttendees,
+      attendeeSearch,
       selectedCoOwners,
+      coOwnerSearch,
       hourLogs: hourLogs.map((log) => ({
         start: log.start ? log.start.toISOString() : null,
         end: log.end ? log.end.toISOString() : null,
       })),
+      profileFlow: buildPersistedProfileFlowState({
+        quickCreateTarget,
+        profileEditTarget,
+        quickCreateDraft,
+        duplicateContactMatches,
+        showDuplicateContactConfirm,
+      }),
     };
     if (event) {
       writeEditEventDraft(event.id, draft);
@@ -2266,9 +2361,17 @@ export function NewEventDialog({
     eventInfoEnd,
     setupInfoTime,
     assignee,
+    assigneeSearch,
     selectedAttendees,
+    attendeeSearch,
     selectedCoOwners,
+    coOwnerSearch,
     hourLogs,
+    quickCreateTarget,
+    profileEditTarget,
+    quickCreateDraft,
+    duplicateContactMatches,
+    showDuplicateContactConfirm,
   ]);
 
   useEffect(() => {
@@ -2760,9 +2863,7 @@ export function NewEventDialog({
     setSelectedCoOwners([]);
     setCoOwnerSearch("");
     setCoOwnerQuery("");
-    setQuickCreateTarget(null);
-    setQuickCreateDraft(emptyProfileDraft);
-    setQuickCreateError(null);
+    restoreProfileFlow(null);
     setSelectedCalendarId(fallbackCalendarId);
     setSelectedCalendarIds(initialSelections);
     setHourLogs([]);
