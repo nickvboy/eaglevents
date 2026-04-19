@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { ColorPicker } from "~/app/_components/ColorPicker";
 import type { ThemePaletteTokens } from "~/types/theme";
 import {
   DEFAULT_THEME_PALETTE,
@@ -325,39 +326,22 @@ export function PaletteEditorModal({
                           <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                             {modeKey === "dark" ? "Dark" : "Light"}
                           </span>
-                          <input
-                            type="color"
+                          <ColorPicker
                             value={draftState.tokens[modeKey][field.key]}
-                            onChange={(event) =>
+                            onChange={(nextValue) =>
                               setDraftState((prev) => ({
                                 ...prev,
                                 tokens: {
                                   ...prev.tokens,
                                   [modeKey]: {
                                     ...prev.tokens[modeKey],
-                                    [field.key]: event.target.value,
+                                    [field.key]: nextValue,
                                   },
                                 },
                               }))
                             }
-                            className="h-10 w-16 cursor-pointer rounded border border-outline-muted bg-transparent"
-                          />
-                          <input
-                            type="text"
-                            value={draftState.tokens[modeKey][field.key]}
-                            onChange={(event) =>
-                              setDraftState((prev) => ({
-                                ...prev,
-                                tokens: {
-                                  ...prev.tokens,
-                                  [modeKey]: {
-                                    ...prev.tokens[modeKey],
-                                    [field.key]: event.target.value,
-                                  },
-                                },
-                              }))
-                            }
-                            className="min-w-[120px] flex-1 rounded border border-outline-muted bg-surface-raised px-2 py-1 text-xs text-ink-primary outline-none focus:border-outline-accent"
+                            allowAlpha
+                            inputClassName="min-w-[120px] flex-1 bg-surface-raised px-2 py-1 text-xs"
                           />
                         </label>
                       ))}

@@ -7,6 +7,7 @@ import { CalendarToolbar } from "./CalendarToolbar";
 import { WeekGrid } from "./WeekGrid";
 import { NewEventDialog } from "./NewEventDialog";
 import { EventDetailDrawer } from "./EventDetailDrawer";
+import { ColorPicker } from "~/app/_components/ColorPicker";
 import { api } from "~/trpc/react";
 import { addDays, addMonths, endOfWeek, startOfDay, startOfWeek } from "../utils/date";
 import type { CalendarEvent } from "../utils/event-layout";
@@ -1243,19 +1244,7 @@ function CalendarEditorDialog({
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
               Color
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(event) => setColor(event.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded border border-outline-muted bg-transparent"
-                />
-                <input
-                  value={color}
-                  onChange={(event) => setColor(event.target.value)}
-                  className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                />
-              </div>
+              <ColorPicker value={color} onChange={setColor} inputClassName="bg-surface-muted" />
             </label>
           </div>
 

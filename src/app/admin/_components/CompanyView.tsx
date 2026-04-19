@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
+import { ColorPicker } from "~/app/_components/ColorPicker";
 import { normalizeRoomNumber } from "~/lib/room-number";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
@@ -2180,39 +2181,21 @@ export function CompanyView() {
                       </label>
                       <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
                         Color
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={form?.color ?? calendar.color}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              setCalendarForms((prev) => ({
-                                ...prev,
-                                [calendar.id]: {
-                                  name: prev[calendar.id]?.name ?? calendar.name,
-                                  color: event.target.value,
-                                  scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
-                                },
-                              }))
-                            }
-                            className="h-10 w-12 cursor-pointer rounded border border-outline-muted bg-transparent"
-                          />
-                          <input
-                            value={form?.color ?? calendar.color}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              setCalendarForms((prev) => ({
-                                ...prev,
-                                [calendar.id]: {
-                                  name: prev[calendar.id]?.name ?? calendar.name,
-                                  color: event.target.value,
-                                  scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
-                                },
-                              }))
-                            }
-                            className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-primary focus:border-outline-accent focus:outline-none"
-                          />
-                        </div>
+                        <ColorPicker
+                          value={form?.color ?? calendar.color}
+                          disabled={!canManage}
+                          onChange={(nextValue) =>
+                            setCalendarForms((prev) => ({
+                              ...prev,
+                              [calendar.id]: {
+                                name: prev[calendar.id]?.name ?? calendar.name,
+                                color: nextValue,
+                                scopeKey: prev[calendar.id]?.scopeKey ?? `${calendar.scopeType}:${calendar.scopeId}`,
+                              },
+                            }))
+                          }
+                          inputClassName="bg-surface-muted"
+                        />
                       </label>
                       <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
                         Scope
@@ -2331,19 +2314,14 @@ export function CompanyView() {
                               </label>
                               <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
                                 Color
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={form?.color ?? calendar.color}
-                                    disabled
-                                    className="h-10 w-12 cursor-not-allowed rounded border border-outline-muted bg-transparent opacity-60"
-                                  />
-                                  <input
-                                    value={form?.color ?? calendar.color}
-                                    disabled
-                                    className="rounded-md border border-outline-muted bg-surface-muted px-3 py-2 text-sm text-ink-muted"
-                                  />
-                                </div>
+                                <ColorPicker
+                                  value={form?.color ?? calendar.color}
+                                  disabled
+                                  onChange={() => {
+                                    // disabled
+                                  }}
+                                  inputClassName="bg-surface-muted text-ink-muted"
+                                />
                               </label>
                               <label className="flex flex-col gap-2 text-xs uppercase text-ink-subtle">
                                 Scope
