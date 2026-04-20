@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 import type { Session } from "next-auth";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, HomeIcon, ReportIcon, SettingsIcon, ShieldIcon } from "./icons";
+import { BarChartIcon, CalendarIcon, HomeIcon, ReportIcon, SettingsIcon, ShieldIcon } from "./icons";
 import { AccountMenu } from "../calendar/_components/AccountMenu";
 import { api } from "~/trpc/react";
 
@@ -21,6 +21,7 @@ const baseNavItems: NavItem[] = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
+const analyticsNavItem: NavItem = { href: "/analytics", label: "Analytics", icon: BarChartIcon };
 const adminNavItem: NavItem = { href: "/admin", label: "Admin", icon: ShieldIcon };
 
 type SidebarNavProps = {
@@ -32,8 +33,14 @@ export function SidebarNav(props: SidebarNavProps) {
   const { user, profileFirstName } = props;
   const pathname = usePathname();
   const permissionsQuery = api.admin.permissions.useQuery();
-  const canAccessAdmin = (permissionsQuery.data?.capabilities?.length ?? 0) > 0;
-  const navItems = canAccessAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const capabilities = permissionsQuery.data?.capabilities ?? [];
+  const canAccessAnalytics = capabilities.includes("analytics:view");
+  const canAccessAdmin = capabilities.length > 0;
+  const navItems = [
+    ...baseNavItems,
+    ...(canAccessAnalytics ? [analyticsNavItem] : []),
+    ...(canAccessAdmin ? [adminNavItem] : []),
+  ];
 
   return (
     <aside className="fixed bottom-0 left-0 right-0 z-60 flex h-16 w-full shrink-0 items-center border-t border-outline-muted bg-[linear-gradient(180deg,var(--color-surface-sunken),var(--color-surface-canvas))] px-2 text-ink-primary shadow-[0_-6px_18px_rgba(0,0,0,0.35)] md:sticky md:top-0 md:h-screen md:w-16 md:flex-col md:items-center md:border-t-0 md:border-r md:px-0 md:py-6 md:shadow-[2px_0_18px_rgba(0,0,0,0.55)]">

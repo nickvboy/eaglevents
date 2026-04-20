@@ -40,6 +40,7 @@ export type ScopeOption = {
 
 export type AdminCapability =
   | "dashboard:view"
+  | "analytics:view"
   | "company:manage"
   | "users:manage"
   | "reports:view"
@@ -75,6 +76,7 @@ const elevatedRoleTypes: RoleType[] = ["admin", "co_admin", "manager"];
 
 const ADMIN_CAPABILITIES: AdminCapability[] = [
   "dashboard:view",
+  "analytics:view",
   "company:manage",
   "users:manage",
   "reports:view",

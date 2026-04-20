@@ -16,6 +16,7 @@ import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { adminAnalyticsRouter } from "~/server/api/routers/admin-analytics";
 import {
   auditLogs,
   buildings,
@@ -828,6 +829,7 @@ async function fetchProfiles(
 }
 
 export const adminRouter = createTRPCRouter({
+  analytics: adminAnalyticsRouter,
   dashboard: protectedProcedure.query(async ({ ctx }) => {
     await requireAdminCapability(ctx.db, ctx.session, "dashboard:view");
     const now = new Date();
