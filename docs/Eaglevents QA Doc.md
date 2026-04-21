@@ -222,6 +222,35 @@ ODBE
 - [ ] Export XLSX; verify file downloads and contents.
 - [ ] Use year window controls (multi-year report); verify range changes.
 
+## Analytics Page Flow
+
+- [ ] Navigate to `/analytics` as a user with analytics access; verify the analytics workspace loads instead of an access error.
+- [ ] Navigate to `/analytics` as a user without `analytics:view`; verify the page shows the no-access state and does not render analytics charts or tabs.
+- [ ] While analytics permissions are loading, verify the loading access message appears and is replaced cleanly by either the analytics page or the no-access state.
+- [ ] Verify the analytics landing state shows the Analytics header, helper copy, global filter bar, and section tabs.
+- [ ] Verify the default analytics view opens on the Overview tab and loads KPI cards plus charts without console or UI errors.
+- [ ] Change the date range preset between `1M`, `3M`, `6M`, `YTD`, `12M`, and `Custom`; verify charts and KPIs refresh to match the selected window.
+- [ ] Select the `Custom` range and set both start and end dates; verify the analytics results refresh to the selected period.
+- [ ] With `Custom` selected, clear either the start or end date; verify the page handles the incomplete range gracefully and does not silently show misleading data.
+- [ ] Change the frequency between `Auto`, `Day`, `Week`, `Month`, and `Quarter`; verify trend-based charts rebucket correctly.
+- [ ] Toggle location mode between `All`, `Physical`, and `Virtual`; verify the analytics results update consistently across sections.
+- [ ] Toggle `Include all-day events`; verify all-day bookings are included or excluded consistently in charts and KPIs.
+- [ ] Open Advanced filters and search/select Buildings, Rooms, Event types, Request categories, and Requesters; verify each filter narrows the data correctly and selection counts update.
+- [ ] Use partial search terms inside each Advanced filter checklist; verify matching options are filtered in place and nonmatching options are hidden.
+- [ ] Click `Reset filters`; verify all analytics filters return to their default values and the data resets accordingly.
+- [ ] Switch between all analytics tabs: `Overview`, `Trends`, `Event Types`, `Locations`, `Requesters`, `Attendees`, `Durations`, and `Overlap`; verify only the active section loads and renders its corresponding charts/cards.
+- [ ] In Overview, change the Top N value and building metric selector; verify the ranked building chart updates and clamps invalid values into the supported range.
+- [ ] In Trends, switch the primary metric, composition selector, and `Compare previous`; verify the trend, composition, and comparison charts update together.
+- [ ] In Event Types, switch between event count and scheduled hours and adjust Top N; verify all event type ranking and composition cards stay in sync.
+- [ ] In Locations, switch between `Building` and `Room`, then change the metric and Top N; verify the ranked chart, occupancy table, and related visuals update correctly.
+- [ ] In Requesters, change the metric and Top N; verify requester rankings, composition charts, heatmap, and concentration curve refresh together.
+- [ ] In Attendees, change the metric and Top N; verify attendee rankings, participant charts, heatmap, and concentration curve refresh together.
+- [ ] In Durations, switch duration metric, breakout, and histogram bin count; verify the histogram, box plot, scatter view, and longest events list update correctly.
+- [ ] In Overlap, switch the level between `System`, `Building`, and `Room`; verify the entity selector appears only for Building/Room and resets when the level changes.
+- [ ] In Overlap, choose a building or room and change the selected date; verify the concurrency charts and selected-day timeline update to the chosen scope and date.
+- [ ] Force an analytics query failure for a section if possible; verify the section shows its retry state and the retry button reloads that section.
+- [ ] Apply filter combinations that produce no matching events; verify the analytics page shows empty states where appropriate instead of broken charts or stale data.
+
 ## Admin - Import/Export
 
 - [ ] Export snapshot; verify JSON downloads and message shows.
