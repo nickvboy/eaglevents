@@ -1,0 +1,103 @@
+---
+Date Created: 2026-03-01T21:01:00
+tags:
+  - code
+  - project
+  - app
+---
+>[[Eaglevents_master]]
+
+## Issues
+- [ ] the calendar takes forever to load
+- [ ] the anyliticsfilter
+- [x] file uploads in the file converter dont work from mp4 to mkv, mp4 to avi its says (Audio codec mp3 is not available)
+- [x] file uploads in the file converter dont work from mp4 to acc/m4a wav and mp3 seem to work.
+- [x] improve the file conversion workflow for images it should not show the image tab if the user does not upload an image indont worky about pdfs right not
+- [x] add more image conversion formats
+- [x] filetypes that are unsupported are able to be uploaded they should be rejected with a clear error in both the file converter
+- [x] there is no way to cancel jobs on the recently converted quest add this feature
+- [x] Recorded audio should be able to be played back before upload and re recorded/deleted
+- [x] on the transcript page the title overflows out of its container if the title is too long
+- [x] when the user edit its a transcript segment it only updates on reload not when they press save on the segments segments edicts should update immediacy when the user presses save
+- [x] add functionality when the user trouble clicks on a segment they should be able to enter into edit mode in addition to the toggle
+- [x] filetypes that are unsupported are able to be uploaded they should be rejected with a clear error in the transcriber if not already present
+- [x] format the timeline to be a HH:MM:SS format instead of format we have now HHH:MM
+- [x] make it so the file names are not in inserted in the titles its fine for exitisitng items but do not include it in future uploads
+- [x] for the bulk file downloads put the sub folders in a main file with the file name so the user does not have to export the sub folders from the zip and doe snot have to create a containing folder to put the sub folders
+- [x] you can not rename folders when they are created add a on hover pencil edit icon for this or if the user double clicks on the folder name add a delete folder with a styled confirmation too
+- [x] in the bulk action bar users should be able to move all selected files
+- [x] add a folder tag with a small folder icon within each queue item to signify that the file is in the specified folder
+- [x] when an item in the list view is auto highlighted in that items text box should auto selected the text box because it is assumed that they want to edit the file
+- [x] cam you properly style the delete item confirmation currently it uses the default browser dialogue
+- [x] in the transcript page in addition to the exit edit mode add a arrow icon when the edit mode is activated to allow the user an alternate way to exit edit mode
+- [x] In within the loading box, it doesn't never updates the finished file to completed in the UI. It will always State “queued” however, in the recently completed, the state seems to be correct. It's only in that loading bar section where the state doesn't update
+- [x] add a move to folder button to the bulk actions
+- [x] Uploading files disappear on navigation because they're stored in client-side React state instead of the database like all other job states.
+- [x] Uploading transcription jobs persist across page navigation (database records are created), but the status and progress do not update during the upload process. Progress is only tracked in client-side React state within the upload modal, and the /api/upload/chunk endpoint calculates uploadedBytes but does not write it to the database. When the user navigates away, the modal unmounts and loses all progress tracking, while the upload may continue in the background. The database job remains at status: "uploading" with progress: 0 until the upload completes, making it unclear whether the upload is still active or stuck. its fine if you stay on the same page
+- [x] You can not select uploading but it can be selected if you are transcribing I want the user to be able to select the item in both states.
+- [x] Users cannot cancel jobs from the main transcription queue page. The ellipsis menu (MoreHorizontal) is hidden for jobs with status "uploading", and there is no cancel option for jobs in "uploading" or "file_processing" status. Modify the UX to show the ellipsis menu for uploading jobs and add a "Cancel job" menu item that appears for jobs with status "uploading" or "file_processing", positioned before the "Delete job" option
+- [x] the uploading state in the file converter also does not update the state in the ui if the user changes the page but it still seems to upload to the system even though the progress bar
+- [x] remove the “🚨 TAB TEST - CAN YOU SEE THIS? 🚨” box it is not nessary in the admin menu
+- [x] add A clear cache option this should be allowed by condemns it should clear cased transcripts not delete them
+- [x] there is no way to cancel file upload jobs in the transcription upload queue
+- [x] make it so if a file is over 1 gb long it will go into an efficient mode
+- [x] Don't used toast messages for the sign in and sign up forms you need to contextually highlight for invalid fields for both signin and signuo, especially for the input validations for the logon processes
+- [x] Users shoul put in their username It should be an email user name combo box when signing in. IfIf you @ symbol again, with the rest of the user input form not having consistent messages ensure that the signing and sign up pages have consistent input validation styling
+- [x] Anon users should be able to access the file converter this is the only feature they should be able to access and they don't have to be signed in for this.
+- [x] for the permissions that are allowed for the admin coadmin ad user roles not tiers it should auto switch the database permissions
+- [x] Admins and co admins should auto select pro on the dropdown but the tier can still be changed
+- [x] ensure that there should be atleast one coadmin and admin. The admin is most important
+- [x] put most if not all toast messages in the bottom right side of the screen
+- [x] On the transcription flow only, accept all existing audio/video formats but perform a client-side conversion to a compressed AAC mono 16 kHz, 48 kbps audio file, ensure only this converted file is saved/used (for upload and streaming) instead of the original “full-fat” media, and do not change upload behavior for any other part of the app this includes the file converter this will hep with reducinng upload times and streaming for the transcrption page
+- [x] lets build on the granular database permissions so admins have full access to all database operations by default, while coadmins are restricted to only "Clear Transcript Cache" (blocking them from "Delete all users," "Delete all transcripts," "Clear Converter records," "Clear uploads," and "Factory reset"), and update the UX so that when the "Purge operation" switch is enabled, it reveals these individual sub-operations as selectable options for both admin and coadmin roles based on their permissions as the switches
+- [x] Refactor the dashboard to be user-focused with comprehensive stats including: total users (with tier breakdown: starter/plus/pro), total transcripts, total conversions, transcription job counts, file conversion job counts, storage usage (per user and total from fileSize and sourceSize), cache hit rate (jobs with sourceJobId vs total), average transcription/conversion processing times (calculated from completedAt - createdAt), success/failure/error rates for both job types, job status breakdown (queued/processing/completed/error), most active users (by job count), recent activity timeline/feed, peak usage times with hourly/daily patterns, user registration trends over time, file format distribution (from originalFormat and targetFormat), speech quality distribution (from fileMetadata.speechQuality), codec usage breakdown, upload vs recording mode split, average file size and duration, processing queue status with wait times, failed/error jobs requiring attention, error rate trends over time, and rate limit metrics/patterns; add interactive and reactive tables and graphs including line charts (jobs over time daily/weekly/monthly, registration trends, processing time trends, error rates), bar charts (jobs by user, format breakdowns, codec usage, user tier distribution), pie charts (storage distribution, job status, quality/mode splits), heatmaps (peak usage times), and progress indicators (current queue status and active jobs) that all update in near real-time; move non-overlapping database stats lower on the dashboard and organize into logical subsections for admin/coadmin workflows.
+- [x] remove the blog page and rename Dashboard teste in the user profile menu to be “transcript dashboard” to improve clarity
+- [x] also rename the “database” option rename to admin Dashboaord aswell as the Database title in the nav bar
+- [x] Extend the light grey background container to fill the full viewport height (reaching the bottom of the page) on all screens regardless of content length, so there's no dark grey background visible below the content area.
+- [x] style the pricing page to reflect the current access structure with all tiers marked as free 0$, write compelling marketing copy that highlights the features and benefits of each tier, and apply modern, visually appealing styling consistent with the rest of the application. use the codebase to make proper copy
+- [x] In the file converter, the file converts immediately when you select the file format. It should only convert when the user presses the convert button.
+- [x] Create a basic out of the box experience
+- [x] When an the audio file does not load for what ever reason do not load the audo player elements. give error snadeling for this Verify that selecting a target format (e.g., PNG, MP3, MP4) does not trigger file conversion until the user explicitly clicks the "Convert" button.
+- [x] make the app page load more snapper even on low network enjoinments without hurting the server performance as much as possible
+    - [x] Homepage bundles UploadModal (1065 lines) and RecordingModal (899 lines) on initial load. Use dynamic imports to lazy load these modals only when user clicks the buttons. Impact: 20-30% smaller initial bundle, 1-2s faster on slow networks.
+    - [x] Lucide icons imported across app may not be tree-shaking properly, potentially loading entire 200KB icon library. Enable Next.js experimental package optimization for lucide-react. Impact: 100-150KB reduction.
+    - [x] SetupGate component makes TRPC query on every page load adding 100-300ms latency. Set staleTime to Infinity since setup state rarely changes. Impact: eliminate 100-300ms delay per page.
+    - [x] ChangePasswordModal imported in SiteHeader even though rarely used. Lazy load it only when user clicks Change Password. Impact: 15-20KB reduction in header bundle.
+    - [x] Geist font loads without display swap causing render blocking. Add display: 'swap' to font config. Impact: 200-500ms faster First Contentful Paint
+    - [x] Most pages use "use client" preventing Server Components optimization. Refactor to use Server Components with client islands. Impact: 20-40% less JS per route.
+    - [x] TRPCReactProvider loads for all users even on public pages adding 50KB. Conditionally load only for authenticated routes. Impact: 50KB reduction for public pages.
+    - [x] Multiple Radix UI components imported in root layout adding 80-100KB globally. Review if all needed globally and lazy load some. Impact: 30-50KB reduction.
+- [x] When users manually scroll through the transcript, automatically highlight the closest item efficiently. Improve the ux by Add a small arrow button that appears during manual scrolling—clicking it should auto-scroll to the nearest segment, so users don't have to scroll manually.
+- [x] When a user updates the name of a transcription, the system should not use the original uploaded file name during export. It must check whether the transcription title has been renamed and use the updated title as the file name for single exports, as well as for bulk exports, including zip files and any generated subfolder names.
+- [x] Make trigger a bulk download by dragging and dropping on the transcription page.
+- [x] When creating an event, the calendar chips should automatically reflect the currently selected calendars. In the event calendar view, the system should check which calendars are selected and assign the corresponding chips accordingly. This behavior is partially implemented, but it does not consistently persist. If the user closes and reopens the event modal, the selected calendar chips are not properly retained or reflected.
+- [x] when the meeting details screen leaves a visible space in the mobile and desktop views
+- [x]  the edit page modal does not appear in front of the meeting details page
+- [x] The event modal profile search fails to reliably match full names, allowing duplicate profiles, and lacks validation to prevent creating profiles with existing emails or phone numbers.
+- [x] The week, day, work week form should be persistent session wide for a period of time instead of always defaulting to daytime on page load
+- [x] The Equipment Needed input should be converted from a text box to multi-select checkboxes, with an Additional Information field that only appears when the user selects Other.
+- [x] Add an Event Type section after Equipment Needed that uses checkboxes and allows users to select one or more of the following: Recording, Stream, Panel, and Audio PA.
+- [x] add a delete event confirmation
+- [x] make the invite attendeeds filed required
+- [x] add more options to the event type
+- [x] can not put in Zendesk ticket ids to search for the search box any more investigate
+- [x] add a profile field for affiliation to the profile
+- [x] Ensure email input in the profile addition flow is properly validated, including trimming leading and trailing spaces before submission.
+- [x] Improve arrow key and Enter navigation across the events form, including item selection and full dropdown interaction.
+- [x] Enable arrow key navigation for global search results and allow users to press Enter to select or execute a search. 
+- [x] include the Zendesk ticket number in the meeting details page
+- [x] add a flow to import from a json snapshot from the obe
+- [x] Add a quick interaction that allows users to modify profile information directly within the Add Event flow by double clicking on a profile chip in the event dialog.
+- [x] add a profile manager somehow may need a separate flow
+- [x] Add CSV import and export with checkbox selection and ID based updates or creates, using a bulk endpoint that enforces the same required fields and validation as the single event flow, plus a backwards compatible JSON export extension.
+- [x] add a "projector setup", and a "multi room event","Bluetooth" Type to the event modal
+- [x] Remove the overflow behavior that truncates text with ellipses and instead allow the content to wrap naturally within the container. The current implementation limits readability and hides important information, especially for longer entries. The text should dynamically wrap based on the container width so that all content remains visible without requiring additional interaction.
+- [x] put the Zendesk ticket number under the title in each calendar card
+- [x] The create profile flow within the new event dialog does not preserve its open state when the user clicks outside of the modal or switches tabs. It should retain its state in the same way the rest of the event modal preserves in progress input and UI context. Fix this so the create profile flow remembers its current state and remains consistent with the event modal behavior.
+- [x] When the user Double clicks the profile chip and changes an attribute such as the name it does not change even though it seems to update on the backend
+- [x] create a flow that allows the admins to create users from existing profile add search make it a small addtion to the existing user create ux
+- [x] add a date time table to spilt out timeframes into days weeks months years different date formats export it as a separate table 
+- [x] Enable all Caps input  validation in the Rooms field of the OBE, and the room creation in the buildings section of the admin dashboards
+- [x] add a view password icon to the password foiled of the obe, login page and the add user dialogue. it should link to the confirm password box if applicable 
+- [x] use the color proper color component from the theme when assigning a calendar color, not the default browser. Color picker
+- [x] oom search and general building search were sharing state and overly rigid matching, so results could appear in the wrong place and miss partial building or room-name queries.
