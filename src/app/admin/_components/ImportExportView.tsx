@@ -21,8 +21,8 @@ type SnapshotSummary = {
   counts: Array<{ label: string; count: number }>;
 };
 
-const CURRENT_SNAPSHOT_VERSION = 5;
-const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
+const CURRENT_SNAPSHOT_VERSION = 6;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5, 6] as const;
 const SNAPSHOT_FORMAT_LABEL = `Version ${CURRENT_SNAPSHOT_VERSION} (JSON)`;
 const defaultEventTransferQuery: EventTransferQuery = { limit: 50 };
 

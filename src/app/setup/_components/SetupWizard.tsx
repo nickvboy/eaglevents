@@ -28,7 +28,7 @@ type SnapshotSummary = {
 };
 
 const orderedSteps: StepKey[] = ["business", "buildings", "departments", "users", "theme", "complete"];
-const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
+const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5, 6] as const;
 const snapshotDataSections = [
   { key: "users", label: "Users" },
   { key: "posts", label: "Posts" },
