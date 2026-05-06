@@ -28,6 +28,7 @@ import {
   eventAttendees,
   eventHourLogs,
   eventReminders,
+  eventRooms,
   eventZendeskConfirmations,
   events,
   organizationRoles,
@@ -107,6 +108,7 @@ import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
 
 type DbClient = typeof dbClient;
 type DbReader = Pick<DbClient, "select">;
+type DbRoomLocationWriter = Pick<DbClient, "select" | "update">;
 
 function timestampSql(value: Date) {
   return sql`${value.toISOString()}::timestamptz`;
@@ -472,6 +474,103 @@ function deriveUpdatedEventLocation(options: {
   }
 
   return null;
+}
+
+type RoomLocationRow = {
+  eventId: number;
+  roomNumber: string;
+  buildingId: number;
+  acronym: string;
+};
+
+function formatRoomLocationSummary(locations: RoomLocationRow[]) {
+  if (locations.length === 0) return null;
+  const grouped = new Map<number, { acronym: string; rooms: string[] }>();
+  for (const entry of locations) {
+    const existing = grouped.get(entry.buildingId);
+    if (existing) {
+      existing.rooms.push(entry.roomNumber);
+    } else {
+      grouped.set(entry.buildingId, {
+        acronym: entry.acronym,
+        rooms: [entry.roomNumber],
+      });
+    }
+  }
+
+  return Array.from(grouped.values())
+    .map((group) => {
+      const uniqueRooms = Array.from(new Set(group.rooms));
+      return uniqueRooms.length === 1
+        ? `${group.acronym} ${uniqueRooms[0]}`
+        : `${group.acronym} ${uniqueRooms.join(", ")}`;
+    })
+    .join("; ");
+}
+
+async function backfillEventLocationsForRooms(
+  db: DbRoomLocationWriter,
+  roomIds: number[],
+) {
+  const uniqueRoomIds = Array.from(new Set(roomIds)).filter(Number.isFinite);
+  if (uniqueRoomIds.length === 0) return 0;
+
+  const linkedEvents = await db
+    .select({ eventId: eventRooms.eventId })
+    .from(eventRooms)
+    .where(inArray(eventRooms.roomId, uniqueRoomIds));
+  const eventIds = Array.from(new Set(linkedEvents.map((row) => row.eventId)));
+  if (eventIds.length === 0) return 0;
+
+  const locationRows = await db
+    .select({
+      eventId: eventRooms.eventId,
+      roomNumber: rooms.roomNumber,
+      buildingId: buildings.id,
+      acronym: buildings.acronym,
+    })
+    .from(eventRooms)
+    .innerJoin(rooms, eq(eventRooms.roomId, rooms.id))
+    .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+    .where(inArray(eventRooms.eventId, eventIds))
+    .orderBy(eventRooms.eventId, buildings.acronym, rooms.roomNumber);
+
+  const byEvent = new Map<number, RoomLocationRow[]>();
+  for (const row of locationRows) {
+    const list = byEvent.get(row.eventId) ?? [];
+    list.push(row);
+    byEvent.set(row.eventId, list);
+  }
+
+  const now = new Date();
+  for (const eventId of eventIds) {
+    await db
+      .update(events)
+      .set({
+        location: formatRoomLocationSummary(byEvent.get(eventId) ?? []),
+        updatedAt: now,
+      })
+      .where(eq(events.id, eventId));
+  }
+
+  return eventIds.length;
+}
+
+async function backfillEventLocationsForBuildings(
+  db: DbRoomLocationWriter,
+  buildingIds: number[],
+) {
+  const uniqueBuildingIds = Array.from(new Set(buildingIds)).filter(Number.isFinite);
+  if (uniqueBuildingIds.length === 0) return 0;
+
+  const roomRows = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(inArray(rooms.buildingId, uniqueBuildingIds));
+  return backfillEventLocationsForRooms(
+    db,
+    roomRows.map((row) => row.id),
+  );
 }
 
 async function findBusinessAdminUserIds(db: DbReader) {
@@ -2590,7 +2689,7 @@ export const adminRouter = createTRPCRouter({
       const nameChanged = nextName !== buildingRow.name;
       const acronymChanged = nextAcronym !== buildingRow.acronym;
 
-      await ctx.db.transaction(async (tx) => {
+      const updatedRoomLinkedEventCount = await ctx.db.transaction(async (tx) => {
         await tx
           .update(buildings)
           .set({
@@ -2600,7 +2699,12 @@ export const adminRouter = createTRPCRouter({
           })
           .where(eq(buildings.id, input.buildingId));
 
-        if (!nameChanged && !acronymChanged) return;
+        if (!nameChanged && !acronymChanged) return 0;
+
+        const roomLinkedEventCount = await backfillEventLocationsForBuildings(
+          tx,
+          [input.buildingId],
+        );
 
         const eventRows = await tx
           .select({ id: events.id, location: events.location })
@@ -2621,7 +2725,17 @@ export const adminRouter = createTRPCRouter({
             .set({ location: nextLocation, updatedAt: new Date() })
             .where(eq(events.id, eventRow.id));
         }
+
+        return roomLinkedEventCount;
       });
+      if (updatedRoomLinkedEventCount > 0) {
+        void refreshJoinTableExport(ctx.db, true).catch((error) => {
+          console.error(
+            "[join-table-export] admin updateBuilding refresh failed",
+            error,
+          );
+        });
+      }
       return { id: input.buildingId };
     }),
 
@@ -2718,6 +2832,7 @@ export const adminRouter = createTRPCRouter({
         .select({
           id: rooms.id,
           buildingId: rooms.buildingId,
+          roomNumber: rooms.roomNumber,
           businessId: buildings.businessId,
         })
         .from(rooms)
@@ -2734,10 +2849,42 @@ export const adminRouter = createTRPCRouter({
           message: "Room does not belong to this business.",
         });
       }
-      await ctx.db
-        .update(rooms)
-        .set({ roomNumber, updatedAt: new Date() })
-        .where(eq(rooms.id, input.roomId));
+      if (roomRow.roomNumber === roomNumber) {
+        return { id: input.roomId };
+      }
+
+      const [conflictingRoom] = await ctx.db
+        .select({ id: rooms.id })
+        .from(rooms)
+        .where(
+          and(
+            eq(rooms.buildingId, roomRow.buildingId),
+            eq(rooms.roomNumber, roomNumber),
+          ),
+        )
+        .limit(1);
+      if (conflictingRoom && conflictingRoom.id !== input.roomId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "That room already exists for this building.",
+        });
+      }
+
+      const updatedEventCount = await ctx.db.transaction(async (tx) => {
+        await tx
+          .update(rooms)
+          .set({ roomNumber, updatedAt: new Date() })
+          .where(eq(rooms.id, input.roomId));
+        return backfillEventLocationsForRooms(tx, [input.roomId]);
+      });
+      if (updatedEventCount > 0) {
+        void refreshJoinTableExport(ctx.db, true).catch((error) => {
+          console.error(
+            "[join-table-export] admin updateRoom refresh failed",
+            error,
+          );
+        });
+      }
       return { id: input.roomId };
     }),
 
