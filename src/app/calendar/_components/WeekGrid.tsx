@@ -42,7 +42,7 @@ export function WeekGrid({
       <div className="min-h-0 flex-1 overflow-auto">
         {/* Sticky header row so columns align with scrollbar width */}
         <div
-          className="sticky top-0 z-20 grid shrink-0 border-b border-outline-muted bg-surface-overlay"
+          className="sticky top-0 z-20 grid shrink-0 border-b border-outline-muted bg-surface-overlay backdrop-blur"
           style={{
             height: `${headerHeight}px`,
             gridTemplateColumns: gridCols,

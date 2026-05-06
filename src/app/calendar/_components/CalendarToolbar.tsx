@@ -19,7 +19,7 @@ const views: Props["view"][] = ["day", "threeday", "workweek", "week", "month"];
 
 export function CalendarToolbar(props: Props) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-muted bg-surface-muted px-4 py-2 text-ink-primary">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-muted bg-surface-muted px-4 py-2 text-ink-primary backdrop-blur">
       <div className="flex flex-wrap items-center gap-2">
         <button
           className="rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-ink-inverted hover:bg-accent-default"

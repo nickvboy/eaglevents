@@ -937,7 +937,7 @@ type MobileToolbarProps = {
 function MobileToolbar({ onToday, view, onViewChange, onOpenCalendars }: MobileToolbarProps) {
   const views: View[] = ["day", "threeday", "workweek", "week", "month"];
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-outline-muted bg-surface-overlay px-3 py-2 text-ink-primary">
+    <div className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-outline-muted bg-surface-overlay px-3 py-2 text-ink-primary backdrop-blur">
       <button
         type="button"
         className="shrink-0 rounded-md border border-outline-muted px-2 py-1 text-xs font-medium hover:bg-surface-muted"
@@ -994,7 +994,7 @@ function MobileDateHeader(props: MobileDateHeaderProps) {
   const handleNext = props.calendarOpen ? props.onNextMonth : props.onNextDay;
 
   return (
-    <div className="border-b border-outline-muted bg-surface-overlay text-ink-primary">
+    <div className="border-b border-outline-muted bg-surface-overlay text-ink-primary backdrop-blur">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <button
           type="button"
