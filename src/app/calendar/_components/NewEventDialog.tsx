@@ -11,6 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { TRPCClientError } from "@trpc/client";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { addDays, startOfDay } from "../utils/date";
 import {
@@ -979,6 +980,13 @@ type ProfileEditTarget =
   | { type: "attendee"; profile: AssigneeSelection }
   | { type: "coOwner"; profile: AssigneeSelection };
 type ContactConflict = RouterOutputs["profile"]["findContactConflicts"][number];
+type EventListItem = RouterOutputs["event"]["list"][number];
+type ProfileCachePatch = {
+  profileId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
 const profileAffiliationOptions = [
   { value: "staff", label: "Staff" },
   { value: "faculty", label: "Faculty" },
@@ -1197,6 +1205,102 @@ function toAssigneeSelection(profile: {
     email: profile.email,
     username: profile.username ?? null,
   };
+}
+
+function patchProfileInEvent(
+  event: EventListItem,
+  patch: ProfileCachePatch,
+): EventListItem {
+  let changed = false;
+  const profileSummary = {
+    id: patch.profileId,
+    firstName: patch.firstName,
+    lastName: patch.lastName,
+    email: patch.email,
+  };
+  const nextAssigneeProfile =
+    event.assigneeProfile?.id === patch.profileId
+      ? ((changed = true), profileSummary)
+      : event.assigneeProfile;
+  const nextAttendees = event.attendees.map((attendee) => {
+    if (attendee.profileId !== patch.profileId) return attendee;
+    changed = true;
+    return {
+      ...attendee,
+      firstName: patch.firstName,
+      lastName: patch.lastName,
+      email: patch.email,
+    };
+  });
+  const nextCoOwners = event.coOwners.map((coOwner) => {
+    if (coOwner.profileId !== patch.profileId) return coOwner;
+    changed = true;
+    return {
+      ...coOwner,
+      firstName: patch.firstName,
+      lastName: patch.lastName,
+      email: patch.email,
+    };
+  });
+  const nextHourLogs = event.hourLogs.map((log) => {
+    if (
+      log.loggedByProfileId !== patch.profileId &&
+      log.loggedByProfile?.id !== patch.profileId
+    ) {
+      return log;
+    }
+    changed = true;
+    return {
+      ...log,
+      loggedByProfile: profileSummary,
+    };
+  });
+
+  if (!changed) return event;
+  return {
+    ...event,
+    assigneeProfile: nextAssigneeProfile,
+    attendees: nextAttendees,
+    coOwners: nextCoOwners,
+    hourLogs: nextHourLogs,
+  };
+}
+
+function patchProfileInEventCacheValue(
+  value: unknown,
+  patch: ProfileCachePatch,
+): unknown {
+  if (Array.isArray(value)) {
+    const items = value as unknown[];
+    return items.map((item) =>
+      item && typeof item === "object"
+        ? patchProfileInEvent(item as EventListItem, patch)
+        : item,
+    );
+  }
+  if (value && typeof value === "object" && "id" in value) {
+    return patchProfileInEvent(value as EventListItem, patch);
+  }
+  return value;
+}
+
+function patchProfileInEventCaches(
+  queryClient: QueryClient,
+  patch: ProfileCachePatch,
+) {
+  queryClient.setQueriesData<unknown>(
+    {
+      predicate: (query) => {
+        const serializedKey = JSON.stringify(query.queryKey);
+        return (
+          serializedKey.includes('"event"') &&
+          (serializedKey.includes('"list"') ||
+            serializedKey.includes('"findByIdentifier"'))
+        );
+      },
+    },
+    (value: unknown) => patchProfileInEventCacheValue(value, patch),
+  );
 }
 
 function formatPhoneInput(raw: string) {
@@ -1507,6 +1611,7 @@ export function NewEventDialog({
   event,
 }: Props) {
   const utils = api.useUtils();
+  const queryClient = useQueryClient();
   const create = api.event.create.useMutation();
   const update = api.event.update.useMutation();
   const deleteMutation = api.event.delete.useMutation({
@@ -3247,8 +3352,43 @@ export function NewEventDialog({
         username:
           updated.username ?? profileEditTarget.profile.username ?? null,
       };
+      const profilePatch = {
+        profileId: updated.profileId,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        email: updated.email,
+      };
       applyUpdatedProfileSelection(nextSelection);
-      await utils.profile.search.invalidate();
+      patchProfileInEventCaches(queryClient, profilePatch);
+      utils.profile.getById.setData(
+        { profileId: updated.profileId },
+        {
+          profileId: updated.profileId,
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          email: updated.email,
+          username: nextSelection.username,
+          phoneNumber: updated.phoneNumber,
+          affiliation: updated.affiliation,
+          displayName: nextSelection.displayName,
+        },
+      );
+      if (currentProfile.data?.profileId === updated.profileId) {
+        utils.profile.me.setData(undefined, {
+          profileId: updated.profileId,
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          email: updated.email,
+          username: nextSelection.username,
+          phoneNumber: updated.phoneNumber,
+          affiliation: updated.affiliation,
+          displayName: nextSelection.displayName,
+        });
+      }
+      await Promise.all([
+        utils.profile.search.invalidate(),
+        utils.event.invalidate(),
+      ]);
       closeProfileEditor();
     } catch (err) {
       setQuickCreateError(getQuickCreateErrorMessage(err));

@@ -76,13 +76,8 @@ export default async function RootLayout({
   const resolvedPalette = await resolvePalette({
     userId,
   });
-  const sessionProfileFirstName = session?.user?.profileFirstName?.trim();
   const profileFirstName =
-    sessionProfileFirstName && sessionProfileFirstName.length > 0
-      ? sessionProfileFirstName
-      : userId
-        ? await fetchProfileFirstName(userId)
-        : null;
+    userId ? await fetchProfileFirstName(userId) : null;
 
   const paletteCSS = generatePaletteCSS(resolvedPalette.tokens);
 

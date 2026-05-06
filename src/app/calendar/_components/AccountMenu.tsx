@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
+import { api } from "~/trpc/react";
 
 type Props = {
   user: Session["user"] | null;
@@ -35,11 +36,16 @@ export function AccountMenu({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const currentProfile = api.profile.me.useQuery(undefined, {
+    enabled: sessionStatus === "authenticated",
+  });
   const sessionUser = session?.user ?? null;
   const email = sessionUser?.email ?? user?.email ?? "";
   const fromProfile =
-    normalizeName(sessionUser?.profileFirstName) ?? normalizeName(profileFirstName);
+    normalizeName(currentProfile.data?.firstName) ??
+    normalizeName(profileFirstName) ??
+    normalizeName(sessionUser?.profileFirstName);
   const fromName = normalizeName(sessionUser?.name) ?? normalizeName(user?.name);
   const fallbackName = email ? email.split("@")[0] : null;
   const computedName = fromProfile ?? fromName ?? fallbackName;
