@@ -19,7 +19,9 @@ type Meta = {
 
 function toDateInputValue(value: Date | null) {
   if (!value) return "";
-  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function SegmentedButton({
@@ -39,7 +41,7 @@ function SegmentedButton({
         "rounded-full px-3 py-1.5 text-xs font-semibold transition " +
         (active
           ? "bg-accent-strong text-white shadow-[var(--shadow-accent-glow)]"
-          : "border border-outline-muted bg-surface-muted text-ink-muted hover:text-ink-primary")
+          : "border-outline-muted bg-surface-muted text-ink-muted hover:text-ink-primary border")
       }
     >
       {label}
@@ -57,31 +59,40 @@ function FilterChecklist(props: {
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return props.options;
-    return props.options.filter((option) => option.label.toLowerCase().includes(normalized));
+    return props.options.filter((option) =>
+      option.label.toLowerCase().includes(normalized),
+    );
   }, [props.options, query]);
 
   return (
-    <div className="rounded-xl border border-outline-muted bg-surface-muted p-4">
+    <div className="border-outline-muted bg-surface-muted rounded-xl border p-4">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-ink-primary">{props.label}</h4>
-        <span className="text-xs text-ink-muted">{props.selectedValues.length} selected</span>
+        <h4 className="text-ink-primary text-sm font-semibold">
+          {props.label}
+        </h4>
+        <span className="text-ink-muted text-xs">
+          {props.selectedValues.length} selected
+        </span>
       </div>
       <input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={`Search ${props.label.toLowerCase()}`}
-        className="mt-3 w-full rounded-lg border border-outline-muted bg-surface-canvas px-3 py-2 text-sm text-ink-primary outline-none transition focus:border-accent-strong"
+        className="border-outline-muted bg-surface-canvas text-ink-primary focus:border-accent-strong mt-3 w-full rounded-lg border px-3 py-2 text-sm transition outline-none"
       />
       <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
         {filtered.map((option) => {
           const checked = props.selectedValues.includes(option.value);
           return (
-            <label key={String(option.value)} className="flex items-center gap-2 text-sm text-ink-muted">
+            <label
+              key={String(option.value)}
+              className="text-ink-muted flex items-center gap-2 text-sm"
+            >
               <input
                 type="checkbox"
                 checked={checked}
                 onChange={() => props.onToggle(option.value)}
-                className="h-4 w-4 rounded border-outline-muted"
+                className="border-outline-muted h-4 w-4 rounded"
               />
               <span>{option.label}</span>
             </label>
@@ -98,33 +109,60 @@ export function AnalyticsFilterBar(props: {
   onChange: (value: AnalyticsGlobalFilters) => void;
   onReset: () => void;
 }) {
-  const update = <K extends keyof AnalyticsGlobalFilters>(key: K, value: AnalyticsGlobalFilters[K]) => {
+  const update = <K extends keyof AnalyticsGlobalFilters>(
+    key: K,
+    value: AnalyticsGlobalFilters[K],
+  ) => {
     props.onChange({ ...props.value, [key]: value });
   };
-  const toggleNumber = (key: "buildingIds" | "roomIds", value: string | number) => {
+  const updateCustomDate = (
+    key: "customStart" | "customEnd",
+    value: Date | null,
+  ) => {
+    const nextValue = { ...props.value, [key]: value };
+    if (nextValue.customStart && nextValue.customEnd) {
+      nextValue.rangePreset = "custom";
+    }
+    props.onChange(nextValue);
+  };
+  const toggleNumber = (
+    key: "buildingIds" | "roomIds",
+    value: string | number,
+  ) => {
     const numericValue = Number(value);
     const list = props.value[key];
     update(
       key,
-      list.includes(numericValue) ? list.filter((entry) => entry !== numericValue) : [...list, numericValue],
+      list.includes(numericValue)
+        ? list.filter((entry) => entry !== numericValue)
+        : [...list, numericValue],
     );
   };
-  const toggleString = (key: "eventTypes" | "requestCategories" | "requesterKeys", value: string | number) => {
+  const toggleString = (
+    key: "eventTypes" | "requestCategories" | "requesterKeys",
+    value: string | number,
+  ) => {
     const stringValue = String(value);
     const list = props.value[key];
     update(
       key,
-      list.includes(stringValue) ? list.filter((entry) => entry !== stringValue) : [...list, stringValue],
+      list.includes(stringValue)
+        ? list.filter((entry) => entry !== stringValue)
+        : [...list, stringValue],
     );
   };
 
   return (
-    <section className="rounded-2xl border border-outline-muted bg-surface-raised p-5 shadow-[var(--shadow-pane)]">
+    <section className="border-outline-muted bg-surface-raised rounded-2xl border p-5 shadow-[var(--shadow-pane)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="space-y-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">Global filters</p>
-            <h2 className="mt-1 text-lg font-semibold text-ink-primary">Adjust the analytics window and focus</h2>
+            <p className="text-ink-muted text-xs tracking-[0.2em] uppercase">
+              Global filters
+            </p>
+            <h2 className="text-ink-primary mt-1 text-lg font-semibold">
+              Adjust the analytics window and focus
+            </h2>
           </div>
           <div className="flex flex-wrap gap-2">
             {["1M", "3M", "6M", "YTD", "12M", "custom"].map((preset) => (
@@ -132,7 +170,12 @@ export function AnalyticsFilterBar(props: {
                 key={preset}
                 label={preset === "custom" ? "Custom" : preset}
                 active={props.value.rangePreset === preset}
-                onClick={() => update("rangePreset", preset as AnalyticsGlobalFilters["rangePreset"])}
+                onClick={() =>
+                  update(
+                    "rangePreset",
+                    preset as AnalyticsGlobalFilters["rangePreset"],
+                  )
+                }
               />
             ))}
           </div>
@@ -142,7 +185,12 @@ export function AnalyticsFilterBar(props: {
                 key={frequency}
                 label={frequency}
                 active={props.value.frequency === frequency}
-                onClick={() => update("frequency", frequency as AnalyticsGlobalFilters["frequency"])}
+                onClick={() =>
+                  update(
+                    "frequency",
+                    frequency as AnalyticsGlobalFilters["frequency"],
+                  )
+                }
               />
             ))}
           </div>
@@ -152,41 +200,58 @@ export function AnalyticsFilterBar(props: {
                 key={mode}
                 label={mode}
                 active={props.value.locationMode === mode}
-                onClick={() => update("locationMode", mode as AnalyticsGlobalFilters["locationMode"])}
+                onClick={() =>
+                  update(
+                    "locationMode",
+                    mode as AnalyticsGlobalFilters["locationMode"],
+                  )
+                }
               />
             ))}
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          <label className="text-ink-muted flex flex-col gap-1 text-sm">
             <span>Custom start</span>
             <input
               type="date"
               value={toDateInputValue(props.value.customStart)}
               onChange={(event) =>
-                update("customStart", event.target.value ? new Date(`${event.target.value}T00:00:00`) : null)
+                updateCustomDate(
+                  "customStart",
+                  event.target.value
+                    ? new Date(`${event.target.value}T00:00:00`)
+                    : null,
+                )
               }
-              className="rounded-lg border border-outline-muted bg-surface-canvas px-3 py-2 text-ink-primary outline-none transition focus:border-accent-strong"
+              className="border-outline-muted bg-surface-canvas text-ink-primary focus:border-accent-strong rounded-lg border px-3 py-2 transition outline-none"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          <label className="text-ink-muted flex flex-col gap-1 text-sm">
             <span>Custom end</span>
             <input
               type="date"
               value={toDateInputValue(props.value.customEnd)}
               onChange={(event) =>
-                update("customEnd", event.target.value ? new Date(`${event.target.value}T00:00:00`) : null)
+                updateCustomDate(
+                  "customEnd",
+                  event.target.value
+                    ? new Date(`${event.target.value}T00:00:00`)
+                    : null,
+                )
               }
-              className="rounded-lg border border-outline-muted bg-surface-canvas px-3 py-2 text-ink-primary outline-none transition focus:border-accent-strong"
+              className="border-outline-muted bg-surface-canvas text-ink-primary focus:border-accent-strong rounded-lg border px-3 py-2 transition outline-none"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm text-ink-muted">
+          <label className="text-ink-muted flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={props.value.includeAllDay}
-              onChange={(event) => update("includeAllDay", event.target.checked)}
-              className="h-4 w-4 rounded border-outline-muted"
+              onChange={(event) =>
+                update("includeAllDay", event.target.checked)
+              }
+              className="border-outline-muted h-4 w-4 rounded"
             />
             <span>Include all-day events</span>
           </label>
@@ -194,7 +259,7 @@ export function AnalyticsFilterBar(props: {
             <button
               type="button"
               onClick={props.onReset}
-              className="rounded-full border border-outline-muted px-4 py-2 text-sm font-semibold text-ink-muted transition hover:text-ink-primary"
+              className="border-outline-muted text-ink-muted hover:text-ink-primary rounded-full border px-4 py-2 text-sm font-semibold transition"
             >
               Reset filters
             </button>
@@ -202,8 +267,10 @@ export function AnalyticsFilterBar(props: {
         </div>
       </div>
 
-      <details className="mt-5 rounded-xl border border-outline-muted bg-surface-muted p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-ink-primary">Advanced filters</summary>
+      <details className="border-outline-muted bg-surface-muted mt-5 rounded-xl border p-4">
+        <summary className="text-ink-primary cursor-pointer text-sm font-semibold">
+          Advanced filters
+        </summary>
         <div className="mt-4 grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
           <FilterChecklist
             label="Buildings"

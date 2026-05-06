@@ -346,6 +346,22 @@ function writePersistedAnalyticsState(state: PersistedAnalyticsState) {
   }
 }
 
+function getQueryReadyFilters(
+  filters: AnalyticsFilters,
+): AnalyticsFilters | null {
+  if (filters.rangePreset === "custom") {
+    if (!filters.customStart || !filters.customEnd) return null;
+    return filters;
+  }
+
+  if (!filters.customStart && !filters.customEnd) return filters;
+  return {
+    ...filters,
+    customStart: null,
+    customEnd: null,
+  };
+}
+
 function parseBoundedInteger(
   value: string,
   min: number,
@@ -453,6 +469,7 @@ export function AnalyticsView() {
   const [filters, setFilters] = useState<AnalyticsFilters>(defaultFilters);
   const persistenceHydrated = useRef(false);
   const restoredPersistedState = useRef(false);
+  const lastQueryReadyFilters = useRef<AnalyticsFilters>(defaultFilters);
   const [persistenceReady, setPersistenceReady] = useState(false);
 
   const [overviewTopN, setOverviewTopN] = useState(10);
@@ -633,13 +650,20 @@ export function AnalyticsView() {
     setFilters(metaQuery.data.defaults);
   }, [metaQuery.data, persistenceReady]);
 
+  const queryFilters = useMemo(() => {
+    const nextFilters = getQueryReadyFilters(filters);
+    if (!nextFilters) return lastQueryReadyFilters.current;
+    lastQueryReadyFilters.current = nextFilters;
+    return nextFilters;
+  }, [filters]);
+
   const overviewQuery = api.admin.analytics.overview.useQuery(
-    { filters, topN: overviewTopN },
+    { filters: queryFilters, topN: overviewTopN },
     { enabled: activeSection === "overview", staleTime: 60_000 },
   );
   const trendsQuery = api.admin.analytics.trends.useQuery(
     {
-      filters,
+      filters: queryFilters,
       metric: trendsMetric,
       composition: trendsComposition,
       comparePrevious,
@@ -647,12 +671,12 @@ export function AnalyticsView() {
     { enabled: activeSection === "trends", staleTime: 60_000 },
   );
   const eventTypesQuery = api.admin.analytics.eventTypes.useQuery(
-    { filters, metric: eventTypeMetric, topN: eventTypeTopN },
+    { filters: queryFilters, metric: eventTypeMetric, topN: eventTypeTopN },
     { enabled: activeSection === "eventTypes", staleTime: 60_000 },
   );
   const locationsQuery = api.admin.analytics.locations.useQuery(
     {
-      filters,
+      filters: queryFilters,
       level: locationLevel,
       metric: locationMetric,
       topN: locationTopN,
@@ -660,20 +684,25 @@ export function AnalyticsView() {
     { enabled: activeSection === "locations", staleTime: 60_000 },
   );
   const requestersQuery = api.admin.analytics.requesters.useQuery(
-    { filters, metric: requesterMetric, topN: requesterTopN },
+    { filters: queryFilters, metric: requesterMetric, topN: requesterTopN },
     { enabled: activeSection === "requesters", staleTime: 60_000 },
   );
   const attendeesQuery = api.admin.analytics.attendees.useQuery(
-    { filters, metric: attendeeMetric, topN: attendeeTopN },
+    { filters: queryFilters, metric: attendeeMetric, topN: attendeeTopN },
     { enabled: activeSection === "attendees", staleTime: 60_000 },
   );
   const durationsQuery = api.admin.analytics.durations.useQuery(
-    { filters, durationMetric, breakoutBy: durationBreakout, histogramBins },
+    {
+      filters: queryFilters,
+      durationMetric,
+      breakoutBy: durationBreakout,
+      histogramBins,
+    },
     { enabled: activeSection === "durations", staleTime: 60_000 },
   );
   const overlapQuery = api.admin.analytics.overlap.useQuery(
     {
-      filters,
+      filters: queryFilters,
       level: overlapLevel,
       entityId: overlapEntityId,
       selectedDate: selectedOverlapDate
