@@ -11,7 +11,7 @@ import {
 import type { SnapshotPayload } from "~/server/services/snapshot-payload";
 
 const BASE_PAYLOAD: SnapshotPayload = {
-  version: 5 as const,
+  version: 6 as const,
   exportedAt: "2026-04-02T12:00:00.000Z",
   metadata: {
     app: "eaglevents" as const,
@@ -80,7 +80,7 @@ void test("snapshot export refresh writes files, backups, and status metadata", 
 
     const first = await __snapshotExportTestUtils.refreshSnapshotExportWithBuilder(true, buildPayload);
     assert.ok(first);
-    assert.equal(first.snapshotVersion, 5);
+    assert.equal(first.snapshotVersion, 6);
     const firstContents = await fs.readFile(first.filePath, "utf8");
     assert.match(firstContents, /2026-04-02T12:00:00\.000Z/);
 
@@ -92,7 +92,7 @@ void test("snapshot export refresh writes files, backups, and status metadata", 
 
     const status = await getSnapshotExportStatus();
     assert.equal(status.exists, true);
-    assert.equal(status.snapshotVersion, 5);
+    assert.equal(status.snapshotVersion, 6);
     assert.ok(status.lastUpdatedAt);
     assert.ok(status.nextScheduledAt);
   });

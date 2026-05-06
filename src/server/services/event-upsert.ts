@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -84,6 +85,8 @@ export const hourLogInputSchema = z.object({
 });
 
 export const eventCreateInputSchema = z.object({
+  sharedEventId: z.string().trim().min(1).max(64).optional(),
+  eventCode: z.string().trim().min(1).max(7).optional(),
   calendarId: z.number().optional(),
   title: z.string().min(1),
   description: z.string().nullable().optional(),
@@ -141,6 +144,16 @@ export const eventUpdateInputSchema = z.object({
 export type EventCreateInput = z.infer<typeof eventCreateInputSchema>;
 export type EventUpdateInput = z.infer<typeof eventUpdateInputSchema>;
 export type EventUpsertMode = "manual" | "admin_import";
+
+function normalizeSharedEventId(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : randomUUID();
+}
+
+function normalizeEventCode(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
 
 function requireResolvedDateTimeId(
   resolved: Awaited<ReturnType<typeof resolveDateTimeIds>>,
@@ -475,7 +488,8 @@ export async function createEventFromInput(options: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Select a building or mark the event as virtual." });
   }
   const resolvedLocation = roomIds.length > 0 ? formatLocationSummary(resolvedRooms) : input.location ?? null;
-  const eventCode = await getUniqueEventCode(options.db);
+  const eventCode = normalizeEventCode(input.eventCode) ?? (await getUniqueEventCode(options.db));
+  const sharedEventId = normalizeSharedEventId(input.sharedEventId);
   const hourLogs = normalizeHourLogs(input.hourLogs ?? []) ?? [];
   let sessionProfileId: number | null = null;
   if (hourLogs.length > 0) {
@@ -519,6 +533,7 @@ export async function createEventFromInput(options: {
     const [row] = await tx
       .insert(events)
       .values({
+        sharedEventId,
         calendarId: calendar.calendarId,
         assigneeProfileId: assignee ?? null,
         ownerProfileId,

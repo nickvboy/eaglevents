@@ -4118,6 +4118,8 @@ export function NewEventDialog({
           const zendeskTicketPayloadCreate = zendeskTicketPayload ?? undefined;
           for (const calendarId of additionalCalendarIds) {
             await create.mutateAsync({
+              sharedEventId: event.sharedEventId,
+              eventCode: event.eventCode ?? undefined,
               calendarId,
               title,
               description,
@@ -4161,8 +4163,12 @@ export function NewEventDialog({
           const dayEnd = allDay
             ? addDays(startOfDay(segment.start), 1)
             : segment.end;
-          for (const calendarId of targetCalendarIds) {
-            await create.mutateAsync({
+          let sharedEventId: string | undefined;
+          let eventCode: string | undefined;
+          for (const [calendarIndex, calendarId] of targetCalendarIds.entries()) {
+            const createdEvent = await create.mutateAsync({
+              sharedEventId,
+              eventCode,
               calendarId,
               title,
               description,
@@ -4188,6 +4194,10 @@ export function NewEventDialog({
               setupTime: setupInfoPayload,
               zendeskTicketNumber: zendeskTicketPayloadCreate,
             });
+            if (calendarIndex === 0) {
+              sharedEventId = createdEvent.sharedEventId;
+              eventCode = createdEvent.eventCode ?? undefined;
+            }
           }
         }
       }

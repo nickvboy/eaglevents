@@ -180,6 +180,7 @@ type AnalyticsAttendeeEntity = {
 
 export type AnalyticsEventFact = {
   id: number;
+  sharedEventId: string;
   title: string;
   start: Date;
   end: Date;
@@ -518,6 +519,96 @@ export function buildCoverageSummary(rows: AnalyticsEventFact[]): AnalyticsCover
   };
 }
 
+function dedupeByKey<T extends { key: string }>(rows: T[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.key)) return false;
+    seen.add(row.key);
+    return true;
+  });
+}
+
+export function mergeAnalyticsEventsBySharedId(rows: AnalyticsEventFact[]): AnalyticsEventFact[] {
+  const grouped = new Map<string, AnalyticsEventFact[]>();
+  for (const row of rows) {
+    const key = row.sharedEventId;
+    const existing = grouped.get(key) ?? [];
+    existing.push(row);
+    grouped.set(key, existing);
+  }
+
+  return Array.from(grouped.values()).map((group) => {
+    const primary = group[0];
+    if (!primary) {
+      throw new Error("Expected analytics event group to contain at least one row.");
+    }
+    if (group.length === 1) {
+      return primary;
+    }
+    const attendees = dedupeByKey(
+      group.flatMap((row) =>
+        row.attendees.map((attendee) => ({
+          key: attendee.attendeeKey,
+          ...attendee,
+        })),
+      ),
+    ).map(({ key: _key, ...attendee }) => attendee);
+    const roomEntities = dedupeByKey(
+      group.flatMap((row) =>
+        row.roomEntities.map((room) => ({
+          key: String(room.roomId),
+          ...room,
+        })),
+      ),
+    ).map(({ key: _key, ...room }) => room);
+    const buildingEntities = dedupeByKey(
+      group.flatMap((row) =>
+        row.buildingEntities.map((building) => ({
+          key: String(building.buildingId),
+          ...building,
+        })),
+      ),
+    ).map(({ key: _key, ...building }) => building);
+    const eventTypeSet = new Set<string>();
+    for (const row of group) {
+      for (const eventType of row.eventTypes) {
+        eventTypeSet.add(eventType);
+      }
+    }
+    if (group.some((row) => row.hasEventTypes)) {
+      eventTypeSet.delete("Uncategorized");
+    }
+    const mergedEventTypes = Array.from(eventTypeSet);
+
+    return {
+      ...primary,
+      roomEntities,
+      buildingEntities,
+      attendees,
+      eventTypes: mergedEventTypes.length > 0 ? mergedEventTypes : ["Uncategorized"],
+      hasEventTypes: group.some((row) => row.hasEventTypes),
+      participantCount:
+        group.find((row) => row.participantCount !== null)?.participantCount ?? null,
+      technicianNeeded: group.some((row) => row.technicianNeeded),
+      scheduledHours: Math.max(...group.map((row) => row.scheduledHours)),
+      programHours: group.reduce<number | null>(
+        (value, row) =>
+          row.programHours !== null && (value === null || row.programHours > value)
+            ? row.programHours
+            : value,
+        null,
+      ),
+      setupLeadHours: group.reduce<number | null>(
+        (value, row) =>
+          row.setupLeadHours !== null && (value === null || row.setupLeadHours > value)
+            ? row.setupLeadHours
+            : value,
+        null,
+      ),
+    };
+  });
+}
+
 function computeAttendeeIdentity(row: {
   profileId: number | null;
   email: string;
@@ -652,7 +743,7 @@ export async function loadAnalyticsBaseEvents(db: DbClient, options?: { start?: 
     }
   }
 
-  return rows.map((row) => {
+  return mergeAnalyticsEventsBySharedId(rows.map((row) => {
     const hydrated = hydrateEventRecord({
       event: row.event,
       startDateTime: row.startDateTime,
@@ -714,6 +805,7 @@ export async function loadAnalyticsBaseEvents(db: DbClient, options?: { start?: 
 
     return {
       id: row.event.id,
+      sharedEventId: row.event.sharedEventId,
       title: row.event.title,
       start: hydrated.startDatetime,
       end: hydrated.endDatetime,
@@ -753,7 +845,7 @@ export async function loadAnalyticsBaseEvents(db: DbClient, options?: { start?: 
       programHours,
       setupLeadHours,
     } satisfies AnalyticsEventFact;
-  });
+  }));
 }
 
 export function applyAnalyticsFilters(

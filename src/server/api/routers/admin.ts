@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   and,
@@ -1979,6 +1980,7 @@ export const adminRouter = createTRPCRouter({
       );
       const values = normalizedEvents.map((entry, index) => {
         return {
+          sharedEventId: randomUUID(),
           calendarId: input.calendarId,
           ownerProfileId: ownerProfile?.id ?? null,
           scopeType: calendar.scopeType,

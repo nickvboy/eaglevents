@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 
@@ -25,7 +32,15 @@ type AnalyticsFilters = NonNullable<
   NonNullable<RouterInputs["admin"]["analytics"]["overview"]>["filters"]
 >;
 type AnalyticsMeta = RouterOutputs["admin"]["analytics"]["meta"];
-type SectionId = "overview" | "trends" | "eventTypes" | "locations" | "requesters" | "attendees" | "durations" | "overlap";
+type SectionId =
+  | "overview"
+  | "trends"
+  | "eventTypes"
+  | "locations"
+  | "requesters"
+  | "attendees"
+  | "durations"
+  | "overlap";
 
 const defaultFilters: AnalyticsFilters = {
   rangePreset: "12M",
@@ -56,8 +71,287 @@ const controlClass =
   "rounded-lg border border-outline-muted bg-surface-canvas px-3 py-2 text-sm text-ink-primary outline-none transition focus:border-accent-strong";
 const ANALYTICS_TOP_N_MIN = 3;
 const ANALYTICS_TOP_N_MAX = 25;
+const ANALYTICS_SESSION_STORAGE_KEY = "eaglevents:analytics-session:v1";
 
-function parseBoundedInteger(value: string, min: number, max: number, fallback: number) {
+type PersistedAnalyticsState = {
+  version: 1;
+  activeSection: SectionId;
+  filters: AnalyticsFilters;
+  overviewTopN: number;
+  overviewMetric: "eventCount" | "scheduledHours";
+  trendsMetric: "eventCount" | "scheduledHours";
+  trendsComposition: "requestCategory" | "eventType" | "locationMode";
+  comparePrevious: boolean;
+  eventTypeMetric: "eventCount" | "scheduledHours";
+  eventTypeTopN: number;
+  locationLevel: "building" | "room";
+  locationMetric: "eventCount" | "scheduledHours" | "participants";
+  locationTopN: number;
+  requesterMetric: "eventCount" | "scheduledHours" | "participants";
+  requesterTopN: number;
+  attendeeMetric: "eventCount" | "scheduledHours" | "participants";
+  attendeeTopN: number;
+  durationMetric: "scheduled" | "program" | "setupLead";
+  durationBreakout: "eventType" | "building" | "requester";
+  histogramBins: number;
+  overlapLevel: "system" | "building" | "room";
+  overlapEntityId: number | null;
+  overlapTopN: number;
+  selectedOverlapDate: string;
+};
+
+function isOneOf<T extends readonly string[]>(
+  value: unknown,
+  values: T,
+): value is T[number] {
+  return typeof value === "string" && values.includes(value);
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+function readNumberArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter(
+        (entry): entry is number =>
+          typeof entry === "number" && Number.isFinite(entry),
+      )
+    : [];
+}
+
+function readNullableDate(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value !== "string") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function readFiniteNumber(
+  value: unknown,
+  fallback: number,
+  min?: number,
+  max?: number,
+) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const bounded = Math.trunc(value);
+  return Math.min(max ?? bounded, Math.max(min ?? bounded, bounded));
+}
+
+function readNullableNumber(value: unknown) {
+  if (value === null) return null;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readAnalyticsFilters(
+  value: unknown,
+  fallback: AnalyticsFilters,
+): AnalyticsFilters {
+  if (!value || typeof value !== "object") return fallback;
+  const candidate = value as Partial<Record<keyof AnalyticsFilters, unknown>>;
+  return {
+    rangePreset: isOneOf(candidate.rangePreset, [
+      "1M",
+      "3M",
+      "6M",
+      "YTD",
+      "12M",
+      "custom",
+    ] as const)
+      ? candidate.rangePreset
+      : fallback.rangePreset,
+    customStart: readNullableDate(candidate.customStart),
+    customEnd: readNullableDate(candidate.customEnd),
+    frequency: isOneOf(candidate.frequency, [
+      "auto",
+      "day",
+      "week",
+      "month",
+      "quarter",
+    ] as const)
+      ? candidate.frequency
+      : fallback.frequency,
+    buildingIds: readNumberArray(candidate.buildingIds),
+    roomIds: readNumberArray(candidate.roomIds),
+    eventTypes: readStringArray(candidate.eventTypes),
+    requestCategories: readStringArray(candidate.requestCategories),
+    requesterKeys: readStringArray(candidate.requesterKeys),
+    locationMode: isOneOf(candidate.locationMode, [
+      "all",
+      "physical",
+      "virtual",
+    ] as const)
+      ? candidate.locationMode
+      : fallback.locationMode,
+    includeAllDay:
+      typeof candidate.includeAllDay === "boolean"
+        ? candidate.includeAllDay
+        : fallback.includeAllDay,
+  };
+}
+
+function readPersistedAnalyticsState(): PersistedAnalyticsState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ANALYTICS_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed.version !== 1) return null;
+    return {
+      version: 1,
+      activeSection: isOneOf(
+        parsed.activeSection,
+        sections.map((section) => section.id),
+      )
+        ? parsed.activeSection
+        : "overview",
+      filters: readAnalyticsFilters(parsed.filters, defaultFilters),
+      overviewTopN: readFiniteNumber(
+        parsed.overviewTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      overviewMetric: isOneOf(parsed.overviewMetric, [
+        "eventCount",
+        "scheduledHours",
+      ] as const)
+        ? parsed.overviewMetric
+        : "eventCount",
+      trendsMetric: isOneOf(parsed.trendsMetric, [
+        "eventCount",
+        "scheduledHours",
+      ] as const)
+        ? parsed.trendsMetric
+        : "eventCount",
+      trendsComposition: isOneOf(parsed.trendsComposition, [
+        "requestCategory",
+        "eventType",
+        "locationMode",
+      ] as const)
+        ? parsed.trendsComposition
+        : "requestCategory",
+      comparePrevious:
+        typeof parsed.comparePrevious === "boolean"
+          ? parsed.comparePrevious
+          : true,
+      eventTypeMetric: isOneOf(parsed.eventTypeMetric, [
+        "eventCount",
+        "scheduledHours",
+      ] as const)
+        ? parsed.eventTypeMetric
+        : "eventCount",
+      eventTypeTopN: readFiniteNumber(
+        parsed.eventTypeTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      locationLevel: isOneOf(parsed.locationLevel, [
+        "building",
+        "room",
+      ] as const)
+        ? parsed.locationLevel
+        : "building",
+      locationMetric: isOneOf(parsed.locationMetric, [
+        "eventCount",
+        "scheduledHours",
+        "participants",
+      ] as const)
+        ? parsed.locationMetric
+        : "eventCount",
+      locationTopN: readFiniteNumber(
+        parsed.locationTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      requesterMetric: isOneOf(parsed.requesterMetric, [
+        "eventCount",
+        "scheduledHours",
+        "participants",
+      ] as const)
+        ? parsed.requesterMetric
+        : "eventCount",
+      requesterTopN: readFiniteNumber(
+        parsed.requesterTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      attendeeMetric: isOneOf(parsed.attendeeMetric, [
+        "eventCount",
+        "scheduledHours",
+        "participants",
+      ] as const)
+        ? parsed.attendeeMetric
+        : "eventCount",
+      attendeeTopN: readFiniteNumber(
+        parsed.attendeeTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      durationMetric: isOneOf(parsed.durationMetric, [
+        "scheduled",
+        "program",
+        "setupLead",
+      ] as const)
+        ? parsed.durationMetric
+        : "scheduled",
+      durationBreakout: isOneOf(parsed.durationBreakout, [
+        "eventType",
+        "building",
+        "requester",
+      ] as const)
+        ? parsed.durationBreakout
+        : "eventType",
+      histogramBins: readFiniteNumber(parsed.histogramBins, 12, 4, 24),
+      overlapLevel: isOneOf(parsed.overlapLevel, [
+        "system",
+        "building",
+        "room",
+      ] as const)
+        ? parsed.overlapLevel
+        : "system",
+      overlapEntityId: readNullableNumber(parsed.overlapEntityId),
+      overlapTopN: readFiniteNumber(
+        parsed.overlapTopN,
+        10,
+        ANALYTICS_TOP_N_MIN,
+        ANALYTICS_TOP_N_MAX,
+      ),
+      selectedOverlapDate:
+        typeof parsed.selectedOverlapDate === "string"
+          ? parsed.selectedOverlapDate
+          : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedAnalyticsState(state: PersistedAnalyticsState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      ANALYTICS_SESSION_STORAGE_KEY,
+      JSON.stringify(state),
+    );
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function parseBoundedInteger(
+  value: string,
+  min: number,
+  max: number,
+  fallback: number,
+) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
@@ -104,14 +398,20 @@ function CommitNumberInput(props: {
   );
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <div className="rounded-2xl border border-status-danger bg-status-danger-surface p-6 text-sm text-status-danger">
+    <div className="border-status-danger bg-status-danger-surface text-status-danger rounded-2xl border p-6 text-sm">
       <p>{message}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-3 rounded-full border border-status-danger px-4 py-2 text-xs font-semibold"
+        className="border-status-danger mt-3 rounded-full border px-4 py-2 text-xs font-semibold"
       >
         Retry
       </button>
@@ -151,42 +451,199 @@ function ScatterCard({
 export function AnalyticsView() {
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
   const [filters, setFilters] = useState<AnalyticsFilters>(defaultFilters);
+  const persistenceHydrated = useRef(false);
+  const restoredPersistedState = useRef(false);
+  const [persistenceReady, setPersistenceReady] = useState(false);
 
   const [overviewTopN, setOverviewTopN] = useState(10);
-  const [overviewMetric, setOverviewMetric] = useState<"eventCount" | "scheduledHours">("eventCount");
-  const [trendsMetric, setTrendsMetric] = useState<"eventCount" | "scheduledHours">("eventCount");
-  const [trendsComposition, setTrendsComposition] = useState<"requestCategory" | "eventType" | "locationMode">("requestCategory");
+  const [overviewMetric, setOverviewMetric] = useState<
+    "eventCount" | "scheduledHours"
+  >("eventCount");
+  const [trendsMetric, setTrendsMetric] = useState<
+    "eventCount" | "scheduledHours"
+  >("eventCount");
+  const [trendsComposition, setTrendsComposition] = useState<
+    "requestCategory" | "eventType" | "locationMode"
+  >("requestCategory");
   const [comparePrevious, setComparePrevious] = useState(true);
-  const [eventTypeMetric, setEventTypeMetric] = useState<"eventCount" | "scheduledHours">("eventCount");
+  const [eventTypeMetric, setEventTypeMetric] = useState<
+    "eventCount" | "scheduledHours"
+  >("eventCount");
   const [eventTypeTopN, setEventTypeTopN] = useState(10);
-  const [locationLevel, setLocationLevel] = useState<"building" | "room">("building");
-  const [locationMetric, setLocationMetric] = useState<"eventCount" | "scheduledHours" | "participants">("eventCount");
+  const [locationLevel, setLocationLevel] = useState<"building" | "room">(
+    "building",
+  );
+  const [locationMetric, setLocationMetric] = useState<
+    "eventCount" | "scheduledHours" | "participants"
+  >("eventCount");
   const [locationTopN, setLocationTopN] = useState(10);
-  const [requesterMetric, setRequesterMetric] = useState<"eventCount" | "scheduledHours" | "participants">("eventCount");
+  const [requesterMetric, setRequesterMetric] = useState<
+    "eventCount" | "scheduledHours" | "participants"
+  >("eventCount");
   const [requesterTopN, setRequesterTopN] = useState(10);
-  const [attendeeMetric, setAttendeeMetric] = useState<"eventCount" | "scheduledHours" | "participants">("eventCount");
+  const [attendeeMetric, setAttendeeMetric] = useState<
+    "eventCount" | "scheduledHours" | "participants"
+  >("eventCount");
   const [attendeeTopN, setAttendeeTopN] = useState(10);
-  const [durationMetric, setDurationMetric] = useState<"scheduled" | "program" | "setupLead">("scheduled");
-  const [durationBreakout, setDurationBreakout] = useState<"eventType" | "building" | "requester">("eventType");
+  const [durationMetric, setDurationMetric] = useState<
+    "scheduled" | "program" | "setupLead"
+  >("scheduled");
+  const [durationBreakout, setDurationBreakout] = useState<
+    "eventType" | "building" | "requester"
+  >("eventType");
   const [histogramBins, setHistogramBins] = useState(12);
-  const [overlapLevel, setOverlapLevel] = useState<"system" | "building" | "room">("system");
+  const [overlapLevel, setOverlapLevel] = useState<
+    "system" | "building" | "room"
+  >("system");
   const [overlapEntityId, setOverlapEntityId] = useState<number | null>(null);
   const [overlapTopN, setOverlapTopN] = useState(10);
   const [selectedOverlapDate, setSelectedOverlapDate] = useState<string>("");
 
-  const metaQuery = api.admin.analytics.meta.useQuery(undefined, { staleTime: 300_000 });
+  const metaQuery = api.admin.analytics.meta.useQuery(undefined, {
+    staleTime: 300_000,
+  });
 
   useEffect(() => {
+    const stored = readPersistedAnalyticsState();
+    if (stored) {
+      restoredPersistedState.current = true;
+      setActiveSection(stored.activeSection);
+      setFilters(stored.filters);
+      setOverviewTopN(stored.overviewTopN);
+      setOverviewMetric(stored.overviewMetric);
+      setTrendsMetric(stored.trendsMetric);
+      setTrendsComposition(stored.trendsComposition);
+      setComparePrevious(stored.comparePrevious);
+      setEventTypeMetric(stored.eventTypeMetric);
+      setEventTypeTopN(stored.eventTypeTopN);
+      setLocationLevel(stored.locationLevel);
+      setLocationMetric(stored.locationMetric);
+      setLocationTopN(stored.locationTopN);
+      setRequesterMetric(stored.requesterMetric);
+      setRequesterTopN(stored.requesterTopN);
+      setAttendeeMetric(stored.attendeeMetric);
+      setAttendeeTopN(stored.attendeeTopN);
+      setDurationMetric(stored.durationMetric);
+      setDurationBreakout(stored.durationBreakout);
+      setHistogramBins(stored.histogramBins);
+      setOverlapLevel(stored.overlapLevel);
+      setOverlapEntityId(stored.overlapEntityId);
+      setOverlapTopN(stored.overlapTopN);
+      setSelectedOverlapDate(stored.selectedOverlapDate);
+    }
+    persistenceHydrated.current = true;
+    setPersistenceReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!persistenceReady) return;
+    if (!persistenceHydrated.current) return;
+    writePersistedAnalyticsState({
+      version: 1,
+      activeSection,
+      filters,
+      overviewTopN,
+      overviewMetric,
+      trendsMetric,
+      trendsComposition,
+      comparePrevious,
+      eventTypeMetric,
+      eventTypeTopN,
+      locationLevel,
+      locationMetric,
+      locationTopN,
+      requesterMetric,
+      requesterTopN,
+      attendeeMetric,
+      attendeeTopN,
+      durationMetric,
+      durationBreakout,
+      histogramBins,
+      overlapLevel,
+      overlapEntityId,
+      overlapTopN,
+      selectedOverlapDate,
+    });
+  }, [
+    activeSection,
+    attendeeMetric,
+    attendeeTopN,
+    comparePrevious,
+    durationBreakout,
+    durationMetric,
+    eventTypeMetric,
+    eventTypeTopN,
+    filters,
+    histogramBins,
+    locationLevel,
+    locationMetric,
+    locationTopN,
+    overlapEntityId,
+    overlapLevel,
+    overlapTopN,
+    overviewMetric,
+    overviewTopN,
+    requesterMetric,
+    requesterTopN,
+    selectedOverlapDate,
+    trendsComposition,
+    trendsMetric,
+    persistenceReady,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== ANALYTICS_SESSION_STORAGE_KEY) return;
+      const stored = readPersistedAnalyticsState();
+      if (!stored) return;
+      setActiveSection(stored.activeSection);
+      setFilters(stored.filters);
+      setOverviewTopN(stored.overviewTopN);
+      setOverviewMetric(stored.overviewMetric);
+      setTrendsMetric(stored.trendsMetric);
+      setTrendsComposition(stored.trendsComposition);
+      setComparePrevious(stored.comparePrevious);
+      setEventTypeMetric(stored.eventTypeMetric);
+      setEventTypeTopN(stored.eventTypeTopN);
+      setLocationLevel(stored.locationLevel);
+      setLocationMetric(stored.locationMetric);
+      setLocationTopN(stored.locationTopN);
+      setRequesterMetric(stored.requesterMetric);
+      setRequesterTopN(stored.requesterTopN);
+      setAttendeeMetric(stored.attendeeMetric);
+      setAttendeeTopN(stored.attendeeTopN);
+      setDurationMetric(stored.durationMetric);
+      setDurationBreakout(stored.durationBreakout);
+      setHistogramBins(stored.histogramBins);
+      setOverlapLevel(stored.overlapLevel);
+      setOverlapEntityId(stored.overlapEntityId);
+      setOverlapTopN(stored.overlapTopN);
+      setSelectedOverlapDate(stored.selectedOverlapDate);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  useEffect(() => {
+    if (!persistenceReady) return;
+    if (!persistenceHydrated.current) return;
     if (!metaQuery.data) return;
+    if (restoredPersistedState.current) return;
     setFilters(metaQuery.data.defaults);
-  }, [metaQuery.data]);
+  }, [metaQuery.data, persistenceReady]);
 
   const overviewQuery = api.admin.analytics.overview.useQuery(
     { filters, topN: overviewTopN },
     { enabled: activeSection === "overview", staleTime: 60_000 },
   );
   const trendsQuery = api.admin.analytics.trends.useQuery(
-    { filters, metric: trendsMetric, composition: trendsComposition, comparePrevious },
+    {
+      filters,
+      metric: trendsMetric,
+      composition: trendsComposition,
+      comparePrevious,
+    },
     { enabled: activeSection === "trends", staleTime: 60_000 },
   );
   const eventTypesQuery = api.admin.analytics.eventTypes.useQuery(
@@ -194,7 +651,12 @@ export function AnalyticsView() {
     { enabled: activeSection === "eventTypes", staleTime: 60_000 },
   );
   const locationsQuery = api.admin.analytics.locations.useQuery(
-    { filters, level: locationLevel, metric: locationMetric, topN: locationTopN },
+    {
+      filters,
+      level: locationLevel,
+      metric: locationMetric,
+      topN: locationTopN,
+    },
     { enabled: activeSection === "locations", staleTime: 60_000 },
   );
   const requestersQuery = api.admin.analytics.requesters.useQuery(
@@ -214,7 +676,9 @@ export function AnalyticsView() {
       filters,
       level: overlapLevel,
       entityId: overlapEntityId,
-      selectedDate: selectedOverlapDate ? new Date(`${selectedOverlapDate}T00:00:00`) : null,
+      selectedDate: selectedOverlapDate
+        ? new Date(`${selectedOverlapDate}T00:00:00`)
+        : null,
       topN: overlapTopN,
     },
     { enabled: activeSection === "overlap", staleTime: 60_000 },
@@ -222,7 +686,9 @@ export function AnalyticsView() {
 
   useEffect(() => {
     if (!overlapQuery.data?.selectedDate) return;
-    setSelectedOverlapDate(overlapQuery.data.selectedDate.toISOString().slice(0, 10));
+    setSelectedOverlapDate(
+      overlapQuery.data.selectedDate.toISOString().slice(0, 10),
+    );
   }, [overlapQuery.data?.selectedDate]);
 
   const overlapEntities = useMemo(() => {
@@ -232,7 +698,9 @@ export function AnalyticsView() {
     return [];
   }, [metaQuery.data, overlapLevel]);
 
-  const resolvedMeta = useMemo<((Omit<AnalyticsMeta, "defaults"> & { defaults: AnalyticsFilters }) | null)>(
+  const resolvedMeta = useMemo<
+    (Omit<AnalyticsMeta, "defaults"> & { defaults: AnalyticsFilters }) | null
+  >(
     () =>
       metaQuery.data
         ? {
@@ -247,8 +715,14 @@ export function AnalyticsView() {
     if (!coverage) return null;
     return (
       <div className="flex flex-wrap gap-2">
-        <CoverageBadge label="Participants" value={coverage.participantCountCoveragePercent} />
-        <CoverageBadge label="Event types" value={coverage.eventTypeCoveragePercent} />
+        <CoverageBadge
+          label="Participants"
+          value={coverage.participantCountCoveragePercent}
+        />
+        <CoverageBadge
+          label="Event types"
+          value={coverage.eventTypeCoveragePercent}
+        />
       </div>
     );
   };
@@ -256,23 +730,31 @@ export function AnalyticsView() {
   if (metaQuery.isLoading) {
     return (
       <div className="flex flex-col gap-8">
-        <div className="h-40 animate-pulse rounded-2xl border border-outline-muted bg-surface-muted" />
+        <div className="border-outline-muted bg-surface-muted h-40 animate-pulse rounded-2xl border" />
         <AnalyticsLoadingState cards={4} />
       </div>
     );
   }
 
   if (metaQuery.isError || !metaQuery.data || !resolvedMeta) {
-    return <ErrorState message="Unable to load analytics metadata." onRetry={() => void metaQuery.refetch()} />;
+    return (
+      <ErrorState
+        message="Unable to load analytics metadata."
+        onRetry={() => void metaQuery.refetch()}
+      />
+    );
   }
 
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-[0.3em] text-accent-soft">Event Analytics</p>
-        <h2 className="text-3xl font-semibold text-ink-primary">Analytics</h2>
-        <p className="max-w-4xl text-sm text-ink-muted">
-          Explore event volume, type mix, location usage, requester patterns, durations, and concurrency from a dedicated analytics workspace.
+        <p className="text-accent-soft text-sm tracking-[0.3em] uppercase">
+          Event Analytics
+        </p>
+        <h2 className="text-ink-primary text-3xl font-semibold">Analytics</h2>
+        <p className="text-ink-muted max-w-4xl text-sm">
+          Explore event volume, type mix, location usage, requester patterns,
+          durations, and concurrency from a dedicated analytics workspace.
         </p>
       </header>
 
@@ -282,28 +764,62 @@ export function AnalyticsView() {
         onChange={setFilters}
         onReset={() => setFilters(resolvedMeta.defaults)}
       />
-      <AnalyticsSectionTabs sections={sections} active={activeSection} onChange={setActiveSection} />
+      <AnalyticsSectionTabs
+        sections={sections}
+        active={activeSection}
+        onChange={setActiveSection}
+      />
 
       {activeSection === "overview" ? (
         overviewQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : overviewQuery.isError || !overviewQuery.data ? (
-          <ErrorState message="Unable to load overview analytics." onRetry={() => void overviewQuery.refetch()} />
+          <ErrorState
+            message="Unable to load overview analytics."
+            onRetry={() => void overviewQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={overviewQuery.data.kpis} />
             {coverageBadges(overviewQuery.data.coverage)}
             <div className="grid gap-6 xl:grid-cols-2">
-              <TimeSeriesChartCard title="Event volume trend" helper="Event counts over the selected time window." series={overviewQuery.data.eventVolumeTrend} mode="area" />
-              <TimeSeriesChartCard title="Scheduled hours trend" helper="Total scheduled workload over time." series={overviewQuery.data.scheduledHoursTrend} mode="line" />
-              <StackedCompositionChartCard title="Request category mix" helper="See how request category composition changes over time." points={overviewQuery.data.requestMixTrend} mode="bar" />
+              <TimeSeriesChartCard
+                title="Event volume trend"
+                helper="Event counts over the selected time window."
+                series={overviewQuery.data.eventVolumeTrend}
+                mode="area"
+              />
+              <TimeSeriesChartCard
+                title="Scheduled hours trend"
+                helper="Total scheduled workload over time."
+                series={overviewQuery.data.scheduledHoursTrend}
+                mode="line"
+              />
+              <StackedCompositionChartCard
+                title="Request category mix"
+                helper="See how request category composition changes over time."
+                points={overviewQuery.data.requestMixTrend}
+                mode="bar"
+              />
               <RankedBarChartCard
                 title="Top buildings"
                 helper="Compare the busiest buildings by event count or scheduled hours."
-                data={overviewMetric === "eventCount" ? overviewQuery.data.topLocationsByCount : overviewQuery.data.topLocationsByHours}
+                data={
+                  overviewMetric === "eventCount"
+                    ? overviewQuery.data.topLocationsByCount
+                    : overviewQuery.data.topLocationsByHours
+                }
                 toolbar={
                   <>
-                    <select className={controlClass} value={overviewMetric} onChange={(event) => setOverviewMetric(event.target.value as "eventCount" | "scheduledHours")}>
+                    <select
+                      className={controlClass}
+                      value={overviewMetric}
+                      onChange={(event) =>
+                        setOverviewMetric(
+                          event.target.value as "eventCount" | "scheduledHours",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                     </select>
@@ -318,8 +834,17 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <HeatmapCard title="Weekday and hour pattern" helper="When events tend to start across the week." cells={overviewQuery.data.weekdayHourHeatmap} />
-              <TimeSeriesChartCard title="Concurrency trend" helper="Peak concurrent events within each time bucket." series={overviewQuery.data.concurrencyTrend} mode="line" />
+              <HeatmapCard
+                title="Weekday and hour pattern"
+                helper="When events tend to start across the week."
+                cells={overviewQuery.data.weekdayHourHeatmap}
+              />
+              <TimeSeriesChartCard
+                title="Concurrency trend"
+                helper="Peak concurrent events within each time bucket."
+                series={overviewQuery.data.concurrencyTrend}
+                mode="line"
+              />
             </div>
           </div>
         )
@@ -329,7 +854,10 @@ export function AnalyticsView() {
         trendsQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : trendsQuery.isError || !trendsQuery.data ? (
-          <ErrorState message="Unable to load trend analytics." onRetry={() => void trendsQuery.refetch()} />
+          <ErrorState
+            message="Unable to load trend analytics."
+            onRetry={() => void trendsQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={trendsQuery.data.kpis} />
@@ -339,32 +867,80 @@ export function AnalyticsView() {
                 title="Primary trend"
                 helper="Track the main selected metric over time and compare to the prior period."
                 series={trendsQuery.data.series}
-                compareSeries={comparePrevious ? trendsQuery.data.comparison : undefined}
+                compareSeries={
+                  comparePrevious ? trendsQuery.data.comparison : undefined
+                }
                 mode="line"
                 toolbar={
                   <>
-                    <select className={controlClass} value={trendsMetric} onChange={(event) => setTrendsMetric(event.target.value as "eventCount" | "scheduledHours")}>
+                    <select
+                      className={controlClass}
+                      value={trendsMetric}
+                      onChange={(event) =>
+                        setTrendsMetric(
+                          event.target.value as "eventCount" | "scheduledHours",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                     </select>
-                    <select className={controlClass} value={trendsComposition} onChange={(event) => setTrendsComposition(event.target.value as "requestCategory" | "eventType" | "locationMode")}>
+                    <select
+                      className={controlClass}
+                      value={trendsComposition}
+                      onChange={(event) =>
+                        setTrendsComposition(
+                          event.target.value as
+                            | "requestCategory"
+                            | "eventType"
+                            | "locationMode",
+                        )
+                      }
+                    >
                       <option value="requestCategory">Request category</option>
                       <option value="eventType">Event type</option>
                       <option value="locationMode">Virtual vs physical</option>
                     </select>
-                    <label className="flex items-center gap-2 text-sm text-ink-muted">
-                      <input type="checkbox" checked={comparePrevious} onChange={(event) => setComparePrevious(event.target.checked)} />
+                    <label className="text-ink-muted flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={comparePrevious}
+                        onChange={(event) =>
+                          setComparePrevious(event.target.checked)
+                        }
+                      />
                       Compare previous
                     </label>
                   </>
                 }
               />
-              <StackedCompositionChartCard title="Composition over time" helper="See how the selected composition dimension shifts across the range." points={trendsQuery.data.compositionTrend} mode="area" />
-              <CalendarHeatmapCard title="Calendar heatmap" helper="Daily event counts over the selected window." cells={trendsQuery.data.calendarHeatmap} />
+              <StackedCompositionChartCard
+                title="Composition over time"
+                helper="See how the selected composition dimension shifts across the range."
+                points={trendsQuery.data.compositionTrend}
+                mode="area"
+              />
+              <CalendarHeatmapCard
+                title="Calendar heatmap"
+                helper="Daily event counts over the selected window."
+                cells={trendsQuery.data.calendarHeatmap}
+              />
             </div>
             <div className="grid gap-6 xl:grid-cols-2">
-              <TimeSeriesChartCard title="Virtual vs physical" helper="Compare demand by delivery mode." series={trendsQuery.data.splitSeries.virtual} compareSeries={trendsQuery.data.splitSeries.physical} mode="line" />
-              <TimeSeriesChartCard title="All-day vs timed" helper="See whether long all-day bookings are driving the trend." series={trendsQuery.data.splitSeries.allDay} compareSeries={trendsQuery.data.splitSeries.timed} mode="line" />
+              <TimeSeriesChartCard
+                title="Virtual vs physical"
+                helper="Compare demand by delivery mode."
+                series={trendsQuery.data.splitSeries.virtual}
+                compareSeries={trendsQuery.data.splitSeries.physical}
+                mode="line"
+              />
+              <TimeSeriesChartCard
+                title="All-day vs timed"
+                helper="See whether long all-day bookings are driving the trend."
+                series={trendsQuery.data.splitSeries.allDay}
+                compareSeries={trendsQuery.data.splitSeries.timed}
+                mode="line"
+              />
             </div>
           </div>
         )
@@ -374,7 +950,10 @@ export function AnalyticsView() {
         eventTypesQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : eventTypesQuery.isError || !eventTypesQuery.data ? (
-          <ErrorState message="Unable to load event type analytics." onRetry={() => void eventTypesQuery.refetch()} />
+          <ErrorState
+            message="Unable to load event type analytics."
+            onRetry={() => void eventTypesQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={eventTypesQuery.data.kpis} />
@@ -383,10 +962,22 @@ export function AnalyticsView() {
               <RankedBarChartCard
                 title="Event types by count"
                 helper="Rank the most common event types in the filtered set."
-                data={eventTypeMetric === "eventCount" ? eventTypesQuery.data.rankedByCount : eventTypesQuery.data.rankedByHours}
+                data={
+                  eventTypeMetric === "eventCount"
+                    ? eventTypesQuery.data.rankedByCount
+                    : eventTypesQuery.data.rankedByHours
+                }
                 toolbar={
                   <>
-                    <select className={controlClass} value={eventTypeMetric} onChange={(event) => setEventTypeMetric(event.target.value as "eventCount" | "scheduledHours")}>
+                    <select
+                      className={controlClass}
+                      value={eventTypeMetric}
+                      onChange={(event) =>
+                        setEventTypeMetric(
+                          event.target.value as "eventCount" | "scheduledHours",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                     </select>
@@ -401,10 +992,28 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <RankedBarChartCard title="Event types by scheduled hours" helper="Highlight the event types consuming the most booked time." data={eventTypesQuery.data.rankedByHours} />
-              <StackedCompositionChartCard title="Type share over time" helper="Track event type share as the mix changes." points={eventTypesQuery.data.typeShareTrend} mode="bar" />
-              <StackedCompositionChartCard title="Type by request category" helper="Compare event-type volume through the request category lens." points={eventTypesQuery.data.typeByRequestCategory} mode="bar" />
-              <DonutChartCard title="Categorization coverage" helper="How much of the filtered set has an explicit event type." data={eventTypesQuery.data.categorizedVsUncategorized} />
+              <RankedBarChartCard
+                title="Event types by scheduled hours"
+                helper="Highlight the event types consuming the most booked time."
+                data={eventTypesQuery.data.rankedByHours}
+              />
+              <StackedCompositionChartCard
+                title="Type share over time"
+                helper="Track event type share as the mix changes."
+                points={eventTypesQuery.data.typeShareTrend}
+                mode="bar"
+              />
+              <StackedCompositionChartCard
+                title="Type by request category"
+                helper="Compare event-type volume through the request category lens."
+                points={eventTypesQuery.data.typeByRequestCategory}
+                mode="bar"
+              />
+              <DonutChartCard
+                title="Categorization coverage"
+                helper="How much of the filtered set has an explicit event type."
+                data={eventTypesQuery.data.categorizedVsUncategorized}
+              />
             </div>
           </div>
         )
@@ -414,23 +1023,47 @@ export function AnalyticsView() {
         locationsQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : locationsQuery.isError || !locationsQuery.data ? (
-          <ErrorState message="Unable to load location analytics." onRetry={() => void locationsQuery.refetch()} />
+          <ErrorState
+            message="Unable to load location analytics."
+            onRetry={() => void locationsQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={locationsQuery.data.kpis} />
             {coverageBadges(locationsQuery.data.coverage)}
             <div className="grid gap-6 xl:grid-cols-2">
               <RankedBarChartCard
-                title={locationLevel === "building" ? "Top buildings" : "Top rooms"}
+                title={
+                  locationLevel === "building" ? "Top buildings" : "Top rooms"
+                }
                 helper="Rank the busiest locations for the selected metric."
                 data={locationsQuery.data.rankedLocations}
                 toolbar={
                   <>
-                    <select className={controlClass} value={locationLevel} onChange={(event) => setLocationLevel(event.target.value as "building" | "room")}>
+                    <select
+                      className={controlClass}
+                      value={locationLevel}
+                      onChange={(event) =>
+                        setLocationLevel(
+                          event.target.value as "building" | "room",
+                        )
+                      }
+                    >
                       <option value="building">Building</option>
                       <option value="room">Room</option>
                     </select>
-                    <select className={controlClass} value={locationMetric} onChange={(event) => setLocationMetric(event.target.value as "eventCount" | "scheduledHours" | "participants")}>
+                    <select
+                      className={controlClass}
+                      value={locationMetric}
+                      onChange={(event) =>
+                        setLocationMetric(
+                          event.target.value as
+                            | "eventCount"
+                            | "scheduledHours"
+                            | "participants",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                       <option value="participants">Participants</option>
@@ -446,13 +1079,29 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <StackedCompositionChartCard title="Location trend" helper="Location-related workload by request category across time." points={locationsQuery.data.locationTrend} mode="bar" />
-              <HeatmapCard title="Building time pattern" helper="See when physical events cluster through the week." cells={locationsQuery.data.buildingHeatmap} />
-              <DonutChartCard title="Virtual vs physical" helper="Low-cardinality split of the filtered set." data={locationsQuery.data.virtualVsPhysical} />
-              <AnalyticsCard title="Occupancy table" helper="Top locations with counts, hours, and median duration.">
+              <StackedCompositionChartCard
+                title="Location trend"
+                helper="Location-related workload by request category across time."
+                points={locationsQuery.data.locationTrend}
+                mode="bar"
+              />
+              <HeatmapCard
+                title="Building time pattern"
+                helper="See when physical events cluster through the week."
+                cells={locationsQuery.data.buildingHeatmap}
+              />
+              <DonutChartCard
+                title="Virtual vs physical"
+                helper="Low-cardinality split of the filtered set."
+                data={locationsQuery.data.virtualVsPhysical}
+              />
+              <AnalyticsCard
+                title="Occupancy table"
+                helper="Top locations with counts, hours, and median duration."
+              >
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
-                    <thead className="text-left text-ink-muted">
+                    <thead className="text-ink-muted text-left">
                       <tr>
                         <th className="pb-2">Location</th>
                         <th className="pb-2">Events</th>
@@ -462,11 +1111,20 @@ export function AnalyticsView() {
                     </thead>
                     <tbody>
                       {locationsQuery.data.occupancyRows.map((row) => (
-                        <tr key={row.key} className="border-t border-outline-muted">
-                          <td className="py-2 text-ink-primary">{row.label}</td>
-                          <td className="py-2 text-ink-muted">{row.eventCount}</td>
-                          <td className="py-2 text-ink-muted">{row.scheduledHours}</td>
-                          <td className="py-2 text-ink-muted">{row.medianDuration}h</td>
+                        <tr
+                          key={row.key}
+                          className="border-outline-muted border-t"
+                        >
+                          <td className="text-ink-primary py-2">{row.label}</td>
+                          <td className="text-ink-muted py-2">
+                            {row.eventCount}
+                          </td>
+                          <td className="text-ink-muted py-2">
+                            {row.scheduledHours}
+                          </td>
+                          <td className="text-ink-muted py-2">
+                            {row.medianDuration}h
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -482,7 +1140,10 @@ export function AnalyticsView() {
         requestersQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : requestersQuery.isError || !requestersQuery.data ? (
-          <ErrorState message="Unable to load requester analytics." onRetry={() => void requestersQuery.refetch()} />
+          <ErrorState
+            message="Unable to load requester analytics."
+            onRetry={() => void requestersQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={requestersQuery.data.kpis} />
@@ -494,7 +1155,18 @@ export function AnalyticsView() {
                 data={requestersQuery.data.rankedRequesters}
                 toolbar={
                   <>
-                    <select className={controlClass} value={requesterMetric} onChange={(event) => setRequesterMetric(event.target.value as "eventCount" | "scheduledHours" | "participants")}>
+                    <select
+                      className={controlClass}
+                      value={requesterMetric}
+                      onChange={(event) =>
+                        setRequesterMetric(
+                          event.target.value as
+                            | "eventCount"
+                            | "scheduledHours"
+                            | "participants",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                       <option value="participants">Participants</option>
@@ -510,10 +1182,29 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <StackedCompositionChartCard title="Requester share over time" helper="How requester mix changes through time." points={requestersQuery.data.requesterShareTrend} mode="bar" />
-              <StackedCompositionChartCard title="Requester by request category" helper="Break requester demand down by request category." points={requestersQuery.data.requesterByRequestCategory} mode="bar" />
-              <HeatmapCard title="Requester by location" helper="Matrix of top requesters against top buildings." cells={requestersQuery.data.requesterLocationMatrix} />
-              <TimeSeriesChartCard title="Concentration curve" helper="Cumulative share contributed by the top requesters." series={requestersQuery.data.concentrationCurve} mode="line" />
+              <StackedCompositionChartCard
+                title="Requester share over time"
+                helper="How requester mix changes through time."
+                points={requestersQuery.data.requesterShareTrend}
+                mode="bar"
+              />
+              <StackedCompositionChartCard
+                title="Requester by request category"
+                helper="Break requester demand down by request category."
+                points={requestersQuery.data.requesterByRequestCategory}
+                mode="bar"
+              />
+              <HeatmapCard
+                title="Requester by location"
+                helper="Matrix of top requesters against top buildings."
+                cells={requestersQuery.data.requesterLocationMatrix}
+              />
+              <TimeSeriesChartCard
+                title="Concentration curve"
+                helper="Cumulative share contributed by the top requesters."
+                series={requestersQuery.data.concentrationCurve}
+                mode="line"
+              />
             </div>
           </div>
         )
@@ -523,7 +1214,10 @@ export function AnalyticsView() {
         attendeesQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : attendeesQuery.isError || !attendeesQuery.data ? (
-          <ErrorState message="Unable to load attendee analytics." onRetry={() => void attendeesQuery.refetch()} />
+          <ErrorState
+            message="Unable to load attendee analytics."
+            onRetry={() => void attendeesQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={attendeesQuery.data.kpis} />
@@ -535,7 +1229,18 @@ export function AnalyticsView() {
                 data={attendeesQuery.data.rankedAttendees}
                 toolbar={
                   <>
-                    <select className={controlClass} value={attendeeMetric} onChange={(event) => setAttendeeMetric(event.target.value as "eventCount" | "scheduledHours" | "participants")}>
+                    <select
+                      className={controlClass}
+                      value={attendeeMetric}
+                      onChange={(event) =>
+                        setAttendeeMetric(
+                          event.target.value as
+                            | "eventCount"
+                            | "scheduledHours"
+                            | "participants",
+                        )
+                      }
+                    >
                       <option value="eventCount">Event count</option>
                       <option value="scheduledHours">Scheduled hours</option>
                       <option value="participants">Participants</option>
@@ -551,12 +1256,43 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <StackedCompositionChartCard title="Attendee share over time" helper="How attendee mix changes through time." points={attendeesQuery.data.attendeeShareTrend} mode="bar" />
-              <StackedCompositionChartCard title="Attendance by request category" helper="Break attendee-linked demand down by request category." points={attendeesQuery.data.attendeeByRequestCategory} mode="bar" />
-              <StackedCompositionChartCard title="Participant load by attendee" helper="Track participant volume across the top attendees over time." points={attendeesQuery.data.attendeeParticipantShareTrend} mode="bar" />
-              <StackedCompositionChartCard title="Participants by request category" helper="See where participant volume is concentrated across request categories." points={attendeesQuery.data.attendeeParticipantsByRequestCategory} mode="bar" />
-              <HeatmapCard title="Attendee by location" helper="Matrix of top attendees against top buildings." cells={attendeesQuery.data.attendeeLocationMatrix} />
-              <TimeSeriesChartCard title="Concentration curve" helper="Cumulative share contributed by the top attendees." series={attendeesQuery.data.concentrationCurve} mode="line" />
+              <StackedCompositionChartCard
+                title="Attendee share over time"
+                helper="How attendee mix changes through time."
+                points={attendeesQuery.data.attendeeShareTrend}
+                mode="bar"
+              />
+              <StackedCompositionChartCard
+                title="Attendance by request category"
+                helper="Break attendee-linked demand down by request category."
+                points={attendeesQuery.data.attendeeByRequestCategory}
+                mode="bar"
+              />
+              <StackedCompositionChartCard
+                title="Participant load by attendee"
+                helper="Track participant volume across the top attendees over time."
+                points={attendeesQuery.data.attendeeParticipantShareTrend}
+                mode="bar"
+              />
+              <StackedCompositionChartCard
+                title="Participants by request category"
+                helper="See where participant volume is concentrated across request categories."
+                points={
+                  attendeesQuery.data.attendeeParticipantsByRequestCategory
+                }
+                mode="bar"
+              />
+              <HeatmapCard
+                title="Attendee by location"
+                helper="Matrix of top attendees against top buildings."
+                cells={attendeesQuery.data.attendeeLocationMatrix}
+              />
+              <TimeSeriesChartCard
+                title="Concentration curve"
+                helper="Cumulative share contributed by the top attendees."
+                series={attendeesQuery.data.concentrationCurve}
+                mode="line"
+              />
             </div>
           </div>
         )
@@ -566,7 +1302,10 @@ export function AnalyticsView() {
         durationsQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : durationsQuery.isError || !durationsQuery.data ? (
-          <ErrorState message="Unable to load duration analytics." onRetry={() => void durationsQuery.refetch()} />
+          <ErrorState
+            message="Unable to load duration analytics."
+            onRetry={() => void durationsQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={durationsQuery.data.kpis} />
@@ -575,15 +1314,41 @@ export function AnalyticsView() {
               <RankedBarChartCard
                 title="Duration histogram"
                 helper="Distribution of the selected duration metric."
-                data={durationsQuery.data.histogram.map((row) => ({ key: row.key, label: row.label, value: row.value }))}
+                data={durationsQuery.data.histogram.map((row) => ({
+                  key: row.key,
+                  label: row.label,
+                  value: row.value,
+                }))}
                 toolbar={
                   <>
-                    <select className={controlClass} value={durationMetric} onChange={(event) => setDurationMetric(event.target.value as "scheduled" | "program" | "setupLead")}>
+                    <select
+                      className={controlClass}
+                      value={durationMetric}
+                      onChange={(event) =>
+                        setDurationMetric(
+                          event.target.value as
+                            | "scheduled"
+                            | "program"
+                            | "setupLead",
+                        )
+                      }
+                    >
                       <option value="scheduled">Scheduled</option>
                       <option value="program">Program</option>
                       <option value="setupLead">Setup lead</option>
                     </select>
-                    <select className={controlClass} value={durationBreakout} onChange={(event) => setDurationBreakout(event.target.value as "eventType" | "building" | "requester")}>
+                    <select
+                      className={controlClass}
+                      value={durationBreakout}
+                      onChange={(event) =>
+                        setDurationBreakout(
+                          event.target.value as
+                            | "eventType"
+                            | "building"
+                            | "requester",
+                        )
+                      }
+                    >
                       <option value="eventType">Event type</option>
                       <option value="building">Building</option>
                       <option value="requester">Requester</option>
@@ -599,15 +1364,32 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <BoxPlotCard title="Box plot by breakout" helper="Spread and outliers for the chosen grouping." data={durationsQuery.data.boxPlot} />
-              <ScatterCard title="Participants vs duration" helper="Participant count against duration, shown when coverage is sufficient." data={durationsQuery.data.scatter} />
-              <AnalyticsCard title="Longest events" helper="The longest bookings in the filtered set.">
+              <BoxPlotCard
+                title="Box plot by breakout"
+                helper="Spread and outliers for the chosen grouping."
+                data={durationsQuery.data.boxPlot}
+              />
+              <ScatterCard
+                title="Participants vs duration"
+                helper="Participant count against duration, shown when coverage is sufficient."
+                data={durationsQuery.data.scatter}
+              />
+              <AnalyticsCard
+                title="Longest events"
+                helper="The longest bookings in the filtered set."
+              >
                 <div className="space-y-3">
                   {durationsQuery.data.longestEvents.map((entry) => (
-                    <div key={entry.id} className="rounded-xl border border-outline-muted bg-surface-muted px-4 py-3">
-                      <div className="text-sm font-semibold text-ink-primary">{entry.title}</div>
-                      <div className="mt-1 text-xs text-ink-muted">
-                        {entry.duration}h{entry.buildingLabel ? ` · ${entry.buildingLabel}` : ""}
+                    <div
+                      key={entry.id}
+                      className="border-outline-muted bg-surface-muted rounded-xl border px-4 py-3"
+                    >
+                      <div className="text-ink-primary text-sm font-semibold">
+                        {entry.title}
+                      </div>
+                      <div className="text-ink-muted mt-1 text-xs">
+                        {entry.duration}h
+                        {entry.buildingLabel ? ` · ${entry.buildingLabel}` : ""}
                       </div>
                     </div>
                   ))}
@@ -622,7 +1404,10 @@ export function AnalyticsView() {
         overlapQuery.isLoading ? (
           <AnalyticsLoadingState cards={4} />
         ) : overlapQuery.isError || !overlapQuery.data ? (
-          <ErrorState message="Unable to load overlap analytics." onRetry={() => void overlapQuery.refetch()} />
+          <ErrorState
+            message="Unable to load overlap analytics."
+            onRetry={() => void overlapQuery.refetch()}
+          />
         ) : (
           <div className="flex flex-col gap-6">
             <AnalyticsKpiGrid items={overlapQuery.data.kpis} />
@@ -639,7 +1424,9 @@ export function AnalyticsView() {
                       className={controlClass}
                       value={overlapLevel}
                       onChange={(event) => {
-                        setOverlapLevel(event.target.value as "system" | "building" | "room");
+                        setOverlapLevel(
+                          event.target.value as "system" | "building" | "room",
+                        );
                         setOverlapEntityId(null);
                       }}
                     >
@@ -651,11 +1438,20 @@ export function AnalyticsView() {
                       <select
                         className={controlClass}
                         value={overlapEntityId ?? ""}
-                        onChange={(event) => setOverlapEntityId(event.target.value ? Number(event.target.value) : null)}
+                        onChange={(event) =>
+                          setOverlapEntityId(
+                            event.target.value
+                              ? Number(event.target.value)
+                              : null,
+                          )
+                        }
                       >
                         <option value="">Select {overlapLevel}</option>
                         {overlapEntities.map((option) => (
-                          <option key={String(option.value)} value={String(option.value)}>
+                          <option
+                            key={String(option.value)}
+                            value={String(option.value)}
+                          >
                             {option.label}
                           </option>
                         ))}
@@ -672,12 +1468,26 @@ export function AnalyticsView() {
                   </>
                 }
               />
-              <HeatmapCard title="Concurrency heatmap" helper="Intensity of simultaneous event load by weekday and hour." cells={overlapQuery.data.concurrencyHeatmap} />
-              <RankedBarChartCard title="Overlap burden" helper="Locations ranked by overlap hours." data={overlapQuery.data.overlapRanked} />
+              <HeatmapCard
+                title="Concurrency heatmap"
+                helper="Intensity of simultaneous event load by weekday and hour."
+                cells={overlapQuery.data.concurrencyHeatmap}
+              />
+              <RankedBarChartCard
+                title="Overlap burden"
+                helper="Locations ranked by overlap hours."
+                data={overlapQuery.data.overlapRanked}
+              />
               <RankedBarChartCard
                 title="Overlap duration distribution"
                 helper="Distribution of segment durations where more than one event overlaps."
-                data={overlapQuery.data.overlapDurationDistribution.map((row) => ({ key: row.key, label: row.label, value: row.value }))}
+                data={overlapQuery.data.overlapDurationDistribution.map(
+                  (row) => ({
+                    key: row.key,
+                    label: row.label,
+                    value: row.value,
+                  }),
+                )}
               />
               <TimelineLanesCard
                 title="Selected-day timeline"
@@ -688,7 +1498,9 @@ export function AnalyticsView() {
                     type="date"
                     className={controlClass}
                     value={selectedOverlapDate}
-                    onChange={(event) => setSelectedOverlapDate(event.target.value)}
+                    onChange={(event) =>
+                      setSelectedOverlapDate(event.target.value)
+                    }
                   />
                 }
               />

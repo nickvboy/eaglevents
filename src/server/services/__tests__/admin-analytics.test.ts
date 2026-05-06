@@ -8,6 +8,7 @@ import {
   computeOverlapStats,
   computeRequesterProxy,
   defaultAnalyticsFilters,
+  mergeAnalyticsEventsBySharedId,
   resolveAnalyticsDateRange,
   resolveAnalyticsFrequency,
   type AnalyticsEventFact,
@@ -16,6 +17,7 @@ import {
 function makeEvent(overrides: Partial<AnalyticsEventFact> = {}): AnalyticsEventFact {
   return {
     id: 1,
+    sharedEventId: "shared-1",
     title: "Sample event",
     start: new Date("2025-01-10T10:00:00.000Z"),
     end: new Date("2025-01-10T12:00:00.000Z"),
@@ -108,6 +110,18 @@ void describe("admin analytics helpers", () => {
     const coverage = buildCoverageSummary(rows);
     assert.equal(coverage.participantCountCoveragePercent, 66.7);
     assert.equal(coverage.eventTypeCoveragePercent, 66.7);
+  });
+
+  void it("deduplicates linked cross-calendar events by shared event id", () => {
+    const rows = mergeAnalyticsEventsBySharedId([
+      makeEvent({ id: 1, sharedEventId: "linked-1", calendarId: 1, calendarName: "Operations" }),
+      makeEvent({ id: 2, sharedEventId: "linked-1", calendarId: 2, calendarName: "Facilities" }),
+      makeEvent({ id: 3, sharedEventId: "linked-2", calendarId: 3, calendarName: "Main" }),
+    ]);
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.sharedEventId, "linked-1");
+    assert.equal(buildCoverageSummary(rows).totalEvents, 2);
   });
 
   void it("ranks attendees using attendee records", () => {

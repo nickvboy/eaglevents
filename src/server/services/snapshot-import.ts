@@ -41,7 +41,7 @@ type DbClient = typeof dbClient;
 type DbExecutor = Pick<DbClient, "execute">;
 type DbInserter = Pick<DbClient, "insert">;
 
-export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5] as const;
+export const SUPPORTED_SNAPSHOT_VERSIONS = [2, 3, 4, 5, 6] as const;
 
 const businessTypeValues = ["university", "nonprofit", "corporation", "government", "venue", "other"] as const;
 const organizationRoleValues = ["admin", "co_admin", "manager", "employee"] as const;
@@ -196,7 +196,7 @@ function normalizeLegacySnapshotPayload(value: unknown) {
 }
 
 export const snapshotSchema = z.preprocess(normalizeLegacySnapshotPayload, z.object({
-  version: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  version: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
   exportedAt: timestampSchema,
   metadata: z
     .object({
@@ -346,6 +346,7 @@ export const snapshotSchema = z.preprocess(normalizeLegacySnapshotPayload, z.obj
     events: z.array(
       z.object({
         id: z.number().int().positive(),
+        sharedEventId: z.string().min(1).max(64).optional(),
         calendarId: z.number().int().positive(),
         buildingId: z.number().int().positive().nullable(),
         assigneeProfileId: z.number().int().positive().nullable(),
@@ -980,6 +981,7 @@ export async function restoreSnapshot(db: DbClient, input: SnapshotImportInput) 
 
           return {
             id: row.id,
+            sharedEventId: row.sharedEventId ?? String(row.id),
             calendarId: row.calendarId,
             buildingId: row.buildingId ?? null,
             assigneeProfileId: row.assigneeProfileId ?? null,

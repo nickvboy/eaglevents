@@ -675,64 +675,53 @@ export const eventRouter = createTRPCRouter({
     .input(z.object({ identifier: z.string().trim().min(1).max(64) }))
     .query(async ({ ctx, input }) => {
       const trimmed = input.identifier.trim();
-      const possibilities: Array<Promise<number | undefined>> = [];
+      const context = await getOptionalPermissionContext(ctx.db, ctx.session);
+      if (!context) return null;
+      const visible = await getVisibleScopes(ctx.db, context.userId);
+      const accessibleCalendarIds = await getAccessibleCalendarIds(ctx.db, context.userId);
+      if (accessibleCalendarIds.length === 0) return null;
+
+      const resolveFirstVisibleMatch = async (condition: SQL<unknown>) => {
+        const matches = await selectHydratedEventsByCondition(
+          ctx.db,
+          and(
+            condition,
+            eq(events.isArchived, false),
+            inArray(events.calendarId, accessibleCalendarIds),
+          ) ?? undefined,
+          { limit: 25 },
+        );
+
+        return matches.find((row) => isScopeVisible(row, visible)) ?? null;
+      };
+
       const numericId = Number(trimmed);
       if (Number.isInteger(numericId) && numericId > 0) {
-        possibilities.push(
-          ctx.db
-            .select({ id: events.id })
-            .from(events)
-            .where(and(eq(events.id, numericId), eq(events.isArchived, false)))
-            .limit(1)
-            .then((rows) => rows[0]?.id),
-        );
-      }
-
-      possibilities.push(
-        ctx.db
-          .select({ id: events.id })
-          .from(events)
-          .where(and(eq(events.eventCode, trimmed), eq(events.isArchived, false)))
-          .limit(1)
-          .then((rows) => rows[0]?.id),
-      );
-
-      const zendesk = cleanZendeskTicketNumber(trimmed);
-      if (zendesk) {
-        possibilities.push(
-          ctx.db
-            .select({ id: events.id })
-            .from(events)
-            .where(and(eq(events.zendeskTicketNumber, zendesk), eq(events.isArchived, false)))
-            .limit(1)
-            .then((rows) => rows[0]?.id),
-        );
-      }
-
-      let resolvedId: number | undefined;
-      for (const attempt of possibilities) {
-        const candidate = await attempt;
-        if (candidate) {
-          resolvedId = candidate;
-          break;
+        const directMatch = await resolveFirstVisibleMatch(eq(events.id, numericId));
+        if (directMatch) {
+          const [response] = await buildEventResponses(ctx.db, [directMatch]);
+          return response ?? null;
         }
       }
 
-      if (!resolvedId) return null;
-      const resolved = await selectHydratedEventById(ctx.db, resolvedId);
-      if (!resolved || resolved.isArchived) return null;
-      const context = await getOptionalPermissionContext(ctx.db, ctx.session);
-      if (!context) return null;
-      const calendarAccess = await getCalendarAccess(ctx.db, context.userId, resolved.calendarId);
-      if (!calendarAccess?.canView) {
-        return null;
+      const eventCodeMatch = await resolveFirstVisibleMatch(eq(events.eventCode, trimmed));
+      if (eventCodeMatch) {
+        const [response] = await buildEventResponses(ctx.db, [eventCodeMatch]);
+        return response ?? null;
       }
-      const visible = await getVisibleScopes(ctx.db, context.userId);
-      if (!isScopeVisible(resolved, visible)) {
-        return null;
+
+      const zendesk = cleanZendeskTicketNumber(trimmed);
+      if (zendesk) {
+        const zendeskMatch = await resolveFirstVisibleMatch(
+          eq(events.zendeskTicketNumber, zendesk),
+        );
+        if (zendeskMatch) {
+          const [response] = await buildEventResponses(ctx.db, [zendeskMatch]);
+          return response ?? null;
+        }
       }
-      const [response] = await buildEventResponses(ctx.db, [resolved]);
-      return response ?? null;
+
+      return null;
     }),
 
   tickets: protectedProcedure

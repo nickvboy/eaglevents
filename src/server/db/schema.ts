@@ -447,6 +447,10 @@ export const events = createTable(
   "event",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    sharedEventId: d
+      .varchar({ length: 64 })
+      .default(sql`md5(random()::text || clock_timestamp()::text)`)
+      .notNull(),
     calendarId: d
       .integer()
       .notNull()
@@ -500,6 +504,7 @@ export const events = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [
+    index("event_shared_event_idx").on(t.sharedEventId),
     index("event_calendar_idx").on(t.calendarId),
     index("event_building_idx").on(t.buildingId),
     index("event_start_datetime_fk_idx").on(t.startDateTimeId),
@@ -507,7 +512,7 @@ export const events = createTable(
     index("event_assignee_idx").on(t.assigneeProfileId),
     index("event_scope_idx").on(t.scopeType, t.scopeId),
     index("event_owner_idx").on(t.ownerProfileId),
-    uniqueIndex("event_event_code_unique").on(t.eventCode),
+    index("event_event_code_idx").on(t.eventCode),
   ],
 );
 

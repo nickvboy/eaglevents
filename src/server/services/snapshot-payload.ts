@@ -27,7 +27,7 @@ import { loadDateTimesByIds } from "~/server/services/date-time";
 
 type DbClient = typeof dbClient;
 
-export const SNAPSHOT_VERSION = 5;
+export const SNAPSHOT_VERSION = 6;
 
 export type SnapshotExportActor = {
   userId: number | null;
@@ -335,6 +335,7 @@ export async function loadSnapshotData(db: DbClient) {
     })),
     events: eventRows.map((row) => ({
       id: row.id,
+      sharedEventId: row.sharedEventId,
       calendarId: row.calendarId,
       buildingId: row.buildingId ?? null,
       assigneeProfileId: row.assigneeProfileId ?? null,
