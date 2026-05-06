@@ -21,11 +21,10 @@ type CalendarScopeOption = RouterOutputs["calendar"]["scopeOptions"][number];
 const MOBILE_QUERY = "(max-width: 768px)";
 const VALID_VIEWS: View[] = ["day", "threeday", "workweek", "week", "month"];
 const VIEW_PREFERENCE_KEY = "calendar.view.preference";
-const VIEW_PREFERENCE_TTL_MS = 1000 * 60 * 60 * 4;
 
 type StoredViewPreference = {
   view: View;
-  expiresAt: number;
+  expiresAt?: number;
 };
 
 function isView(value: string): value is View {
@@ -58,13 +57,8 @@ function getStoredViewPreference(fallback: View) {
     const raw = window.localStorage.getItem(VIEW_PREFERENCE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<StoredViewPreference>;
-      if (
-        typeof parsed.view === "string" &&
-        isView(parsed.view) &&
-        typeof parsed.expiresAt === "number"
-      ) {
-        if (parsed.expiresAt > Date.now()) return parsed.view;
-        window.localStorage.removeItem(VIEW_PREFERENCE_KEY);
+      if (typeof parsed.view === "string" && isView(parsed.view)) {
+        return parsed.view;
       }
     }
   } catch {
@@ -81,10 +75,7 @@ function persistViewPreference(view: View) {
   if (typeof window === "undefined") return;
 
   try {
-    const payload: StoredViewPreference = {
-      view,
-      expiresAt: Date.now() + VIEW_PREFERENCE_TTL_MS,
-    };
+    const payload: StoredViewPreference = { view };
     const serialized = JSON.stringify(payload);
     window.localStorage.setItem(VIEW_PREFERENCE_KEY, serialized);
     window.localStorage.setItem("calendar.view.desktop", view);
@@ -98,11 +89,10 @@ export function CalendarShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialDate = useMemo(() => startOfDay(new Date()), []);
-  const [desktopView, setDesktopView] = useState<View>("workweek");
-  const [mobileView, setMobileView] = useState<View>("day");
+  const [storedActiveView, setActiveViewState] = useState<View | null>(null);
+  const activeView = storedActiveView ?? "workweek";
   const [selectedDate, setSelectedDate] = useState(() => initialDate);
-  const desktopViewHydrated = useRef(false);
-  const mobileViewHydrated = useRef(false);
+  const [viewsHydrated, setViewsHydrated] = useState(false);
   const [openNew, setOpenNew] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
@@ -122,62 +112,28 @@ export function CalendarShell() {
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMonthDate, setMobileMonthDate] = useState(() => selectedDate);
-  const [viewsHydrated, setViewsHydrated] = useState(false);
-  const activeView = isMobile ? mobileView : desktopView;
-  const setActiveView = (next: View) => {
-    setDesktopView(next);
-    setMobileView(next);
-  };
-  
+  const setActiveView = useCallback((next: View) => {
+    setActiveViewState(next);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const saved = getStoredViewPreference("workweek");
-      setDesktopView(saved);
+      setActiveViewState(saved);
     } catch {
       // ignore storage errors
     } finally {
-      desktopViewHydrated.current = true;
-      if (mobileViewHydrated.current) setViewsHydrated(true);
+      setViewsHydrated(true);
     }
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!desktopViewHydrated.current) return;
-    if (isMobile) return;
-    persistViewPreference(desktopView);
-  }, [desktopView, isMobile]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const saved = getStoredViewPreference("day");
-      setMobileView(saved);
-    } catch {
-      // ignore storage errors
-    } finally {
-      mobileViewHydrated.current = true;
-      if (desktopViewHydrated.current) setViewsHydrated(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!mobileViewHydrated.current) return;
-    if (!isMobile) return;
-    persistViewPreference(mobileView);
-  }, [mobileView, isMobile]);
-
-  useEffect(() => {
     if (!viewsHydrated) return;
-    if (isMobile) {
-      if (mobileView !== desktopView) setMobileView(desktopView);
-    } else {
-      if (desktopView !== mobileView) setDesktopView(mobileView);
-    }
-  }, [desktopView, isMobile, mobileView, viewsHydrated]);
+    if (!storedActiveView) return;
+    persistViewPreference(activeView);
+  }, [activeView, storedActiveView, viewsHydrated]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -552,6 +508,19 @@ export function CalendarShell() {
       </div>
     </div>
   );
+
+  if (!viewsHydrated) {
+    return (
+      <div className="flex h-full min-h-0 flex-1 flex-col bg-surface-raised">
+        {business?.name && (
+          <div className="shrink-0 border-b border-outline-muted bg-surface-muted px-4 py-3 lg:px-6">
+            <h1 className="text-xl font-semibold text-ink-primary lg:text-2xl">{business.name}</h1>
+          </div>
+        )}
+        <div className="min-h-0 flex-1 bg-surface-raised" />
+      </div>
+    );
+  }
 
   return (
     <>
