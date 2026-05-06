@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { normalizeRoomNumber } from "~/lib/room-number";
+import { normalizeRoomNumber, normalizeRoomNumberInput } from "~/lib/room-number";
 import { api } from "~/trpc/react";
 import type { SetupStatusData } from "~/types/setup";
 import { useSetupCompletionRedirect } from "../useSetupCompletionRedirect";
@@ -185,7 +185,7 @@ export function BuildingsForm({ status, onUpdated }: { status: SetupStatusData; 
                   onChange={(e) => {
                     setDrafts((prev) =>
                       prev.map((item) =>
-                        item.id === draft.id ? { ...item, roomField: normalizeRoomNumber(e.target.value) } : item,
+                        item.id === draft.id ? { ...item, roomField: normalizeRoomNumberInput(e.target.value) } : item,
                       ),
                     );
                     setHasLocalChanges(true);

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import { ColorPicker } from "~/app/_components/ColorPicker";
-import { normalizeRoomNumber } from "~/lib/room-number";
+import { normalizeRoomNumber, normalizeRoomNumberInput } from "~/lib/room-number";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { DEFAULT_DATE_FORMAT_CONFIG } from "~/types/date-time";
 
@@ -909,7 +909,7 @@ export function CompanyView() {
                 <input
                   value={newBuilding.roomField}
                   onChange={(event) =>
-                    setNewBuilding((prev) => ({ ...prev, roomField: normalizeRoomNumber(event.target.value) }))
+                    setNewBuilding((prev) => ({ ...prev, roomField: normalizeRoomNumberInput(event.target.value) }))
                   }
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
@@ -1078,7 +1078,7 @@ export function CompanyView() {
                           {editingRoomId === room.id ? (
                             <input
                               value={editingRoomValue}
-                              onChange={(event) => setEditingRoomValue(normalizeRoomNumber(event.target.value))}
+                              onChange={(event) => setEditingRoomValue(normalizeRoomNumberInput(event.target.value))}
                               onBlur={async () => {
                                 const nextValue = normalizeRoomNumber(editingRoomValue);
                                 setEditingRoomId(null);
@@ -1143,7 +1143,7 @@ export function CompanyView() {
                           const base = prev[building.id] ?? { name: building.name, acronym: building.acronym, roomField: "" };
                           return {
                             ...prev,
-                            [building.id]: { ...base, roomField: normalizeRoomNumber(event.target.value) },
+                            [building.id]: { ...base, roomField: normalizeRoomNumberInput(event.target.value) },
                           };
                         })
                       }

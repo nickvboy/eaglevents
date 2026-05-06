@@ -23,7 +23,7 @@ import {
   type EventRequestDetails,
   type EventTypeOption,
 } from "~/types/event-request";
-import { normalizeRoomNumber } from "~/lib/room-number";
+import { normalizeRoomNumber, normalizeRoomNumberInput } from "~/lib/room-number";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
@@ -5694,7 +5694,7 @@ export function NewEventDialog({
                   placeholder="Search selected building rooms, e.g. 210 or 210A"
                   value={roomNumber}
                   onChange={(e) => {
-                    const next = normalizeRoomNumber(e.target.value);
+                    const next = normalizeRoomNumberInput(e.target.value);
                     setRoomNumber(next);
                     setActiveLocationSearch("selected-building");
                     setLocationHighlight(-1);
